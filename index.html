@@ -187,14 +187,64 @@
   /* Follow-up messages from the same person skip the picture and name. */
   .msg.cont { margin-top: 0; padding-top: 1px; padding-bottom: 1px; }
   .msg.cont > .avatar, .msg.cont .head { display: none; }
-  .msg .del {
-    display: none; position: absolute; right: 6px; top: 4px;
-    background: var(--danger); color: #fff; border: 0; border-radius: 4px;
-    font-size: 11px; padding: 1px 6px; cursor: pointer;
+  /* Hover toolbar: react, report, delete */
+  .msg .acts {
+    display: none; position: absolute; right: 8px; top: -14px; z-index: 2; gap: 2px; padding: 2px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(20, 24, 40, .12);
   }
-  .msg:hover .del { display: block; }
+  .msg:hover .acts, .msg.picking .acts { display: flex; }
+  .acts button {
+    background: none; border: 0; border-radius: 6px; padding: 3px 7px; cursor: pointer;
+    color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 4px;
+  }
+  .acts button:hover { background: var(--hover); color: var(--text); }
+  .acts button.danger:hover { color: var(--danger); }
   .msg.pending { opacity: .55; }
-  .msg.pending .del { display: none; }
+  .msg.pending .acts { display: none !important; }
+
+  .reacts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+  .reacts:empty { display: none; }
+  .reacts button {
+    border: 1px solid var(--border); background: var(--panel); border-radius: 999px; padding: 1px 8px;
+    font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; color: var(--text);
+  }
+  .reacts button:hover { border-color: var(--accent); }
+  .reacts button.mine { border-color: var(--accent); background: rgba(106, 76, 245, .1); color: var(--accent); font-weight: 600; }
+  .reacts button.pop { animation: dotpop .3s ease-out; }
+  .picker {
+    position: fixed; z-index: 40; display: flex; gap: 2px; padding: 4px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    box-shadow: 0 6px 20px rgba(20, 24, 40, .18); animation: popin .15s ease-out;
+  }
+  .picker button { font-size: 22px; background: none; border: 0; border-radius: 8px; padding: 4px 6px; cursor: pointer; transition: transform .1s; }
+  .picker button:hover { background: var(--hover); transform: scale(1.2); }
+
+  .msg.mentioned { background: rgba(255, 200, 87, .16); box-shadow: inset 3px 0 0 var(--gold); }
+  .msg.mentioned:hover { background: rgba(255, 200, 87, .24); }
+  .ment { color: var(--accent); font-weight: 600; background: rgba(106, 76, 245, .1); border-radius: 4px; padding: 0 2px; }
+  .ment.you { color: #8a5a00; background: rgba(255, 200, 87, .45); }
+
+  .me .iconbtn { width: 34px; height: 34px; }
+  .composer-note { color: var(--muted); font-size: 12px; padding: 6px 16px 0; background: var(--panel); border-top: 1px solid var(--border); }
+  .composer-note + #attachbar, .composer-note + #send { border-top: 0; }
+  .composer-note.warn { color: var(--danger); }
+
+  .tabbar { display: flex; gap: 4px; background: var(--panel-2); border-radius: 10px; padding: 4px; }
+  .tabbar button { flex: 1; background: none; border: 0; border-radius: 7px; padding: 7px; cursor: pointer; color: var(--muted); font-weight: 600; }
+  .tabbar button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(20, 24, 40, .1); }
+  .modal.wide { max-width: 560px; }
+  .alist { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; max-height: 55vh; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .card .meta { color: var(--muted); font-size: 12px; }
+  .card q { display: block; background: var(--panel-2); border-radius: 8px; padding: 6px 10px; overflow-wrap: anywhere; quotes: none; }
+  .card .btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+  .urow { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .urow .nm { flex: 1; min-width: 120px; cursor: pointer; font-weight: 600; }
+  .urow .nm:hover { text-decoration: underline; }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+  #toast.click { cursor: pointer; }
   .msg.pending .time { display: inline-flex; align-items: center; gap: 5px; }
   .spinner {
     width: 10px; height: 10px; border-radius: 50%;
@@ -432,7 +482,12 @@
     <div class="brand"><img class="logo" alt="">Idiocy</div>
     <div class="me">
       <button class="who" id="mename" title="Your profile"></button>
-      <button class="ghost" id="logout">Log out</button>
+      <button class="iconbtn hidden" id="adminbtn" title="Admin panel" aria-label="Admin panel">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </button>
+      <button class="iconbtn" id="settingsbtn" title="Settings" aria-label="Settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.26.6.84 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
     </div>
     <div class="sec">
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
@@ -463,6 +518,7 @@
     </header>
     <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
+    <div id="composernote" class="composer-note hidden"></div>
     <div id="attachbar" class="hidden">
       <img id="attachimg" alt="">
       <span id="attachinfo">Image ready to send</span>
@@ -641,6 +697,8 @@ async function openProfile(name) {
       h('button', { class: 'ghost', onclick: run('unfriend', { username: name }) }, 'Cancel request'));
     else btns.push(h('button', { class: 'primary', onclick: run('friendRequest', { username: name }, () => toast('Friend request sent')) }, 'Add friend'));
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
+      if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
+      else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
       btns.push(p.banned
         ? h('button', { class: 'ghost', onclick: run('unban', { username: name }, () => toast(`${name} unbanned`)) }, 'Unban')
         : h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Ban ${name}?`)) run('ban', { username: name }, () => toast(`${name} banned`))(); } }, 'Ban'));
@@ -650,7 +708,8 @@ async function openProfile(name) {
       h('div', { class: 'inner' },
         big,
         h('div', { class: 'pname' + (p.role === 'admin' ? ' admin-name' : '') }, p.username || name, p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
-          p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED')),
+          p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
+          p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT')),
         h('div', { class: 'pstatus' },
           h('span', { class: 'dotsm' + (p.online ? ' on' : '') }),
           p.status || (p.online ? 'Online' : 'Offline')),
@@ -768,11 +827,12 @@ function fmtTime(t) {
 }
 
 let toastTimer;
-function toast(msg, isErr) {
+function toast(msg, isErr, onClick) {
   let el = $('toast');
   if (!el) { el = h('div', { id: 'toast' }); document.body.append(el); }
   el.textContent = msg;
-  el.className = isErr ? 'err' : '';
+  el.className = (isErr ? 'err' : '') + (onClick ? ' click' : '');
+  el.onclick = onClick ? () => { el.style.display = 'none'; onClick(); } : null;
   void el.offsetWidth; // restart the pop-in animation
   el.classList.add('show');
   el.style.display = 'block';
@@ -911,7 +971,9 @@ function signOut(msg) {
   store.del('chat_token');
   clearTimeout(pollTimer);
   me = st = uv = read = null;
+  pingTop = null;
   profiles.clear();
+  updateTitle();
   latest = {};
   sideSig = '';
   hideLoading(true);
@@ -920,11 +982,11 @@ function signOut(msg) {
 
 $('mename').onclick = () => { if (me) openProfile(me.name); };
 
-$('logout').onclick = async () => {
+async function logOut() {
   const t = token;
   signOut();
   try { await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'logout', token: t }) }); } catch (e) {}
-};
+}
 
 function start() {
   $('auth').classList.add('hidden');
@@ -980,7 +1042,7 @@ async function poll() {
   const myEpoch = epoch;
   const myGen = stateGen;
   try {
-    const d = await api('poll', { open: openId, after: lastId, uv, rev: openRev });
+    const d = await api('poll', { open: openId, after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop });
     if (!d.ok) {
       if (!d.auth && d.error !== lastError) { lastError = d.error; sys('Server error: ' + d.error, true); }
       hideLoading(); // so the error is visible
@@ -990,12 +1052,18 @@ async function poll() {
     setStatus(true);
     me = d.me;
     latest = d.latest;
+    settings = d.settings || settings;
+    if (pingTop === null) pingTop = d.pingTop; // first poll: don't replay old notifications
+    else if (d.pings && d.pings.length) {
+      pingTop = Math.max(pingTop, ...d.pings.map(p => p.n));
+      handlePings(d.pings);
+    }
     // A poll that overlapped an action may describe the world before it.
     if (d.state && myGen === stateGen && !opsInFlight) { st = d.state; uv = d.uv; }
     loadRead();
 
     if (myEpoch === epoch) {
-      if (d.open !== openId) {
+      if (d.open !== openId && !isPendingChat(openId)) {
         // Chat is gone (left the group, unfriended, etc.)
         switchTo('global');
         return;
@@ -1004,15 +1072,18 @@ async function poll() {
         const sending = [...log.querySelectorAll('.pending')];
         clearLog();
         openRev = d.rev;
-        if (!d.messages.length) sys(emptyText()).classList.add('empty');
+        if (!d.messages.length && !sending.length) sys(emptyText()).classList.add('empty');
         log.append(...sending);
       }
       if (d.messages) renderBatch(d.messages, !d.reset);
+      if (d.edited) d.edited.forEach(updateMessage);
       if (d.reset) { hideLoading(); scrollDown(); }
       markRead();
     }
     renderSide();
     renderHeader();
+    updateComposer();
+    updateTitle();
   } catch (e) {
     setStatus(false);
   } finally {
@@ -1078,6 +1149,7 @@ function renderSide() {
     return el;
   };
 
+  $('adminbtn').classList.toggle('hidden', me.role !== 'admin');
   const mine = profileOf(me.name);
   $('mename').replaceChildren(avatar(me.name, { dot: true, click: false }),
     h('span', { class: 'two' },
@@ -1148,7 +1220,7 @@ function renderHeader() {
   if (c) pendingTitle = null;
   $('title').textContent = c ? convoLabel(c) : pendingTitle || (openId === 'global' ? 'Global' : 'Loading\u2026');
   $('sub').textContent = !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
-    : c.type === 'global' ? 'Everyone'
+    : c.type === 'global' ? 'Everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
     : c.type === 'dm' ? 'Direct message'
     : `${c.members.length} members: ${c.members.join(', ')}`;
   $('gadd').classList.toggle('hidden', !isGroup);
@@ -1164,16 +1236,21 @@ function emptyText() {
 // ---------- switching chats ----------
 let pendingTitle = null; // title for a chat the sidebar doesn't know about yet
 
+const isPendingChat = id => String(id).startsWith('pending:');
+
 function switchTo(id) {
   openId = id;
-  store.set('chat_open', id);
+  if (!isPendingChat(id)) store.set('chat_open', id);
   epoch++;
   openRev = null;
+  eMax = 0;
+  closePicker();
   clearLog();
   showChatLoading();
   document.body.classList.remove('side-open');
   renderSide();
   renderHeader();
+  updateComposer();
   pollNow();
 }
 
@@ -1209,8 +1286,14 @@ function showChatLoading() {
 async function openDm(name) {
   const id = 'dm_' + [key(me.name), key(name)].sort().join('_');
   if (st && st.convos.some(c => c.id === id)) return switchTo(id); // no need to ask the server
+  // Switch away from the current chat right now, so nothing typed while the
+  // server sets up the DM can land in the wrong chat.
+  const temp = 'pending:' + key(name);
+  pendingTitle = name;
+  switchTo(temp);
   const d = await act('openDm', { username: name });
-  if (d) { pendingTitle = name; switchTo(d.convo); }
+  if (openId !== temp) return; // clicked somewhere else meanwhile
+  switchTo(d ? d.convo : 'global');
 }
 
 $('addfriend').addEventListener('submit', async e => {
@@ -1315,9 +1398,158 @@ function buildMessage(m, pending) {
       h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }, m.name),
       m.admin && h('span', { class: 'badge' }, 'ADMIN'),
       time),
-    h('div', { class: 'body' }, m.text || null, m.img && imageBlock(m)),
-    !pending && canDelete(m) && h('button', { class: 'del', onclick: () => deleteMessage(m, el) }, 'delete'));
+    h('div', { class: 'body' }, m.text ? richText(m.text) : null, m.img && imageBlock(m)),
+    h('div', { class: 'reacts' }),
+    !pending && h('div', { class: 'acts' },
+      h('button', { title: 'Add reaction', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642}+'),
+      !isMine(m) && h('button', { title: 'Report', onclick: () => openReport(el._m) }, '\u2691'),
+      canDelete(m) && h('button', { class: 'del danger', title: 'Delete', onclick: () => deleteMessage(el._m, el) }, '\u{1F5D1}')));
+  el._m = m;
+  el.dataset.id = m.id || '';
+  if (m.text && mentionsMe(m.text) && !isMine(m)) el.classList.add('mentioned');
+  paintReactions(el);
+  if (m.e) eMax = Math.max(eMax, m.e);
   return el;
+}
+
+const isMine = m => me && key(m.name) === key(me.name);
+
+// ---------- mentions ----------
+function myMentionRe() {
+  if (!me) return null;
+  const parts = me.name.split(/[\s_-]+/).map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp('@' + parts.join('[\\s_-]*') + '(?![A-Za-z0-9])', 'i');
+}
+
+function mentionsMe(text) {
+  const re = myMentionRe();
+  return !!re && re.test(text);
+}
+
+// Message text with @mentions highlighted (built from text nodes, never HTML).
+function richText(text) {
+  const mine = myMentionRe();
+  // (?!) never matches, for when we don't know our own name yet.
+  const re = new RegExp('(' + (mine ? mine.source : '(?!)') + ')|(@[A-Za-z0-9_-]+)', 'gi');
+  const out = [];
+  let last = 0, m;
+  while ((m = re.exec(text))) {
+    out.push(text.slice(last, m.index));
+    out.push(h('span', { class: 'ment' + (m[1] ? ' you' : '') }, m[0]));
+    last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return h('span', null, out.filter(x => x !== ''));
+}
+
+// ---------- reactions ----------
+const REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F480}', '\u{1F525}'];
+
+function paintReactions(el, popEmoji) {
+  const m = el._m;
+  const bar = el.querySelector('.reacts');
+  if (!bar) return;
+  const r = m.r || {};
+  bar.replaceChildren(...REACTIONS.filter(e => r[e] && r[e].length).map(e => {
+    const names = r[e];
+    const mine = me && names.some(n => key(n) === key(me.name));
+    return h('button', {
+      class: (mine ? 'mine' : '') + (e === popEmoji ? ' pop' : ''),
+      title: names.join(', '),
+      onclick: () => toggleReaction(el, e),
+    }, e, h('span', null, String(names.length)));
+  }));
+}
+
+// Messages whose reactions changed (from a poll): repaint in place.
+function updateMessage(m) {
+  if (m.e) eMax = Math.max(eMax, m.e);
+  const el = log.querySelector(`.msg[data-id="${m.id}"]`);
+  if (!el || el._busy) return;
+  el._m = m;
+  paintReactions(el);
+}
+
+async function toggleReaction(el, emoji) {
+  closePicker();
+  const m = el._m;
+  if (!m.id || !me) return;
+  // Show it straight away, then settle on whatever the server says.
+  const before = JSON.stringify(m.r || {});
+  const r = JSON.parse(before);
+  const names = r[emoji] || [];
+  const i = names.findIndex(n => key(n) === key(me.name));
+  if (i >= 0) names.splice(i, 1); else names.push(me.name);
+  if (names.length) r[emoji] = names; else delete r[emoji];
+  el._m = Object.assign({}, m, { r });
+  el._busy = true;
+  paintReactions(el, i < 0 ? emoji : null);
+  const d = await act('react', { convo: openId, id: m.id, emoji });
+  el._busy = false;
+  el._m = d ? d.message : Object.assign({}, m, { r: JSON.parse(before) });
+  if (d && d.message.e) eMax = Math.max(eMax, d.message.e);
+  paintReactions(el);
+}
+
+let pickerEl = null;
+function openPicker(btn, el) {
+  closePicker();
+  const rect = btn.getBoundingClientRect();
+  pickerEl = h('div', { class: 'picker', role: 'menu' },
+    REACTIONS.map(e => h('button', { title: 'React ' + e, onclick: () => toggleReaction(el, e) }, e)));
+  document.body.append(pickerEl);
+  const w = pickerEl.offsetWidth;
+  pickerEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, rect.right - w)) + 'px';
+  pickerEl.style.top = Math.max(8, rect.top - pickerEl.offsetHeight - 6) + 'px';
+  el.classList.add('picking');
+  pickerEl._msg = el;
+}
+
+function closePicker() {
+  if (!pickerEl) return;
+  if (pickerEl._msg) pickerEl._msg.classList.remove('picking');
+  pickerEl.remove();
+  pickerEl = null;
+}
+document.addEventListener('mousedown', e => {
+  if (pickerEl && !pickerEl.contains(e.target) && !e.target.closest('.acts')) closePicker();
+});
+log.addEventListener('scroll', closePicker);
+
+// ---------- reporting ----------
+function openReport(m) {
+  const reasons = ['Spam', 'Rude or bullying', 'Inappropriate', 'Other'];
+  let reason = '';
+  const other = h('input', { placeholder: 'Anything else admins should know? (optional)', maxlength: 100 });
+  const chips = reasons.map(r => h('button', {
+    class: 'ghost', type: 'button',
+    onclick: () => {
+      reason = r;
+      chips.forEach(c => {
+        const on = c.textContent === r;
+        c.style.borderColor = on ? 'var(--accent)' : '';
+        c.style.color = on ? 'var(--accent)' : '';
+      });
+    },
+  }, r));
+  const md = modal('',
+    h('h2', null, 'Report message'),
+    h('div', { class: 'card' },
+      h('div', { class: 'meta' }, `${m.name} \u00b7 ${fmtTime(m.time)}`),
+      h('q', null, m.text || '[image]')),
+    h('div', { class: 'chips' }, chips),
+    other,
+    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Admins will see this message and who reported it.'),
+    h('div', { class: 'btns' },
+      h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'),
+      h('button', {
+        class: 'primary',
+        onclick: async () => {
+          if (!reason) return toast('Pick a reason', true);
+          const d = await act('report', { convo: openId, id: m.id, reason: reason + (other.value.trim() ? ': ' + other.value.trim() : '') });
+          if (d) { md.close(); toast('Reported. Thanks for keeping Idiocy nice!'); }
+        },
+      }, 'Report')));
 }
 
 async function deleteMessage(m, el) {
@@ -1374,6 +1606,31 @@ function renderBatch(msgs, animate) {
   else $('newmsgs').style.display = 'block';
 }
 
+// ---------- composer state: timeouts and slow mode ----------
+let slowUntil = 0, slowTimer = null;
+
+function updateComposer() {
+  const note = $('composernote');
+  const btn = document.querySelector('#send button[type=submit]');
+  const muted = me && me.muted > Date.now();
+  const slowLeft = Math.ceil((slowUntil - Date.now()) / 1000);
+  const waiting = isPendingChat(openId); // DM still being created
+  textEl.disabled = !!muted || waiting;
+  $('attach').disabled = !!muted || waiting;
+  if (muted) {
+    note.textContent = `You're timed out until ${new Date(me.muted).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. You can still read messages.`;
+    note.className = 'composer-note warn';
+  } else if (openId === 'global' && settings.slow && slowLeft > 0) {
+    note.textContent = `Slow mode is on. You can send again in ${slowLeft}s.`;
+    note.className = 'composer-note';
+  } else {
+    note.className = 'composer-note hidden';
+  }
+  if (!btn.classList.contains('busy')) btn.disabled = !!muted || waiting || (openId === 'global' && slowLeft > 0);
+  clearTimeout(slowTimer);
+  if (slowLeft > 0 || muted) slowTimer = setTimeout(updateComposer, 500);
+}
+
 async function send(text, att) {
   const btn = document.querySelector('#send button[type=submit]');
   const myEpoch = epoch;
@@ -1392,6 +1649,7 @@ async function send(text, att) {
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
     const m = d.message;
     if (att && m.img) rememberImage(m.img, att.data); // no need to download what we just sent
+    if (openId === 'global' && settings.slow && me.role !== 'admin') slowUntil = Date.now() + settings.slow * 1000;
     if (shown.has(m.id)) {
       pending.remove(); // a poll already delivered it
     } else {
@@ -1400,6 +1658,7 @@ async function send(text, att) {
       const el = buildMessage(m);
       el.classList.add('arrived');
       pending.replaceWith(el);
+      log.querySelectorAll('.sys.empty').forEach(e => e.remove());
       groupMessages();
       markRead();
     }
@@ -1410,6 +1669,7 @@ async function send(text, att) {
     return false;
   } finally {
     btn.disabled = false;
+    updateComposer();
   }
 }
 
@@ -1585,6 +1845,191 @@ mainEl.addEventListener('drop', e => {
   if (f) attachFile(f); else toast("That file isn't an image", true);
 });
 
+// ---------- notifications ----------
+let settings = { slow: 0 };
+let pingTop = null; // newest notification we've handled
+let eMax = 0;       // newest reaction change seen in the open chat
+const prefs = Object.assign({ sound: true, desktop: false }, JSON.parse(store.get('chat_prefs') || '{}'));
+const savePrefs = () => store.set('chat_prefs', JSON.stringify(prefs));
+
+function handlePings(pings) {
+  const shown = pings.filter(p => !(p.convo === openId && !document.hidden)); // already looking at it
+  if (!shown.length) return;
+  if (prefs.sound) ding();
+  const p = shown[shown.length - 1];
+  const where = p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group' : 'mentioned you';
+  const text = `${p.from} ${where}: ${p.text}`;
+  if (!document.hidden) toast(text, false, () => switchTo(p.convo));
+  if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(`${p.from} ${where}`, { body: p.text, icon: $('favicon').href, tag: 'idiocy-' + p.convo });
+      n.onclick = () => { window.focus(); switchTo(p.convo); n.close(); };
+    } catch (e) {}
+  }
+}
+
+// A short two-note chime, made in code so there's no sound file to load.
+let audio = null;
+function ding() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    const t = audio.currentTime;
+    [[880, 0], [1320, 0.09]].forEach(([f, dt]) => {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, t + dt);
+      g.gain.exponentialRampToValueAtTime(0.18, t + dt + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dt + 0.25);
+      o.connect(g).connect(audio.destination);
+      o.start(t + dt);
+      o.stop(t + dt + 0.3);
+    });
+  } catch (e) {}
+}
+// Browsers only allow sound after the user has interacted with the page.
+document.addEventListener('pointerdown', () => { try { if (audio && audio.state === 'suspended') audio.resume(); } catch (e) {} });
+
+// "(2) Idiocy" plus a red dot on the tab icon when chats have unread messages.
+const baseIcon = $('favicon').href;
+let iconWithDot = null, lastUnread = -1;
+function updateTitle() {
+  const n = st ? st.convos.filter(c => isUnread(c.id)).length : 0;
+  if (n === lastUnread) return;
+  lastUnread = n;
+  document.title = n ? `(${n}) Idiocy` : 'Idiocy';
+  if (!n) { $('favicon').href = baseIcon; return; }
+  if (iconWithDot) { $('favicon').href = iconWithDot; return; }
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0, 64, 64);
+    g.fillStyle = '#e0344f';
+    g.beginPath(); g.arc(50, 14, 13, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 4; g.strokeStyle = '#fff'; g.stroke();
+    iconWithDot = c.toDataURL('image/png');
+    if (lastUnread > 0) $('favicon').href = iconWithDot;
+  };
+  img.src = baseIcon;
+}
+
+function openSettings() {
+  const sound = h('input', { type: 'checkbox' });
+  sound.checked = prefs.sound;
+  sound.onchange = () => { prefs.sound = sound.checked; savePrefs(); if (sound.checked) ding(); };
+  const desk = h('input', { type: 'checkbox' });
+  desk.checked = prefs.desktop && 'Notification' in window && Notification.permission === 'granted';
+  desk.onchange = async () => {
+    if (desk.checked) {
+      if (!('Notification' in window)) { toast("This browser can't show notifications here", true); desk.checked = false; return; }
+      const perm = await Notification.requestPermission().catch(() => 'denied');
+      if (perm !== 'granted') { toast('Notifications are blocked. Allow them in your browser settings.', true); desk.checked = false; return; }
+    }
+    prefs.desktop = desk.checked;
+    savePrefs();
+  };
+  const md = modal('',
+    h('h2', null, 'Settings'),
+    h('label', { class: 'toggle' }, h('span', null, 'Ping sound', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'For DMs, group messages and @mentions')), sound),
+    h('label', { class: 'toggle' }, h('span', null, 'Desktop notifications', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'When this tab is in the background')), desk),
+    h('div', { class: 'btns', style: 'justify-content:space-between' },
+      h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Done')));
+}
+
+// ---------- admin panel ----------
+const TIMEOUTS = [['10 min', 10], ['1 hour', 60], ['1 day', 1440]];
+
+function timeoutButtons(name, done) {
+  return TIMEOUTS.map(([label, mins]) => h('button', {
+    class: 'ghost', onclick: async () => {
+      if (await act('timeout', { username: name, minutes: mins })) { toast(`${name} timed out for ${label}`); if (done) done(); }
+    },
+  }, 'Timeout ' + label));
+}
+
+function openAdmin() {
+  let tab = 'reports', data = null;
+  const body = h('div', { class: 'alist' });
+  const tabs = ['reports', 'users', 'settings'].map(t => h('button', { onclick: () => { tab = t; draw(); } }, t[0].toUpperCase() + t.slice(1)));
+  const md = modal('wide scroll', h('h2', null, 'Admin panel'), h('div', { class: 'tabbar' }, tabs), body);
+  const load = async () => {
+    progress(1);
+    try {
+      const d = await api('adminData', {});
+      if (!d.ok) { if (!d.auth) toast(d.error, true); return; }
+      data = d;
+      draw();
+    } catch (e) {
+      toast('Could not reach the server', true);
+    } finally {
+      progress(-1);
+    }
+  };
+  let query = '';
+  const draw = () => {
+    tabs.forEach((b, i) => b.classList.toggle('on', ['reports', 'users', 'settings'][i] === tab));
+    if (!data) {
+      body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:70px;border:0' })));
+      return;
+    }
+    tabs[0].textContent = data.reports.length ? `Reports (${data.reports.length})` : 'Reports';
+    if (tab === 'reports') {
+      body.replaceChildren(...(data.reports.length ? data.reports.map(r => h('div', { class: 'card enter' },
+        h('div', { class: 'meta' }, h('b', { style: 'color:var(--text)' }, r.sender), ` in ${r.where} \u00b7 reported by ${r.reporter} \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
+        h('q', null, r.text || '(no text)'),
+        h('div', { class: 'meta' }, 'Reason: ' + r.reason),
+        h('div', { class: 'btns' },
+          h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
+          h('button', { class: 'ghost', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Dismiss'),
+          ...timeoutButtons(r.sender, load),
+          h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); load(); } } }, 'Ban')))) :
+        [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, 'No open reports. Everyone\u2019s behaving (for now).')]));
+    } else if (tab === 'users') {
+      const search = h('input', { placeholder: 'Search users', value: query });
+      search.oninput = () => { query = search.value; drawUsers(); };
+      const list = h('div');
+      const drawUsers = () => list.replaceChildren(...data.users
+        .filter(u => key(u.username).includes(key(query)))
+        .slice(0, 100)
+        .map(u => h('div', { class: 'urow' },
+          avatar(u.username),
+          h('span', { class: 'nm' + (u.role === 'admin' ? ' admin-name' : ''), onclick: () => openProfile(u.username) }, u.username),
+          u.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
+          u.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
+          u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
+          u.role !== 'admin' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' },
+            u.muted > Date.now()
+              ? h('button', { class: 'ghost', onclick: async () => { if (await act('timeout', { username: u.username, minutes: 0 })) load(); } }, 'End timeout')
+              : timeoutButtons(u.username, load)[1],
+            u.banned
+              ? h('button', { class: 'ghost', onclick: async () => { if (await act('unban', { username: u.username })) load(); } }, 'Unban')
+              : h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${u.username}?`) && await act('ban', { username: u.username })) load(); } }, 'Ban')))));
+      drawUsers();
+      body.replaceChildren(search, h('div', { class: 'meta', style: 'color:var(--muted);font-size:12px' }, `${data.users.length} accounts`), list);
+      search.focus();
+    } else {
+      body.replaceChildren(
+        h('div', null, h('b', null, 'Slow mode for Global'),
+          h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin:4px 0 8px' }, 'How long people wait between Global messages. Admins are exempt.')),
+        h('div', { class: 'chips' }, [0, 5, 10, 30, 60].map(sec => h('button', {
+          class: 'ghost', style: data.settings.slow === sec ? 'border-color:var(--accent);color:var(--accent)' : '',
+          onclick: async () => {
+            const d = await act('setSlowMode', { seconds: sec });
+            if (d) { data.settings = d.settings; settings = d.settings; draw(); renderHeader(); toast(sec ? `Slow mode: ${sec}s` : 'Slow mode off'); }
+          },
+        }, sec ? sec + 's' : 'Off'))));
+    }
+  };
+  draw();
+  load();
+}
+
+$('settingsbtn').onclick = openSettings;
+$('adminbtn').onclick = openAdmin;
+
 // ---------- commands ----------
 function handleCommand(input) {
   const [cmd, ...rest] = input.slice(1).split(' ');
@@ -1616,6 +2061,7 @@ $('send').addEventListener('submit', async e => {
   const text = textEl.value.trim();
   const att = attachment;
   if (!text && !att) return;
+  if (isPendingChat(openId)) return;
   if (!att && text.startsWith('/') && handleCommand(text)) { textEl.value = ''; updateCount(); return; }
   textEl.value = '';
   setAttachment(null);
