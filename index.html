@@ -546,6 +546,7 @@ const MAX_MSG = 300;
 // ==================
 
 const POLL_ACTIVE = 2500;
+const POLL_BUSY = 1500; // while the open chat had a message in the last 30s
 const POLL_HIDDEN = 10000;
 
 const $ = id => document.getElementById(id);
@@ -972,6 +973,9 @@ function signOut(msg) {
   clearTimeout(pollTimer);
   me = st = uv = read = null;
   pingTop = null;
+  chatCache.clear();
+  openRev = null; // so nothing from this account can be remembered for the next one
+  clearLog();
   profiles.clear();
   updateTitle();
   latest = {};
@@ -1042,7 +1046,10 @@ async function poll() {
   const myEpoch = epoch;
   const myGen = stateGen;
   try {
-    const d = await api('poll', { open: openId, after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop });
+    const d = await api('poll', {
+      open: openId, after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop,
+      k: me ? key(me.name) : undefined, known: st ? st.convos.map(c => c.id) : undefined, // lets the server batch its reads
+    });
     if (!d.ok) {
       if (!d.auth && d.error !== lastError) { lastError = d.error; sys('Server error: ' + d.error, true); }
       hideLoading(); // so the error is visible
@@ -1076,6 +1083,7 @@ async function poll() {
         log.append(...sending);
       }
       if (d.messages) renderBatch(d.messages, !d.reset);
+      if (d.messages && d.messages.length && !d.reset) lastActivity = Date.now();
       if (d.edited) d.edited.forEach(updateMessage);
       if (d.reset) { hideLoading(); scrollDown(); }
       markRead();
@@ -1092,9 +1100,13 @@ async function poll() {
   }
 }
 
+let lastActivity = 0; // when the open chat last had a new message
+
 function schedule() {
   clearTimeout(pollTimer);
-  if (token) pollTimer = setTimeout(poll, document.hidden ? POLL_HIDDEN : POLL_ACTIVE);
+  // Check a bit more often while messages are flowing, back off when quiet.
+  const busy = Date.now() - lastActivity < 30000;
+  if (token) pollTimer = setTimeout(poll, document.hidden ? POLL_HIDDEN : busy ? POLL_BUSY : POLL_ACTIVE);
 }
 
 function pollNow() {
@@ -1238,7 +1250,20 @@ let pendingTitle = null; // title for a chat the sidebar doesn't know about yet
 
 const isPendingChat = id => String(id).startsWith('pending:');
 
+// Messages of recently opened chats, kept in memory only (never saved to the
+// device, since DMs are private), so switching back is instant.
+const chatCache = new Map();
+
+function rememberChat() {
+  if (!openRev || isPendingChat(openId)) return;
+  const msgs = [...log.querySelectorAll('.msg:not(.pending)')].map(el => el._m).filter(m => m && m.id);
+  chatCache.delete(openId);
+  chatCache.set(openId, { msgs, rev: openRev, eMax });
+  while (chatCache.size > 12) chatCache.delete(chatCache.keys().next().value);
+}
+
 function switchTo(id) {
+  rememberChat();
   openId = id;
   if (!isPendingChat(id)) store.set('chat_open', id);
   epoch++;
@@ -1246,7 +1271,19 @@ function switchTo(id) {
   eMax = 0;
   closePicker();
   clearLog();
-  showChatLoading();
+  const cached = chatCache.get(id);
+  if (cached) {
+    // Show what we had straight away; the next poll adds anything new, and
+    // reloads fully if something was deleted meanwhile.
+    openRev = cached.rev;
+    eMax = cached.eMax;
+    if (cached.msgs.length) renderBatch(cached.msgs, false);
+    else sys(emptyText()).classList.add('empty');
+    scrollDown();
+    markRead();
+  } else {
+    showChatLoading();
+  }
   document.body.classList.remove('side-open');
   renderSide();
   renderHeader();
@@ -1650,6 +1687,7 @@ async function send(text, att) {
     const m = d.message;
     if (att && m.img) rememberImage(m.img, att.data); // no need to download what we just sent
     if (openId === 'global' && settings.slow && me.role !== 'admin') slowUntil = Date.now() + settings.slow * 1000;
+    lastActivity = Date.now();
     if (shown.has(m.id)) {
       pending.remove(); // a poll already delivered it
     } else {
