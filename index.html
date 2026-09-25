@@ -245,6 +245,32 @@
   .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
   .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
   #toast.click { cursor: pointer; }
+
+  /* Friend codes */
+  .codecard {
+    display: block; width: calc(100% - 16px); margin: 0 8px 8px; text-align: left; cursor: pointer;
+    background: var(--panel-2); border: 1px dashed var(--border); border-radius: 10px; padding: 8px 10px;
+  }
+  .codecard:hover { border-color: var(--accent); }
+  .codecard .lbl { color: var(--muted); font-size: 12px; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .codewords { display: flex; flex-wrap: wrap; gap: 4px; }
+  .cw {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 1px 7px;
+    font-weight: 700; font-size: 13px; color: var(--accent);
+  }
+  .codebig { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 6px 0; }
+  .codebig .cw { font-size: 18px; padding: 4px 12px; border-radius: 10px; }
+  .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .slots button {
+    border: 2px solid var(--border); background: var(--panel-2); border-radius: 10px; padding: 8px 4px;
+    font-weight: 700; cursor: pointer; color: var(--text); min-height: 40px; overflow: hidden; text-overflow: ellipsis;
+  }
+  .slots button.on { border-color: var(--accent); background: rgba(106, 76, 245, .08); }
+  .slots button.empty { color: var(--muted); font-weight: 400; }
+  .wordgrid { display: flex; flex-wrap: wrap; gap: 4px; max-height: 200px; overflow-y: auto; padding: 2px; }
+  .wordgrid button { border: 1px solid var(--border); background: var(--panel); border-radius: 999px; padding: 3px 10px; cursor: pointer; font-size: 13px; }
+  .wordgrid button:hover { border-color: var(--accent); color: var(--accent); }
+  .wordgrid button.used { opacity: .35; pointer-events: none; }
   .msg.pending .time { display: inline-flex; align-items: center; gap: 5px; }
   .spinner {
     width: 10px; height: 10px; border-radius: 50%;
@@ -496,9 +522,13 @@
     <div class="sec">
       <div class="sec-head">Friends</div>
       <form id="addfriend">
-        <input placeholder="Add by username" maxlength="20">
+        <input placeholder="Username or friend code" maxlength="60" autocomplete="off">
         <button class="primary" type="submit">Add</button>
       </form>
+      <button class="codecard" id="codecard" title="Share this so friends can add you">
+        <div class="lbl"><span>Your friend code</span><span>Change / copy</span></div>
+        <div class="codewords" id="codewords"><span class="cw shimmer" style="width:160px;color:transparent">loading</span></div>
+      </button>
       <div id="requests"></div>
       <div id="friends"></div>
     </div>
@@ -973,6 +1003,8 @@ function signOut(msg) {
   clearTimeout(pollTimer);
   me = st = uv = read = null;
   pingTop = null;
+  myCode = null;
+  $('codewords').replaceChildren(h('span', { class: 'cw shimmer', style: 'width:160px;color:transparent' }, 'loading'));
   chatCache.clear();
   openRev = null; // so nothing from this account can be remembered for the next one
   clearLog();
@@ -1092,6 +1124,7 @@ async function poll() {
     renderHeader();
     updateComposer();
     updateTitle();
+    loadMyCode();
   } catch (e) {
     setStatus(false);
   } finally {
@@ -1200,7 +1233,7 @@ function renderSide() {
           class: 'x', title: 'Remove friend',
           onclick: e => { e.stopPropagation(); if (confirm(`Remove ${n} from your friends?`)) unfriend(n); },
         }, '✕')), 'f:' + key(n)))
-    : [h('div', { class: 'muted' }, 'No friends yet. Add someone by username!')]));
+    : [h('div', { class: 'muted' }, 'No friends yet. Share your friend code, or add someone by their username or code!')]));
   seenRows = seen;
 }
 
@@ -1338,6 +1371,18 @@ $('addfriend').addEventListener('submit', async e => {
   const input = $('addfriend').querySelector('input');
   const name = input.value.trim();
   if (!name) return;
+  const words = codeWords(name);
+  // 4 words that can't be a username (or are all code words) are a friend code.
+  if (words.length === 4 && (words.every(w => CODE_WORDS.includes(w)) || name.length > 20)) {
+    const bad = words.filter(w => !CODE_WORDS.includes(w));
+    if (bad.length) return toast(`"${bad[0]}" isn't one of the code words. Check the spelling!`, true);
+    if (codesOff) return toast("Friend codes aren't switched on yet. Add them by username for now.", true);
+    input.value = '';
+    const d = await act('addByCode', { code: words.join(' ') });
+    if (!d) { if (!input.value) input.value = name; return; }
+    toast(`You're now friends with ${d.username}!`);
+    return;
+  }
   input.value = '';
   const d = await requestFriend(name);
   if (!d && !input.value) input.value = name;
@@ -1882,6 +1927,105 @@ mainEl.addEventListener('drop', e => {
   const f = [...e.dataTransfer.files].find(f => f.type.startsWith('image/'));
   if (f) attachFile(f); else toast("That file isn't an image", true);
 });
+
+// ---------- friend codes ----------
+// Same list as Code.gs.
+const CODE_WORDS = [
+  'artsy', 'bold', 'bouncy', 'brave', 'breezy', 'bright', 'bubbly', 'busy', 'calm', 'cheerful',
+  'chill', 'clever', 'cool', 'cosmic', 'cozy', 'crafty', 'creative', 'cuddly', 'curious', 'daring',
+  'dizzy', 'dreamy', 'eager', 'epic', 'fancy', 'fast', 'fearless', 'fluffy', 'friendly', 'funny',
+  'fuzzy', 'gentle', 'giant', 'glowing', 'golden', 'goofy', 'happy', 'helpful', 'honest', 'hyper',
+  'jazzy', 'jolly', 'jumpy', 'kind', 'lively', 'loud', 'loyal', 'lucky', 'magic', 'mega',
+  'mellow', 'mighty', 'neat', 'nerdy', 'nice', 'noble', 'peppy', 'playful', 'polite', 'proud',
+  'quick', 'quiet', 'quirky', 'rapid', 'ready', 'relaxed', 'royal', 'shiny', 'silly', 'sleepy',
+  'smart', 'snappy', 'sneaky', 'snowy', 'sparkly', 'speedy', 'spicy', 'sporty', 'stormy', 'sunny',
+  'super', 'sweet', 'swift', 'techy', 'tidy', 'tiny', 'tough', 'turbo', 'upbeat', 'wacky',
+  'warm', 'wild', 'wise', 'witty', 'zany', 'zippy',
+  'apple', 'artist', 'banana', 'bear', 'bike', 'book', 'builder', 'bunny', 'burrito', 'cactus',
+  'cake', 'camper', 'cat', 'cheese', 'chef', 'chess', 'cloud', 'coder', 'comet', 'cookie',
+  'crystal', 'cupcake', 'dancer', 'dino', 'dog', 'dolphin', 'donut', 'dragon', 'drummer', 'eagle',
+  'falcon', 'fox', 'frog', 'gamer', 'gecko', 'ghost', 'giraffe', 'guitar', 'hamster', 'hero',
+  'hiker', 'jelly', 'jet', 'koala', 'lemon', 'lion', 'llama', 'mango', 'maple', 'meteor',
+  'moon', 'muffin', 'ninja', 'noodle', 'octopus', 'otter', 'owl', 'pancake', 'panda', 'parrot',
+  'peach', 'penguin', 'pickle', 'pilot', 'pirate', 'pixel', 'pizza', 'planet', 'popcorn', 'pretzel',
+  'puppy', 'puzzle', 'rabbit', 'racer', 'reader', 'robot', 'rocket', 'runner', 'shark', 'singer',
+  'skater', 'sloth', 'snack', 'soccer', 'sock', 'star', 'surfer', 'sushi', 'taco', 'tiger',
+  'toast', 'turtle', 'unicorn', 'waffle', 'whale', 'wizard', 'wolf', 'yeti', 'zebra',
+];
+let myCode = null;
+
+const codeWords = text => String(text || '').toLowerCase().split(/[^a-z]+/).filter(Boolean);
+
+let loadingCode = false, codesOff = false;
+async function loadMyCode() {
+  if (myCode || !token || loadingCode || codesOff) return;
+  loadingCode = true;
+  const t = token;
+  try {
+    const d = await api('myCode', {});
+    if (d.ok && token === t) { myCode = d.code; paintCode(); } // ignore if someone logged out meanwhile
+    else if (!d.ok && d.error === 'Unknown action') { $('codecard').classList.add('hidden'); codesOff = true; } // backend not updated yet
+  } catch (e) {
+  } finally {
+    loadingCode = false;
+  }
+}
+
+function paintCode() {
+  if (!myCode) return;
+  $('codewords').replaceChildren(...myCode.split(' ').map(w => h('span', { class: 'cw' }, w)));
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast('Copied!'); }
+  catch (e) { prompt('Copy your friend code:', text); } // clipboard can be blocked in embeds
+}
+
+function openCodeModal() {
+  if (!myCode) return loadMyCode();
+  let slots = myCode.split(' ');
+  let active = 0;
+  const slotBtns = [0, 1, 2, 3].map(i => h('button', { type: 'button', onclick: () => { active = i; draw(); } }));
+  const search = h('input', { placeholder: 'Search words' });
+  const grid = h('div', { class: 'wordgrid' });
+  const draw = () => {
+    slotBtns.forEach((b, i) => {
+      b.textContent = slots[i] || 'pick a word';
+      b.className = (i === active ? 'on' : '') + (slots[i] ? '' : ' empty');
+    });
+    const q = search.value.trim().toLowerCase();
+    grid.replaceChildren(...CODE_WORDS.filter(w => w.includes(q)).map(w => h('button', {
+      type: 'button', class: slots.includes(w) ? 'used' : '',
+      onclick: () => { slots[active] = w; active = Math.min(3, slots.findIndex(x => !x) >= 0 ? slots.findIndex(x => !x) : active + 1); draw(); },
+    }, w)));
+  };
+  search.oninput = draw;
+  const save = h('button', { class: 'primary' }, 'Save new code');
+  save.onclick = async () => {
+    if (slots.filter(Boolean).length < 4) return toast('Pick 4 words', true);
+    const d = await act('setCode', { words: slots });
+    if (d) { myCode = d.code; paintCode(); toast('New friend code saved. Your old one no longer works.'); md.close(); }
+  };
+  const md = modal('wide scroll',
+    h('h2', null, 'Your friend code'),
+    h('div', { class: 'codebig' }, myCode.split(' ').map(w => h('span', { class: 'cw' }, w))),
+    h('div', { class: 'hint', style: 'color:var(--muted);font-size:13px;text-align:center' },
+      'Give these 4 words to a friend. When they type them into the Add box, you become friends straight away. Only share it with people you know!'),
+    h('div', { class: 'btns', style: 'justify-content:center' },
+      h('button', { class: 'ghost', onclick: () => copyText(myCode) }, 'Copy code')),
+    h('h3', null, 'Change your code'),
+    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Pick 4 words that describe you. Changing it stops your old code from working.'),
+    h('div', { class: 'slots' }, slotBtns),
+    h('div', { style: 'display:flex;gap:6px' }, search,
+      h('button', { class: 'ghost', type: 'button', onclick: () => {
+        const pool = CODE_WORDS.slice(); slots = [0, 1, 2, 3].map(() => pool.splice(Math.floor(Math.random() * pool.length), 1)[0]); draw();
+      } }, '\u{1F3B2} Shuffle')),
+    grid,
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'), save));
+  draw();
+}
+
+$('codecard').onclick = openCodeModal;
 
 // ---------- notifications ----------
 let settings = { slow: 0 };
