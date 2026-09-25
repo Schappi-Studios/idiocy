@@ -246,6 +246,60 @@
   .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
   #toast.click { cursor: pointer; }
 
+  /* ---------- Global feed ---------- */
+  #feedbox { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  #feedbox > * { width: 100%; max-width: 640px; margin: 0 auto; }
+  #feedbox .fbrow { display: flex; gap: 10px; align-items: flex-start; }
+  #feedbox .fbrow .avatar { width: 36px; height: 36px; margin-top: 3px; }
+  #posttext { flex: 1; resize: none; min-height: 42px; max-height: 180px; overflow-y: auto; font: inherit; }
+  #feedbox .fbact { display: flex; align-items: center; gap: 8px; padding-left: 46px; }
+  #feedbox .fbact .spacer { flex: 1; }
+  #feedbox .fbact .hint { color: var(--muted); font-size: 12px; }
+  #feedbox #attachbar, #feedbox #composernote { background: none; border: 0; padding: 0 0 0 46px; }
+  body.feedmode #send { display: none; }
+  body:not(.feedmode) #feedbox { display: none; }
+  body.feedmode #newmsgs { bottom: auto; top: 170px; }
+
+  #log.feed { gap: 12px; padding: 16px; }
+  #log.feed > * { width: 100%; max-width: 640px; margin-left: auto; margin-right: auto; }
+  .msg.post {
+    display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; margin-top: 0; box-shadow: 0 1px 3px rgba(20, 24, 40, .05);
+  }
+  .msg.post:hover { background: var(--panel); }
+  .msg.post.mentioned { background: #fffaf0; box-shadow: inset 3px 0 0 var(--gold), 0 1px 3px rgba(20, 24, 40, .05); }
+  .post .phead { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding-right: 70px; }
+  .post .phead > .avatar { width: 40px; height: 40px; }
+  .post .who2 { display: flex; flex-direction: column; min-width: 0; }
+  .post .who2 .line { display: flex; align-items: center; gap: 6px; }
+  .post .body { font-size: 15.5px; white-space: pre-wrap; line-height: 1.5; }
+  .post .shot { margin-top: 10px; }
+  .post .reacts { margin-top: 10px; }
+  .post .acts { top: 10px; right: 10px; }
+  .post .pfoot { display: flex; gap: 4px; margin-top: 10px; border-top: 1px solid var(--border); padding-top: 6px; }
+  .post .pfoot button {
+    background: none; border: 0; border-radius: 8px; padding: 6px 10px; color: var(--muted);
+    cursor: pointer; font-weight: 600; font-size: 13px;
+  }
+  .post .pfoot button:hover { background: var(--hover); color: var(--text); }
+  .post .pfoot button.on { color: var(--accent); }
+  .comments { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .cmt { display: flex; gap: 8px; align-items: flex-start; }
+  .cmt .avatar { width: 28px; height: 28px; font-size: 12px; flex-shrink: 0; }
+  .cmt .col { min-width: 0; }
+  .cmt .bubble { background: var(--panel-2); border-radius: 12px; padding: 6px 10px; overflow-wrap: anywhere; font-size: 14px; }
+  .cmt .bubble b { font-size: 13px; cursor: pointer; margin-right: 6px; }
+  .cmt .bubble b:hover { text-decoration: underline; }
+  .cmt .meta { font-size: 11px; color: var(--muted); margin: 2px 0 0 10px; display: flex; gap: 10px; }
+  .cmt .meta button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 11px; padding: 0; }
+  .cmt .meta button:hover { text-decoration: underline; color: var(--text); }
+  .cmt.pending { opacity: .55; }
+  .cmt.mentioned .bubble { background: rgba(255, 200, 87, .25); }
+  .cform { display: flex; gap: 6px; }
+  .cform input { flex: 1; padding: 7px 12px; font-size: 14px; border-radius: 999px; }
+  .cform button { padding: 6px 14px; border-radius: 999px; }
+  .post.flash { animation: glow 1.2s ease-out 2; }
+
   /* Friend codes */
   .codecard {
     display: block; width: calc(100% - 16px); margin: 0 8px 8px; text-align: left; cursor: pointer;
@@ -546,6 +600,19 @@
       <button class="ghost hidden" id="gadd">Add people</button>
       <button class="ghost danger hidden" id="gleave">Leave</button>
     </header>
+    <div id="feedbox">
+      <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What's on your mind?"></textarea></div>
+      <div class="fbact">
+        <button type="button" class="iconbtn" id="postimg" title="Add a picture" aria-label="Add a picture">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+          </svg>
+        </button>
+        <span class="hint" id="postcount">Ctrl+Enter to post</span>
+        <span class="spacer"></span>
+        <button class="primary" id="postbtn" type="button">Post</button>
+      </div>
+    </div>
     <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="composernote" class="composer-note hidden"></div>
@@ -1092,6 +1159,7 @@ async function poll() {
     me = d.me;
     latest = d.latest;
     settings = d.settings || settings;
+    if ((d.api || 0) !== serverApi) { serverApi = d.api || 0; log.querySelectorAll('.post').forEach(paintCommentCount); }
     if (pingTop === null) pingTop = d.pingTop; // first poll: don't replay old notifications
     else if (d.pings && d.pings.length) {
       pingTop = Math.max(pingTop, ...d.pings.map(p => p.n));
@@ -1175,7 +1243,7 @@ const isUnread = id => id !== openId && read && (latest[id] || 0) > (read[id] ||
 
 // ---------- sidebar ----------
 function convoLabel(c) {
-  if (c.type === 'global') return 'Global';
+  if (c.type === 'global') return 'Global feed';
   if (c.type === 'group') return c.name;
   return c.members.find(n => key(n) !== key(me.name)) || 'DM';
 }
@@ -1258,6 +1326,7 @@ function requestFriend(n) {
 }
 
 function renderHeader() {
+  if (isFeed() && me && !$('fbrow').querySelector('.avatar')) $('fbrow').prepend(avatar(me.name, { click: false }));
   const c = st && st.convos.find(c => c.id === openId);
   $('title').style.cursor = c && c.type === 'dm' ? 'pointer' : '';
   $('title').onclick = c && c.type === 'dm' ? () => openProfile(convoLabel(c)) : null;
@@ -1265,7 +1334,7 @@ function renderHeader() {
   if (c) pendingTitle = null;
   $('title').textContent = c ? convoLabel(c) : pendingTitle || (openId === 'global' ? 'Global' : 'Loading\u2026');
   $('sub').textContent = !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
-    : c.type === 'global' ? 'Everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
+    : c.type === 'global' ? 'Posts from everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
     : c.type === 'dm' ? 'Direct message'
     : `${c.members.length} members: ${c.members.join(', ')}`;
   $('gadd').classList.toggle('hidden', !isGroup);
@@ -1274,7 +1343,7 @@ function renderHeader() {
 }
 
 function emptyText() {
-  if (openId === 'global') return 'No messages yet. Say hi!';
+  if (openId === 'global') return 'No posts yet. Be the first to post something!';
   return 'This is the start of the chat.';
 }
 
@@ -1282,6 +1351,22 @@ function emptyText() {
 let pendingTitle = null; // title for a chat the sidebar doesn't know about yet
 
 const isPendingChat = id => String(id).startsWith('pending:');
+const isFeed = () => openId === 'global';
+
+// The Global feed shows posts newest-first with its own composer at the top;
+// the composer's attachment bar and notes move up there while it's open.
+function setFeedMode(on) {
+  document.body.classList.toggle('feedmode', on);
+  log.classList.toggle('feed', on);
+  $('newmsgs').textContent = on ? 'New posts \u2191' : 'New messages \u2193';
+  const note = $('composernote'), bar = $('attachbar');
+  if (on) {
+    $('feedbox').append(note, bar);
+    if (me) $('fbrow').replaceChildren(avatar(me.name, { click: false }), $('posttext'));
+  } else {
+    $('send').before(note, bar);
+  }
+}
 
 // Messages of recently opened chats, kept in memory only (never saved to the
 // device, since DMs are private), so switching back is instant.
@@ -1304,6 +1389,7 @@ function switchTo(id) {
   eMax = 0;
   closePicker();
   clearLog();
+  setFeedMode(isFeed());
   const cached = chatCache.get(id);
   if (cached) {
     // Show what we had straight away; the next poll adds anything new, and
@@ -1449,13 +1535,23 @@ $('gleave').onclick = async () => {
 };
 
 // ---------- messages ----------
+// "Bottom" means where new things appear: the bottom of a chat, the top of the feed.
 function nearBottom() {
+  if (isFeed()) return log.scrollTop < 80;
   return log.scrollHeight - log.scrollTop - log.clientHeight < 80;
 }
 
 function scrollDown() {
-  log.scrollTop = log.scrollHeight;
+  log.scrollTop = isFeed() ? 0 : log.scrollHeight;
   $('newmsgs').style.display = 'none';
+}
+
+// Feed posts are kept newest-first; pending posts sit above everything.
+function placeInFeed(el) {
+  const id = Number(el.dataset.id) || Infinity;
+  const after = [...log.children].find(c => c.classList.contains('msg') && !c.classList.contains('pending') && Number(c.dataset.id) < id);
+  if (el.classList.contains('pending')) log.insertBefore(el, log.querySelector('.msg, .sys:not(.err)'));
+  else log.insertBefore(el, after || null);
 }
 
 function clearLog() {
@@ -1470,6 +1566,7 @@ function canDelete(m) {
 }
 
 function buildMessage(m, pending) {
+  if (isFeed()) return buildPost(m, pending);
   const time = h('span', { class: 'time' });
   if (pending) time.append(h('span', { class: 'spinner' }), 'sending');
   else time.textContent = fmtTime(m.time);
@@ -1495,6 +1592,145 @@ function buildMessage(m, pending) {
 }
 
 const isMine = m => me && key(m.name) === key(me.name);
+
+function buildPost(m, pending) {
+  const time = h('span', { class: 'time' });
+  if (pending) time.append(h('span', { class: 'spinner' }), 'posting');
+  else time.textContent = new Date(m.time).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  const cbtn = h('button', { onclick: () => toggleComments(el) });
+  const el = h('div', { class: 'msg post' + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
+    h('div', { class: 'phead' },
+      avatar(m.name),
+      h('div', { class: 'who2' },
+        h('div', { class: 'line' },
+          h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }, m.name),
+          m.admin && h('span', { class: 'badge' }, 'ADMIN')),
+        time)),
+    h('div', { class: 'body' }, m.text ? richText(m.text) : null),
+    m.img && imageBlock(m, 520),
+    h('div', { class: 'reacts' }),
+    !pending && h('div', { class: 'pfoot' },
+      h('button', { title: 'React', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642} React'),
+      cbtn),
+    !pending && h('div', { class: 'acts' },
+      !isMine(m) && h('button', { title: 'Report', onclick: () => openReport(el._m) }, '\u2691'),
+      canDelete(m) && h('button', { class: 'del danger', title: 'Delete', onclick: () => deleteMessage(el._m, el) }, '\u{1F5D1}')));
+  el._m = m;
+  el._cbtn = cbtn;
+  el.dataset.id = m.id || '';
+  if (m.text && mentionsMe(m.text) && !isMine(m)) el.classList.add('mentioned');
+  paintReactions(el);
+  paintCommentCount(el);
+  if (m.e) eMax = Math.max(eMax, m.e);
+  return el;
+}
+
+let serverApi = 0; // features the backend supports; comments need 3
+
+function paintCommentCount(el) {
+  if (!el._cbtn) return;
+  el._cbtn.classList.toggle('hidden', serverApi < 3); // backend not updated yet
+  const n = el._m.cc || 0;
+  el._cbtn.textContent = '\u{1F4AC} ' + (n ? `${n} comment${n === 1 ? '' : 's'}` : 'Comment');
+  el._cbtn.classList.toggle('on', !!el._cmts);
+}
+
+// ---------- comments ----------
+async function toggleComments(el, focus = true) {
+  if (el._cmts) { el._cmts.remove(); el._cmts = null; paintCommentCount(el); return; }
+  const post = el._m;
+  const list = h('div', { class: 'comments' }, h('div', { class: 'shimmer', style: 'height:34px;border-radius:12px' }));
+  const input = h('input', { placeholder: 'Write a comment\u2026', maxlength: 300 });
+  const form = h('form', { class: 'cform', onsubmit: e => { e.preventDefault(); sendComment(el, input); } },
+    input, h('button', { class: 'primary', type: 'submit' }, 'Reply'));
+  el._cmts = h('div', { class: 'comments enter' }, list, form);
+  el.append(el._cmts);
+  paintCommentCount(el);
+  if (focus) input.focus();
+  await loadComments(el);
+}
+
+async function loadComments(el) {
+  const box = el._cmts;
+  if (!box) return;
+  try {
+    const d = await api('comments', { post: el._m.id });
+    if (!box.isConnected) return;
+    const list = box.firstElementChild;
+    if (!d.ok) { list.replaceChildren(h('div', { class: 'muted' }, d.error || "Couldn't load comments")); return; }
+    const pending = [...list.querySelectorAll('.cmt.pending')];
+    list.replaceChildren(...d.comments.map(c => buildComment(el, c)), ...pending);
+  } catch (e) {
+    if (box.isConnected) box.firstElementChild.replaceChildren(h('div', { class: 'muted' }, "Couldn't load comments"));
+  }
+}
+
+function buildComment(postEl, c, pending) {
+  const convo = 'p:' + postEl._m.id;
+  const row = h('div', { class: 'cmt' + (pending ? ' pending' : '') + (c.text && mentionsMe(c.text) && !isMine(c) ? ' mentioned' : '') },
+    avatar(c.name),
+    h('div', { class: 'col' },
+      h('div', { class: 'bubble' },
+        h('b', { class: c.admin ? 'admin-name' : '', style: `color:${colorFor(c.name)}`, onclick: () => openProfile(c.name) }, c.name),
+        c.admin && h('span', { class: 'badge' }, 'ADMIN'),
+        richText(c.text || '')),
+      h('div', { class: 'meta' },
+        pending ? 'sending\u2026' : fmtTime(c.time),
+        !pending && !isMine(c) && h('button', { onclick: () => openReport(c, convo) }, 'Report'),
+        !pending && canDelete(c) && h('button', {
+          onclick: async () => {
+            row.classList.add('removing');
+            const d = await act('deleteMessage', { convo, id: c.id });
+            if (!d) { row.classList.remove('removing'); return; }
+            row.remove();
+            postEl._m = Object.assign({}, postEl._m, { cc: Math.max(0, (postEl._m.cc || 1) - 1) });
+            paintCommentCount(postEl);
+          },
+        }, 'Delete'))));
+  return row;
+}
+
+async function sendComment(postEl, input) {
+  const text = input.value.trim();
+  if (!text || !me) return;
+  input.value = '';
+  const list = postEl._cmts && postEl._cmts.firstElementChild;
+  const pending = buildComment(postEl, { name: me.name, admin: me.role === 'admin', text }, true);
+  if (list) { list.querySelectorAll('.shimmer, .muted').forEach(x => x.remove()); list.append(pending); }
+  try {
+    const d = await api('send', { convo: 'p:' + postEl._m.id, text });
+    if (!d.ok) {
+      pending.remove();
+      if (!input.value) input.value = text;
+      if (!d.auth) toast(d.error || 'Could not comment', true);
+      return;
+    }
+    pending.replaceWith(buildComment(postEl, d.message));
+    postEl._m = Object.assign({}, postEl._m, { cc: (postEl._m.cc || 0) + 1 });
+    paintCommentCount(postEl);
+    if (settings.slow && me.role !== 'admin') { slowUntil = Date.now() + settings.slow * 1000; updateComposer(); }
+  } catch (e) {
+    pending.remove();
+    if (!input.value) input.value = text;
+    toast('Could not reach the server', true);
+  }
+}
+
+// Jump to a post in the feed (e.g. from a "commented on your post" notification).
+function openPost(id) {
+  if (openId !== 'global') switchTo('global');
+  const started = Date.now();
+  const look = () => {
+    const el = log.querySelector(`.msg.post[data-id="${id}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      if (!el._cmts) toggleComments(el, false);
+      else loadComments(el);
+    } else if (Date.now() - started < 15000 && openId === 'global') setTimeout(look, 300);
+  };
+  look();
+}
 
 // ---------- mentions ----------
 function myMentionRe() {
@@ -1548,8 +1784,11 @@ function updateMessage(m) {
   if (m.e) eMax = Math.max(eMax, m.e);
   const el = log.querySelector(`.msg[data-id="${m.id}"]`);
   if (!el || el._busy) return;
+  const countChanged = (el._m.cc || 0) !== (m.cc || 0);
   el._m = m;
   paintReactions(el);
+  paintCommentCount(el);
+  if (countChanged && el._cmts) loadComments(el);
 }
 
 async function toggleReaction(el, emoji) {
@@ -1599,7 +1838,7 @@ document.addEventListener('mousedown', e => {
 log.addEventListener('scroll', closePicker);
 
 // ---------- reporting ----------
-function openReport(m) {
+function openReport(m, convo = openId) {
   const reasons = ['Spam', 'Rude or bullying', 'Inappropriate', 'Other'];
   let reason = '';
   const other = h('input', { placeholder: 'Anything else admins should know? (optional)', maxlength: 100 });
@@ -1628,7 +1867,7 @@ function openReport(m) {
         class: 'primary',
         onclick: async () => {
           if (!reason) return toast('Pick a reason', true);
-          const d = await act('report', { convo: openId, id: m.id, reason: reason + (other.value.trim() ? ': ' + other.value.trim() : '') });
+          const d = await act('report', { convo, id: m.id, reason: reason + (other.value.trim() ? ': ' + other.value.trim() : '') });
           if (d) { md.close(); toast('Reported. Thanks for keeping Idiocy nice!'); }
         },
       }, 'Report')));
@@ -1646,11 +1885,13 @@ async function deleteMessage(m, el) {
 function addMessage(m) {
   if (shown.has(m.id)) return;
   shown.add(m.id);
-  log.appendChild(buildMessage(m));
+  const el = buildMessage(m);
+  if (isFeed()) placeInFeed(el); else log.appendChild(el);
 }
 
 // Consecutive messages from one person within 5 minutes share a header.
 function groupMessages() {
+  if (isFeed()) return; // posts stand alone
   let prev = null;
   for (const el of log.children) {
     const isMsg = el.classList.contains('msg');
@@ -1663,7 +1904,7 @@ function groupMessages() {
 function sys(text, isErr) {
   const stick = nearBottom();
   const el = h('div', { class: 'sys' + (isErr ? ' err' : '') }, text);
-  log.appendChild(el);
+  if (isFeed()) log.prepend(el); else log.appendChild(el);
   if (stick) scrollDown();
   return el;
 }
@@ -1672,17 +1913,17 @@ function renderBatch(msgs, animate) {
   if (!msgs.length) return;
   const stick = nearBottom();
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
-  const before = log.lastElementChild;
+  const before = new Set(log.children);
   msgs.forEach(addMessage);
   if (animate) {
     // Slide in only what just arrived, not a whole chat loading at once.
-    for (let el = before ? before.nextElementSibling : log.firstElementChild; el; el = el.nextElementSibling) {
-      if (el.classList.contains('msg') && !el.classList.contains('pending')) el.classList.add('new');
+    for (const el of log.children) {
+      if (!before.has(el) && el.classList.contains('msg') && !el.classList.contains('pending')) el.classList.add('new');
     }
   }
   lastId = Math.max(lastId, ...msgs.map(m => m.id));
-  // Keep messages still being sent at the bottom.
-  log.querySelectorAll('.pending').forEach(p => log.appendChild(p));
+  // Keep messages still being sent at the end new things appear.
+  log.querySelectorAll('.pending').forEach(p => isFeed() ? log.prepend(p) : log.appendChild(p));
   groupMessages();
   if (stick) scrollDown();
   else $('newmsgs').style.display = 'block';
@@ -1693,17 +1934,19 @@ let slowUntil = 0, slowTimer = null;
 
 function updateComposer() {
   const note = $('composernote');
-  const btn = document.querySelector('#send button[type=submit]');
+  const btn = isFeed() ? $('postbtn') : document.querySelector('#send button[type=submit]');
   const muted = me && me.muted > Date.now();
   const slowLeft = Math.ceil((slowUntil - Date.now()) / 1000);
   const waiting = isPendingChat(openId); // DM still being created
   textEl.disabled = !!muted || waiting;
   $('attach').disabled = !!muted || waiting;
+  $('posttext').disabled = !!muted;
+  $('postimg').disabled = !!muted;
   if (muted) {
     note.textContent = `You're timed out until ${new Date(me.muted).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. You can still read messages.`;
     note.className = 'composer-note warn';
   } else if (openId === 'global' && settings.slow && slowLeft > 0) {
-    note.textContent = `Slow mode is on. You can send again in ${slowLeft}s.`;
+    note.textContent = `Slow mode is on. You can post again in ${slowLeft}s.`;
     note.className = 'composer-note';
   } else {
     note.className = 'composer-note hidden';
@@ -1714,7 +1957,7 @@ function updateComposer() {
 }
 
 async function send(text, att) {
-  const btn = document.querySelector('#send button[type=submit]');
+  const btn = isFeed() ? $('postbtn') : document.querySelector('#send button[type=submit]');
   const myEpoch = epoch;
   btn.disabled = true;
   // Show the message right away while the server catches up.
@@ -1723,7 +1966,7 @@ async function send(text, att) {
     ...(att && { img: 'local', local: att.data, w: att.w, h: att.h }),
   }, true);
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
-  log.appendChild(pending);
+  if (isFeed()) log.prepend(pending); else log.appendChild(pending);
   scrollDown();
   try {
     const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }) });
@@ -1837,8 +2080,8 @@ function rememberImage(id, data) {
   while (imageCache.size > 60) imageCache.delete(imageCache.keys().next().value);
 }
 
-function imageBlock(m) {
-  const scale = Math.min(1, 320 / m.w, 320 / m.h);
+function imageBlock(m, max = 320) {
+  const scale = Math.min(1, max / m.w, max / m.h);
   const box = h('div', { class: 'shot', style: `width:${Math.round(m.w * scale)}px;aspect-ratio:${m.w}/${m.h}` });
   const img = h('img', { alt: 'Image' });
   box.append(img);
@@ -2035,17 +2278,20 @@ const prefs = Object.assign({ sound: true, desktop: false }, JSON.parse(store.ge
 const savePrefs = () => store.set('chat_prefs', JSON.stringify(prefs));
 
 function handlePings(pings) {
-  const shown = pings.filter(p => !(p.convo === openId && !document.hidden)); // already looking at it
+  // Skip what you're already looking at (comments live inside the feed, so they always count).
+  const shown = pings.filter(p => p.kind === 'comment' || !(p.convo === openId && !document.hidden));
   if (!shown.length) return;
   if (prefs.sound) ding();
   const p = shown[shown.length - 1];
-  const where = p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group' : 'mentioned you';
+  const where = p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group'
+    : p.kind === 'comment' ? 'commented' : 'mentioned you';
   const text = `${p.from} ${where}: ${p.text}`;
-  if (!document.hidden) toast(text, false, () => switchTo(p.convo));
+  const go = () => (p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
+  if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const n = new Notification(`${p.from} ${where}`, { body: p.text, icon: $('favicon').href, tag: 'idiocy-' + p.convo });
-      n.onclick = () => { window.focus(); switchTo(p.convo); n.close(); };
+      n.onclick = () => { window.focus(); go(); n.close(); };
     } catch (e) {}
   }
 }
@@ -2255,6 +2501,41 @@ $('send').addEventListener('submit', async e => {
   }
   textEl.focus();
 });
+
+// Post box: grows as you type; Ctrl/Cmd+Enter posts, Enter makes a new line.
+const POST_HINT = /Mac|iPhone|iPad/.test(navigator.platform) ? '\u2318+Enter to post' : 'Ctrl+Enter to post';
+$('postcount').textContent = POST_HINT;
+const postEl = $('posttext');
+function growPost() {
+  postEl.style.height = 'auto';
+  postEl.style.height = Math.min(180, postEl.scrollHeight + 2) + 'px';
+  const left = 1000 - postEl.value.length;
+  $('postcount').textContent = left <= 100 ? `${left} left` : POST_HINT;
+}
+postEl.addEventListener('input', growPost);
+postEl.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitPost(); } });
+postEl.addEventListener('paste', e => {
+  const item = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.kind === 'file' && i.type.startsWith('image/'));
+  if (!item) return;
+  e.preventDefault();
+  attachFile(item.getAsFile());
+});
+$('postimg').onclick = () => $('attachfile').click();
+$('postbtn').onclick = submitPost;
+
+async function submitPost() {
+  const text = postEl.value.trim();
+  const att = attachment;
+  if ((!text && !att) || $('postbtn').disabled) return;
+  if (!att && text.startsWith('/') && handleCommand(text)) { postEl.value = ''; growPost(); return; }
+  postEl.value = '';
+  setAttachment(null);
+  growPost();
+  if (!(await send(text, att))) {
+    if (!postEl.value) { postEl.value = text; growPost(); }
+    if (att && !attachment) setAttachment(att);
+  }
+}
 
 function updateCount() {
   const left = MAX_MSG - textEl.value.length;
