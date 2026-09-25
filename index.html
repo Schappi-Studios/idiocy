@@ -247,7 +247,7 @@
   #toast.click { cursor: pointer; }
 
   /* ---------- Global feed ---------- */
-  #feedbox { background: var(--panel); border-bottom: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  #feedbox { background: var(--panel); border-top: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
   #feedbox > * { width: 100%; max-width: 640px; margin: 0 auto; }
   #feedbox .fbrow { display: flex; gap: 10px; align-items: flex-start; }
   #feedbox .fbrow .avatar { width: 36px; height: 36px; margin-top: 3px; }
@@ -258,7 +258,7 @@
   #feedbox #attachbar, #feedbox #composernote { background: none; border: 0; padding: 0 0 0 46px; }
   body.feedmode #send { display: none; }
   body:not(.feedmode) #feedbox { display: none; }
-  body.feedmode #newmsgs { bottom: auto; top: 170px; }
+  body.feedmode #newmsgs { bottom: auto; top: 70px; }
 
   #log.feed { gap: 12px; padding: 16px; }
   #log.feed > * { width: 100%; max-width: 640px; margin-left: auto; margin-right: auto; }
@@ -600,6 +600,8 @@
       <button class="ghost hidden" id="gadd">Add people</button>
       <button class="ghost danger hidden" id="gleave">Leave</button>
     </header>
+    <div id="log"></div>
+    <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
       <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What's on your mind?"></textarea></div>
       <div class="fbact">
@@ -613,8 +615,6 @@
         <button class="primary" id="postbtn" type="button">Post</button>
       </div>
     </div>
-    <div id="log"></div>
-    <button id="newmsgs">New messages ↓</button>
     <div id="composernote" class="composer-note hidden"></div>
     <div id="attachbar" class="hidden">
       <img id="attachimg" alt="">
@@ -1361,7 +1361,7 @@ function setFeedMode(on) {
   $('newmsgs').textContent = on ? 'New posts \u2191' : 'New messages \u2193';
   const note = $('composernote'), bar = $('attachbar');
   if (on) {
-    $('feedbox').append(note, bar);
+    $('feedbox').prepend(note, bar); // above the post box, like in chats
     if (me) $('fbrow').replaceChildren(avatar(me.name, { click: false }), $('posttext'));
   } else {
     $('send').before(note, bar);
@@ -2059,7 +2059,9 @@ function setAttachment(att) {
   $('attachbar').classList.toggle('hidden', !att);
   if (att) {
     $('attachimg').src = att.data;
-    $('attachinfo').textContent = `Image ready to send (${att.w}×${att.h}). Add a caption or press Send.`;
+    $('attachinfo').textContent = isFeed()
+      ? `Picture added (${att.w}×${att.h}). Write something or just press Post.`
+      : `Image ready to send (${att.w}×${att.h}). Add a caption or press Send.`;
   } else {
     $('attachimg').removeAttribute('src');
   }
