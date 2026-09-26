@@ -246,6 +246,27 @@
   .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
   #toast.click { cursor: pointer; }
 
+  /* ---------- groups ---------- */
+  #hicon:empty { display: none; }
+  #hicon .avatar { width: 34px; height: 34px; }
+  #title.link { cursor: pointer; }
+  #title.link:hover { text-decoration: underline; }
+  .msg.sysline {
+    display: block; text-align: center; color: var(--muted); font-size: 12.5px;
+    padding: 6px 8px; margin: 4px 0; background: none !important;
+  }
+  .msg.sysline span { background: var(--panel-2); border-radius: 999px; padding: 3px 12px; display: inline-block; }
+  .muteicon { font-size: 12px; opacity: .6; }
+  .ginfo .gtop { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+  .ginfo .gpic { width: 84px; height: 84px; font-size: 32px; cursor: default; }
+  .ginfo .gname { font-size: 20px; font-weight: 800; overflow-wrap: anywhere; }
+  .ginfo .gsub { color: var(--muted); font-size: 13px; }
+  .ginfo .mrow { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 8px; }
+  .ginfo .mrow:hover { background: var(--hover); }
+  .ginfo .mrow .nm { flex: 1; min-width: 0; cursor: pointer; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ginfo .members { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; }
+  .ginfo .ownerbadge { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+
   /* ---------- Global feed ---------- */
   #feedbox { background: var(--panel); border-top: 1px solid var(--border); padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
   #feedbox > * { width: 100%; max-width: 640px; margin: 0 auto; }
@@ -564,12 +585,13 @@
     <header>
       <button id="menu" aria-label="Menu">☰</button>
       <div id="status" title="Connecting…"></div>
+      <span id="hicon"></span>
       <div class="titles">
         <h1 id="title">Global</h1>
         <div id="sub"></div>
       </div>
       <button class="ghost hidden" id="gadd">Add people</button>
-      <button class="ghost danger hidden" id="gleave">Leave</button>
+      <button class="ghost hidden" id="ginfo">Info</button>
     </header>
     <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
@@ -1041,6 +1063,7 @@ function signOut(msg) {
   clearTimeout(pollTimer);
   me = st = uv = read = null;
   pingTop = null;
+  groupPicCache.clear();
   chatCache.clear();
   openRev = null; // so nothing from this account can be remembered for the next one
   clearLog();
@@ -1161,6 +1184,7 @@ async function poll() {
     renderHeader();
     updateComposer();
     updateTitle();
+    loadGroupPics();
   } catch (e) {
     setStatus(false);
   } finally {
@@ -1220,7 +1244,7 @@ let seenRows = null; // row ids from the last render, so new rows can animate in
 
 function renderSide() {
   if (!st || !me) return;
-  const sig = JSON.stringify([st, latest, openId, read, me, profileVer]);
+  const sig = JSON.stringify([st, latest, openId, read, me, profileVer, picVer, prefs.muted]);
   if (sig === sideSig) return;
   sideSig = sig;
   const seen = new Set();
@@ -1241,12 +1265,13 @@ function renderSide() {
     a.type === 'global' ? -1 : b.type === 'global' ? 1 : (latest[b.id] || 0) - (latest[a.id] || 0));
   $('convos').replaceChildren(...convos.map(c => {
     const label = convoLabel(c);
-    const icon = c.type === 'dm' ? avatar(label, { dot: true }) : h('div', { class: 'avatar icon' }, c.type === 'global' ? '#' : '⁂');
+    const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : h('div', { class: 'avatar icon' }, '#');
     const unread = isUnread(c.id);
     return fresh(h('button', {
       class: 'row' + (c.id === openId ? ' on' : '') + (unread ? ' unread' : ''),
       onclick: () => switchTo(c.id),
-    }, icon, h('span', { class: 'label' }, label), unread && h('span', { class: 'dot' })), 'c:' + c.id);
+    }, icon, h('span', { class: 'label' }, label), isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
+      unread && h('span', { class: 'dot' })), 'c:' + c.id);
   }));
 
   const reqs = [];
@@ -1296,9 +1321,15 @@ function requestFriend(n) {
 function renderHeader() {
   if (isFeed() && me && !$('fbrow').querySelector('.avatar')) $('fbrow').prepend(avatar(me.name, { click: false }));
   const c = st && st.convos.find(c => c.id === openId);
-  $('title').style.cursor = c && c.type === 'dm' ? 'pointer' : '';
-  $('title').onclick = c && c.type === 'dm' ? () => openProfile(convoLabel(c)) : null;
   const isGroup = c && c.type === 'group';
+  $('title').classList.toggle('link', !!c && (c.type === 'dm' || isGroup));
+  $('title').onclick = c && c.type === 'dm' ? () => openProfile(convoLabel(c)) : isGroup ? () => openGroupInfo(c.id) : null;
+  $('title').title = isGroup ? 'Group info' : '';
+  const hsig = c ? c.id + (c.pv || '') + picVer + (c.type === 'dm' ? profileVer : '') : '';
+  if ($('hicon').dataset.sig !== hsig) {
+    $('hicon').dataset.sig = hsig;
+    $('hicon').replaceChildren(...(!c || c.type === 'global' ? [] : c.type === 'dm' ? [avatar(convoLabel(c), { dot: true })] : [groupIcon(c)]));
+  }
   if (c) pendingTitle = null;
   $('title').textContent = c ? convoLabel(c) : pendingTitle || (openId === 'global' ? 'Global' : 'Loading\u2026');
   $('sub').textContent = !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
@@ -1306,7 +1337,7 @@ function renderHeader() {
     : c.type === 'dm' ? 'Direct message'
     : `${c.members.length} members: ${c.members.join(', ')}`;
   $('gadd').classList.toggle('hidden', !isGroup);
-  $('gleave').classList.toggle('hidden', !isGroup);
+  $('ginfo').classList.toggle('hidden', !isGroup);
   textEl.placeholder = c ? `Message ${c.type === 'global' ? 'everyone' : convoLabel(c)}…` : 'Say something…';
 }
 
@@ -1482,13 +1513,115 @@ $('gadd').onclick = () => {
   });
 };
 
-$('gleave').onclick = async () => {
-  if (!confirm('Leave this group?')) return;
-  const id = openId;
-  switchTo('global');
+async function leaveGroup(id) {
+  if (!confirm('Leave this group?')) return false;
+  if (openId === id) switchTo('global');
   const d = await act('leaveGroup', { convo: id }, null, s => { s.convos = s.convos.filter(c => c.id !== id); });
   if (!d) switchTo(id);
-};
+  return !!d;
+}
+
+$('ginfo').onclick = () => openGroupInfo(openId);
+
+// ---------- groups ----------
+const groupPicCache = new Map(); // id -> { pv, data }
+let picVer = 0;
+
+// Fetches pictures for groups whose picture changed since we last looked.
+async function loadGroupPics() {
+  if (!st) return;
+  const stale = st.convos.filter(c => c.type === 'group' && c.pv && (groupPicCache.get(c.id) || {}).pv !== c.pv);
+  st.convos.filter(c => c.type === 'group' && !c.pv && groupPicCache.has(c.id)).forEach(c => { groupPicCache.delete(c.id); picVer++; });
+  if (!stale.length) return;
+  stale.forEach(c => groupPicCache.set(c.id, { pv: c.pv, data: (groupPicCache.get(c.id) || {}).data || '' })); // don't ask twice
+  try {
+    const d = await api('groupPics', { ids: stale.map(c => c.id) });
+    if (!d.ok) return;
+    stale.forEach(c => groupPicCache.set(c.id, { pv: c.pv, data: d.pics[c.id] || '' }));
+    picVer++;
+    renderSide();
+    renderHeader();
+  } catch (e) {}
+}
+
+function groupIcon(c, cls) {
+  const pic = (groupPicCache.get(c.id) || {}).data;
+  const el = h('div', { class: 'avatar' + (cls ? ' ' + cls : '') });
+  if (pic) el.style.backgroundImage = `url("${pic}")`; // server only accepts base64 image data URLs
+  else { el.style.background = colorFor(c.name, 80); el.textContent = (c.name || '?')[0].toUpperCase(); }
+  return el;
+}
+
+const isMuted = id => (prefs.muted || []).includes(id);
+function setMuted(id, on) {
+  prefs.muted = (prefs.muted || []).filter(x => x !== id).concat(on ? [id] : []);
+  savePrefs();
+  sideSig = '';
+  renderSide();
+}
+
+function openGroupInfo(id) {
+  const md = modal('ginfo scroll');
+  const draw = () => {
+    const c = st && st.convos.find(c => c.id === id);
+    if (!c) { md.close(); return; }
+    const owner = key(c.owner) === key(me.name);
+    const canManage = (owner || me.role === 'admin') && serverApi >= 4; // older backends can't rename/remove
+    const file = h('input', { type: 'file', accept: 'image/*', class: 'hidden' });
+    file.onchange = async () => {
+      const f = file.files[0];
+      file.value = '';
+      if (!f) return;
+      try {
+        const avatar = await shrinkImage(f);
+        if (await act('setGroupPic', { convo: id, avatar })) toast('Group picture updated');
+      } catch (e) { toast("Couldn't read that image", true); }
+    };
+    const mute = h('input', { type: 'checkbox' });
+    mute.checked = isMuted(id);
+    mute.onchange = () => setMuted(id, mute.checked);
+    const members = c.members.slice().sort((a, b) => (key(a) === key(c.owner) ? -1 : key(b) === key(c.owner) ? 1 : a.localeCompare(b)));
+    md.box.replaceChildren(
+      h('div', { class: 'gtop' },
+        groupIcon(c, 'gpic'), file,
+        h('div', { class: 'gname' }, c.name),
+        h('div', { class: 'gsub' }, `${c.members.length} member${c.members.length === 1 ? '' : 's'} \u00b7 owned by ${c.owner || 'nobody'}`),
+        canManage && h('div', { class: 'btns', style: 'justify-content:center' },
+          h('button', {
+            class: 'ghost', onclick: async () => {
+              const name = prompt('New group name:', c.name);
+              if (name && name.trim() && name.trim() !== c.name) {
+                if (await act('renameGroup', { convo: id, name: name.trim() }, null, s => { const x = s.convos.find(x => x.id === id); if (x) x.name = name.trim().slice(0, 30); })) draw();
+              }
+            },
+          }, 'Rename'),
+          h('button', { class: 'ghost', onclick: () => file.click() }, 'Change picture'),
+          c.pv && h('button', { class: 'ghost', onclick: async () => { if (await act('setGroupPic', { convo: id, avatar: '' })) toast('Picture removed'); } }, 'Remove picture'))),
+      h('h3', null, 'Members'),
+      h('div', { class: 'members' }, members.map(n => h('div', { class: 'mrow' },
+        avatar(n, { dot: true }),
+        h('span', { class: 'nm' + (profileOf(n) && profileOf(n).role === 'admin' ? ' admin-name' : ''), onclick: () => openProfile(n) }, n + (key(n) === key(me.name) ? ' (you)' : '')),
+        key(n) === key(c.owner) && h('span', { class: 'ownerbadge' }, 'Owner'),
+        canManage && key(n) !== key(me.name) && h('button', {
+          class: 'ghost danger', onclick: async () => {
+            if (!confirm(`Remove ${n} from ${c.name}?`)) return;
+            const d = await act('removeFromGroup', { convo: id, username: n }, null, s => {
+              const x = s.convos.find(x => x.id === id);
+              if (x) x.members = x.members.filter(m => key(m) !== key(n));
+            });
+            if (d) { toast(`${n} was removed`); draw(); }
+          },
+        }, 'Remove')))),
+      h('label', { class: 'toggle' }, h('span', null, 'Mute notifications',
+        h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'No sound or pop-ups for this group. Unread dots still show.')), mute),
+      h('div', { class: 'btns', style: 'justify-content:space-between' },
+        h('button', { class: 'ghost danger', onclick: async () => { if (await leaveGroup(id)) md.close(); } }, 'Leave group'),
+        h('div', { style: 'display:flex;gap:8px' },
+          h('button', { class: 'ghost', onclick: () => { md.close(); if (openId !== id) switchTo(id); $('gadd').click(); } }, 'Add people'),
+          h('button', { class: 'primary', onclick: () => md.close() }, 'Done'))));
+  };
+  draw();
+}
 
 // ---------- messages ----------
 // "Bottom" means where new things appear: the bottom of a chat, the top of the feed.
@@ -1523,6 +1656,13 @@ function canDelete(m) {
 
 function buildMessage(m, pending) {
   if (isFeed()) return buildPost(m, pending);
+  if (m.sys) {
+    // "alice added bob" lines: not anyone's message, so no actions.
+    const el = h('div', { class: 'msg sysline', title: fmtTime(m.time) }, h('span', null, m.text));
+    el._m = m;
+    el.dataset.id = m.id;
+    return el;
+  }
   const time = h('span', { class: 'time' });
   if (pending) time.append(h('span', { class: 'spinner' }), 'sending');
   else time.textContent = fmtTime(m.time);
@@ -1850,7 +1990,7 @@ function groupMessages() {
   if (isFeed()) return; // posts stand alone
   let prev = null;
   for (const el of log.children) {
-    const isMsg = el.classList.contains('msg');
+    const isMsg = el.classList.contains('msg') && !el.classList.contains('sysline');
     el.classList.toggle('cont', isMsg && !!prev && !el.classList.contains('pending') &&
       prev.dataset.user === el.dataset.user && el.dataset.time - prev.dataset.time < 300000);
     prev = isMsg && !el.classList.contains('pending') ? el : null;
@@ -2138,14 +2278,16 @@ const savePrefs = () => store.set('chat_prefs', JSON.stringify(prefs));
 
 function handlePings(pings) {
   // Skip what you're already looking at (comments live inside the feed, so they always count).
-  const shown = pings.filter(p => p.kind === 'comment' || !(p.convo === openId && !document.hidden));
+  const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || !(p.convo === openId && !document.hidden))
+    .filter(p => p.kind === 'removed' || !isMuted(p.convo));
   if (!shown.length) return;
   if (prefs.sound) ding();
   const p = shown[shown.length - 1];
   const where = p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group'
-    : p.kind === 'comment' ? 'commented' : 'mentioned you';
-  const text = `${p.from} ${where}: ${p.text}`;
-  const go = () => (p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
+    : p.kind === 'comment' ? 'commented' : p.kind === 'removed' ? 'removed you from a group' : 'mentioned you';
+  const text = p.kind === 'removed' ? `${p.from} removed you from "${p.text}"` : `${p.from} ${where}: ${p.text}`;
+  const go = () => (p.kind === 'removed' ? null
+    : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
