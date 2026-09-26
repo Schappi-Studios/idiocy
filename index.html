@@ -774,19 +774,21 @@ async function openProfile(name) {
       : st.incoming.some(n => key(n) === key(name)) ? 'incoming'
       : st.outgoing.some(n => key(n) === key(name)) ? 'outgoing' : '';
     const run = (action, data, done) => async () => { if (await act(action, data)) { m.close(); if (done) done(); } };
+    // Friend buttons use the same instant-updating helpers as the sidebar.
+    const friendly = (fn, done) => async () => { m.close(); if (await fn()) { if (done) done(); } };
     const big = avatar(p.username || name, { dot: true, click: false });
     big.classList.add('big');
     const btns = [];
     if (isMe) btns.push(h('button', { class: 'primary', onclick: () => { m.close(); openEditProfile(); } }, 'Edit profile'));
     else if (rel === 'friend') btns.push(
       h('button', { class: 'primary', onclick: () => { m.close(); openDm(p.username || name); } }, 'Message'),
-      h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Remove ${name} from your friends?`)) run('unfriend', { username: name })(); } }, 'Remove friend'));
+      h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Remove ${name} from your friends?`)) friendly(() => unfriend(name))(); } }, 'Remove friend'));
     else if (rel === 'incoming') btns.push(
-      h('button', { class: 'primary', onclick: run('friendRespond', { username: name, accept: true }) }, 'Accept request'),
-      h('button', { class: 'ghost', onclick: run('friendRespond', { username: name, accept: false }) }, 'Decline'));
+      h('button', { class: 'primary', onclick: friendly(() => respond(name, true), () => toast(`You're now friends with ${name}!`)) }, 'Accept request'),
+      h('button', { class: 'ghost', onclick: friendly(() => respond(name, false)) }, 'Decline'));
     else if (rel === 'outgoing') btns.push(
-      h('button', { class: 'ghost', onclick: run('unfriend', { username: name }) }, 'Cancel request'));
-    else btns.push(h('button', { class: 'primary', onclick: run('friendRequest', { username: name }, () => toast('Friend request sent')) }, 'Add friend'));
+      h('button', { class: 'ghost', onclick: friendly(() => unfriend(name)) }, 'Cancel request'));
+    else btns.push(h('button', { class: 'primary', onclick: friendly(() => requestFriend(name), () => toast('Friend request sent')) }, 'Add friend'));
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
@@ -809,6 +811,9 @@ async function openProfile(name) {
         h('div', { class: 'btns' }, btns)));
   };
   render();
+  // Keep the buttons right if your friends change while it's open.
+  const stWatch = setInterval(() => { if (!m.overlay.isConnected) clearInterval(stWatch); else if (m._st !== st) { m._st = st; render(); } }, 700);
+  m._st = st;
   // Always get a fresh copy when opening someone's profile.
   try {
     const d = await api('profiles', { names: [name] });
@@ -1198,7 +1203,7 @@ let lastActivity = 0; // when the open chat last had a new message
 function schedule() {
   clearTimeout(pollTimer);
   // Check a bit more often while messages are flowing, back off when quiet.
-  const busy = Date.now() - lastActivity < 30000;
+  const busy = Date.now() - lastActivity < 30000 || (st && (st.outgoing.length || st.incoming.length) > 0);
   if (token) pollTimer = setTimeout(poll, document.hidden ? POLL_HIDDEN : busy ? POLL_BUSY : POLL_ACTIVE);
 }
 
@@ -2278,20 +2283,29 @@ const savePrefs = () => store.set('chat_prefs', JSON.stringify(prefs));
 
 function handlePings(pings) {
   // Skip what you're already looking at (comments live inside the feed, so they always count).
-  const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || !(p.convo === openId && !document.hidden))
-    .filter(p => p.kind === 'removed' || !isMuted(p.convo));
+  // Friend requests/accepts change the friends list: fetch it on the very next poll.
+  if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept')) { uv = null; pollNow(); }
+  const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || p.kind === 'friendreq' || p.kind === 'friendaccept' ||
+      !(p.convo === openId && !document.hidden))
+    .filter(p => p.kind === 'removed' || !p.convo || !isMuted(p.convo));
   if (!shown.length) return;
   if (prefs.sound) ding();
   const p = shown[shown.length - 1];
   const where = p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group'
     : p.kind === 'comment' ? 'commented' : p.kind === 'removed' ? 'removed you from a group' : 'mentioned you';
-  const text = p.kind === 'removed' ? `${p.from} removed you from "${p.text}"` : `${p.from} ${where}: ${p.text}`;
+  const text = p.kind === 'removed' ? `${p.from} removed you from "${p.text}"`
+    : p.kind === 'friendreq' ? `${p.from} sent you a friend request`
+    : p.kind === 'friendaccept' ? `${p.from} accepted your friend request! Click to say hi.`
+    : `${p.from} ${where}: ${p.text}`;
   const go = () => (p.kind === 'removed' ? null
+    : p.kind === 'friendreq' ? document.body.classList.add('side-open') // requests live in the sidebar
+    : p.kind === 'friendaccept' ? openDm(p.from)
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const n = new Notification(`${p.from} ${where}`, { body: p.text, icon: $('favicon').href, tag: 'idiocy-' + p.convo });
+      const n = new Notification(p.kind.startsWith('friend') || p.kind === 'removed' ? text : `${p.from} ${where}`,
+        { body: p.kind.startsWith('friend') || p.kind === 'removed' ? '' : p.text, icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
     } catch (e) {}
   }
