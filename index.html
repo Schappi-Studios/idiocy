@@ -2416,7 +2416,7 @@ function wireChannel(dc) {
 function iceDone(pc) {
   if (pc.iceGatheringState === 'complete') return Promise.resolve();
   return new Promise(res => {
-    const t = setTimeout(res, 3000);
+    const t = setTimeout(res, 1500); // usually done in well under a second
     pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
   });
 }
@@ -2454,13 +2454,21 @@ async function startCall(video) {
   call.startedRinging = Date.now();
   callUi('ringing');
   watchCall();
+  watchForAnswer(call);
 }
 
 async function incomingCall(p) {
   if (call) { api('callEnd', { callId: p.call }).catch(() => {}); return; } // busy: decline
-  const d = await api('callGet', { callId: p.call }).catch(() => null);
-  if (!d || !d.ok || d.call.status !== 'ringing' || call) return;
-  call = { role: 'callee', id: p.call, peer: d.call.from, convo: d.call.convo, video: d.call.video, offer: d.call.offer };
+  if (Date.now() - (p.time || 0) > 60000) return; // an old ring that's long over
+  let info = p.offer ? { from: p.from, convo: p.convo, video: !!p.video, offer: p.offer } : null;
+  if (!info) {
+    // Older rings (or ones trimmed to save space) don't carry the offer: fetch it.
+    const d = await api('callGet', { callId: p.call }).catch(() => null);
+    if (!d || !d.ok || d.call.status !== 'ringing') return;
+    info = d.call;
+  }
+  if (call) return;
+  call = { role: 'callee', id: p.call, peer: info.from, convo: info.convo, video: info.video, offer: info.offer };
   callUi('incoming');
   ringtone(true);
   if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
@@ -2488,6 +2496,29 @@ async function acceptCall() {
   if (!call) return;
   const d = await api('callAnswer', { callId: call.id, answer: pc.localDescription.sdp }).catch(() => null);
   if (!d || !d.ok) { toast((d && d.error) || "Couldn't answer the call", true); cleanupCall(); }
+}
+
+// While ringing, the caller keeps a few overlapping checks going (a new one
+// every 0.7s), so the answer is picked up soon after it lands rather than a
+// whole server round trip later.
+function watchForAnswer(me) {
+  let inFlight = 0;
+  const tick = async () => {
+    if (call !== me || me.answered) return;
+    me.answerTimer = setTimeout(tick, 700);
+    if (inFlight >= 3) return;
+    inFlight++;
+    const d = await api('callGet', { callId: me.id }).catch(() => null);
+    inFlight--;
+    if (call !== me || me.answered || !d || !d.ok) return;
+    if (d.call.status === 'active') {
+      me.answered = true;
+      clearTimeout(me.answerTimer);
+      setCallStatus('Connecting\u2026');
+      await me.pc.setRemoteDescription({ type: 'answer', sdp: d.call.answer }).catch(() => {});
+    }
+  };
+  tick();
 }
 
 // Checks the call record: the caller waits for an answer, both notice hang-ups.
@@ -2548,6 +2579,7 @@ function cleanupCall() {
   ringtone(false);
   clearTimeout(call.watch);
   clearTimeout(call.tickTimer);
+  clearTimeout(call.answerTimer);
   if (call.local) call.local.getTracks().forEach(t => t.stop());
   try { if (call.pc) call.pc.close(); } catch (e) {}
   call = null;
