@@ -839,6 +839,7 @@ async function openProfile(name) {
       btns.push(p.banned
         ? h('button', { class: 'ghost', onclick: run('unban', { username: name }, () => toast(`${name} unbanned`)) }, 'Unban')
         : h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Ban ${name}?`)) run('ban', { username: name }, () => toast(`${name} banned`))(); } }, 'Ban'));
+      if (serverApi >= 7) btns.push(h('button', { class: 'ghost', onclick: () => renameUser(p.username || name, true, () => m.close()) }, 'Rename'));
       if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => m.close()) }, 'Delete account'));
     }
     m.box.replaceChildren(
@@ -924,6 +925,9 @@ function openEditProfile() {
 
   const m = modal('scroll',
     h('h2', null, 'Edit profile'),
+    serverApi >= 7 && h('div', { class: 'toggle' },
+      h('span', null, 'Username', h('div', { class: 'hint', style: 'color:var(--muted);font-size:13px' }, me.name)),
+      h('button', { class: 'ghost', type: 'button', onclick: () => renameUser(me.name, false, () => m.close()) }, 'Change')),
     h('form', {
       style: 'display:flex;flex-direction:column;gap:12px',
       onsubmit: async e => {
@@ -1493,8 +1497,9 @@ function showChatLoading() {
 }
 
 async function openDm(name) {
-  const id = 'dm_' + [key(me.name), key(name)].sort().join('_');
-  if (st && st.convos.some(c => c.id === id)) return switchTo(id); // no need to ask the server
+  // Find the DM by who's in it: after someone renames, the id no longer matches their name.
+  const existing = st && st.convos.find(c => c.type === 'dm' && c.members.some(m => key(m) === key(name)) && c.members.some(m => key(m) === key(me.name)));
+  if (existing) return switchTo(existing.id); // no need to ask the server
   // Switch away from the current chat right now, so nothing typed while the
   // server sets up the DM can land in the wrong chat.
   const temp = 'pending:' + key(name);
@@ -2742,6 +2747,25 @@ function openSettings() {
     }, 'Delete my account'));
 }
 
+// ---------- renaming ----------
+async function renameUser(name, asAdmin, done) {
+  const self = me && key(name) === key(me.name) && !asAdmin;
+  const typed = prompt(self
+    ? 'Your new username (3-20 letters, numbers, spaces, _ or -).\nYour messages, friends and chats all move over. You can change it once an hour.'
+    : `New username for ${name}:`, self ? '' : name);
+  if (typed == null || !typed.trim() || typed.trim() === name) return;
+  const d = self ? await act('renameMe', { username: typed.trim() }) : await act('adminRename', { username: name, newName: typed.trim() });
+  if (!d) return;
+  if (self || key(name) === key(me.name)) me.name = d.username;
+  profiles.delete(key(name));
+  uv = null; // fetch friends/chats with the new name straight away
+  toast(self ? `You're now ${d.username}` : `${name} is now ${d.username}`);
+  sideSig = '';
+  renderSide();
+  renderHeader();
+  if (done) done();
+}
+
 // ---------- deleting accounts ----------
 const DELETE_WARNING = 'This removes the account and everything it made: messages, posts, comments, pictures, reactions and DMs. It can\u2019t be undone.';
 
@@ -2854,6 +2878,7 @@ function openAdmin() {
             u.banned
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('unban', { username: u.username })) load(); } }, 'Unban')
               : h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${u.username}?`) && await act('ban', { username: u.username })) load(); } }, 'Ban'),
+            serverApi >= 7 && h('button', { class: 'ghost', onclick: () => renameUser(u.username, true, load) }, 'Rename'),
             serverApi >= 5 && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(u.username, load) }, 'Delete')))));
       drawUsers();
       body.replaceChildren(search, h('div', { class: 'meta', style: 'color:var(--muted);font-size:12px' }, `${data.users.length} accounts`), list);
