@@ -2368,13 +2368,39 @@ function callUi(state) {
 function setCallStatus(text) { $('cstatus').textContent = text; }
 
 // Two-tone ring, repeating, made in code like the ping.
+// Call sounds, made in code like the ping. The person being called hears a
+// two-note ring; the caller hears a "brrr... brrr..." ringback while waiting.
+// Both follow the "Call ringtone" setting, separate from message pings.
 let ringTimer = null;
-function ringtone(on) {
+function ringtone(kind) {
   clearInterval(ringTimer);
-  if (!on || !prefs.sound) return;
-  const once = () => { ding(); setTimeout(ding, 350); };
+  ringTimer = null;
+  if (!kind || prefs.ring === false) return;
+  const once = kind === 'incoming' ? () => { ding(); setTimeout(ding, 350); } : ringback;
   once();
-  ringTimer = setInterval(once, 2200);
+  ringTimer = setInterval(once, kind === 'incoming' ? 2200 : 4000);
+}
+
+// Two seconds of the classic 440 + 480 Hz ringback tone.
+function ringback() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    const t = audio.currentTime;
+    const g = audio.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.06, t + 0.05);
+    g.gain.setValueAtTime(0.06, t + 1.9);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2);
+    g.connect(audio.destination);
+    [440, 480].forEach(f => {
+      const o = audio.createOscillator();
+      o.frequency.value = f;
+      o.connect(g);
+      o.start(t);
+      o.stop(t + 2.05);
+    });
+  } catch (e) {}
 }
 
 async function getMedia(video) {
@@ -2453,6 +2479,7 @@ async function startCall(video) {
   call.id = d.callId;
   call.startedRinging = Date.now();
   callUi('ringing');
+  ringtone('outgoing');
   watchCall();
   watchForAnswer(call);
 }
@@ -2470,7 +2497,7 @@ async function incomingCall(p) {
   if (call) return;
   call = { role: 'callee', id: p.call, peer: info.from, convo: info.convo, video: info.video, offer: info.offer };
   callUi('incoming');
-  ringtone(true);
+  ringtone('incoming');
   if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const n = new Notification(`${call.peer} is calling you`, { body: call.video ? 'Video call' : 'Voice call', icon: $('favicon').href, tag: 'idiocy-call' });
@@ -2482,7 +2509,7 @@ async function incomingCall(p) {
 
 async function acceptCall() {
   if (!call || call.role !== 'callee') return;
-  ringtone(false);
+  ringtone(null);
   callUi('connecting');
   const stream = await getMedia(call.video);
   if (!stream || !call) { endCall(true); return; }
@@ -2514,6 +2541,7 @@ function watchForAnswer(me) {
     if (d.call.status === 'active') {
       me.answered = true;
       clearTimeout(me.answerTimer);
+      ringtone(null);
       setCallStatus('Connecting\u2026');
       await me.pc.setRemoteDescription({ type: 'answer', sdp: d.call.answer }).catch(() => {});
     }
@@ -2538,6 +2566,7 @@ function watchCall() {
       }
       if (me.role === 'caller' && c.status === 'active' && !me.answered) {
         me.answered = true;
+        ringtone(null);
         setCallStatus('Connecting\u2026');
         await me.pc.setRemoteDescription({ type: 'answer', sdp: c.answer }).catch(() => {});
       }
@@ -2576,7 +2605,7 @@ function endCall(tellServer, message) {
 
 function cleanupCall() {
   if (!call) return;
-  ringtone(false);
+  ringtone(null);
   clearTimeout(call.watch);
   clearTimeout(call.tickTimer);
   clearTimeout(call.answerTimer);
@@ -2597,7 +2626,7 @@ window.addEventListener('beforeunload', () => { if (call) endCall(true); });
 let settings = { slow: 0 };
 let pingTop = null; // newest notification we've handled
 let eMax = 0;       // newest reaction change seen in the open chat
-const prefs = Object.assign({ sound: true, desktop: false }, JSON.parse(store.get('chat_prefs') || '{}'));
+const prefs = Object.assign({ sound: true, ring: true, desktop: false }, JSON.parse(store.get('chat_prefs') || '{}'));
 const savePrefs = () => store.set('chat_prefs', JSON.stringify(prefs));
 
 function handlePings(pings) {
@@ -2639,6 +2668,7 @@ let audio = null;
 function ding() {
   try {
     audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
     const t = audio.currentTime;
     [[880, 0], [1320, 0.09]].forEach(([f, dt]) => {
       const o = audio.createOscillator(), g = audio.createGain();
@@ -2685,6 +2715,9 @@ function openSettings() {
   const sound = h('input', { type: 'checkbox' });
   sound.checked = prefs.sound;
   sound.onchange = () => { prefs.sound = sound.checked; savePrefs(); if (sound.checked) ding(); };
+  const ringBox = h('input', { type: 'checkbox' });
+  ringBox.checked = prefs.ring !== false;
+  ringBox.onchange = () => { prefs.ring = ringBox.checked; savePrefs(); if (ringBox.checked) ringback(); };
   const desk = h('input', { type: 'checkbox' });
   desk.checked = prefs.desktop && 'Notification' in window && Notification.permission === 'granted';
   desk.onchange = async () => {
@@ -2699,6 +2732,7 @@ function openSettings() {
   const md = modal('',
     h('h2', null, 'Settings'),
     h('label', { class: 'toggle' }, h('span', null, 'Ping sound', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'For DMs, group messages and @mentions')), sound),
+    serverApi >= 6 && h('label', { class: 'toggle' }, h('span', null, 'Call ringtone', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Ringing when someone calls you, and while you call someone')), ringBox),
     h('label', { class: 'toggle' }, h('span', null, 'Desktop notifications', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'When this tab is in the background')), desk),
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
