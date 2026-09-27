@@ -246,6 +246,41 @@
   .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
   #toast.click { cursor: pointer; }
 
+  /* ---------- calls ---------- */
+  #callui {
+    position: fixed; inset: 0; z-index: 45; background: #0d0f16; color: #fff;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    animation: fadein .2s ease-out;
+  }
+  #callui.hidden { display: none; }
+  #callui video { background: #000; }
+  #rvid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+  #lvid {
+    position: absolute; right: 16px; top: 16px; width: 26vw; max-width: 200px; aspect-ratio: 3 / 4;
+    object-fit: cover; border-radius: 12px; border: 2px solid rgba(255, 255, 255, .3); transform: scaleX(-1);
+  }
+  #callui .who { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 0 16px; }
+  #callui .who .avatar { width: 112px; height: 112px; font-size: 44px; cursor: default; }
+  #callui .who.ringing .avatar { animation: ring 1.4s ease-out infinite; }
+  @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(124, 92, 255, .6); } 100% { box-shadow: 0 0 0 28px rgba(124, 92, 255, 0); } }
+  #callui .cname { font-size: 24px; font-weight: 800; }
+  #callui .cstatus { color: rgba(255, 255, 255, .7); font-size: 15px; }
+  #callui.hasvideo .who { position: absolute; top: 16px; left: 16px; flex-direction: row; text-align: left; }
+  #callui.hasvideo .who .avatar { width: 44px; height: 44px; font-size: 18px; animation: none; }
+  #callui.hasvideo .who .cname { font-size: 17px; }
+  #callui .ctrls { position: absolute; bottom: 28px; left: 0; right: 0; display: flex; justify-content: center; gap: 16px; }
+  #callui .ctrls button {
+    width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer; font-size: 24px;
+    background: rgba(255, 255, 255, .15); color: #fff; display: flex; align-items: center; justify-content: center;
+  }
+  #callui .ctrls button:hover { background: rgba(255, 255, 255, .25); }
+  #callui .ctrls button.off { background: #fff; color: #111; }
+  #callui .ctrls .hang { background: #e0344f; }
+  #callui .ctrls .hang:hover { background: #f04763; }
+  #callui .ctrls .accept { background: #1fae6e; }
+  #callui .ctrls .accept:hover { background: #26c77f; }
+  #callbtn, #vcallbtn { width: 38px; height: 34px; font-size: 16px; }
+
   /* ---------- groups ---------- */
   #hicon:empty { display: none; }
   #hicon .avatar { width: 34px; height: 34px; }
@@ -547,6 +582,13 @@
 
 <div id="progress"></div>
 
+<div id="callui" class="hidden">
+  <video id="rvid" autoplay playsinline></video>
+  <video id="lvid" autoplay playsinline muted></video>
+  <div class="who" id="cwho"><div class="avatar"></div><div><div class="cname" id="cname"></div><div class="cstatus" id="cstatus"></div></div></div>
+  <div class="ctrls" id="cctrls"></div>
+</div>
+
 <div id="loading" class="hidden">
   <div class="wordmark">Idiocy</div>
   <img class="logo" alt="">
@@ -592,6 +634,8 @@
       </div>
       <button class="ghost hidden" id="gadd">Add people</button>
       <button class="ghost hidden" id="ginfo">Info</button>
+      <button class="iconbtn hidden" id="callbtn" title="Voice call" aria-label="Voice call">&#x1F4DE;</button>
+      <button class="iconbtn hidden" id="vcallbtn" title="Video call" aria-label="Video call">&#x1F3A5;</button>
     </header>
     <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
@@ -1064,6 +1108,7 @@ function showAuth(msg) {
 }
 
 function signOut(msg) {
+  if (call) endCall(true);
   token = null;
   store.del('chat_token');
   clearTimeout(pollTimer);
@@ -1344,6 +1389,9 @@ function renderHeader() {
     : `${c.members.length} members: ${c.members.join(', ')}`;
   $('gadd').classList.toggle('hidden', !isGroup);
   $('ginfo').classList.toggle('hidden', !isGroup);
+  const canCall = !!c && c.type === 'dm' && serverApi >= 6;
+  $('callbtn').classList.toggle('hidden', !canCall);
+  $('vcallbtn').classList.toggle('hidden', !canCall);
   textEl.placeholder = c ? `Message ${c.type === 'global' ? 'everyone' : convoLabel(c)}…` : 'Say something…';
 }
 
@@ -2275,6 +2323,244 @@ mainEl.addEventListener('drop', e => {
   if (f) attachFile(f); else toast("That file isn't an image", true);
 });
 
+// ---------- calls ----------
+// Audio/video goes straight between the two browsers (WebRTC). The server only
+// passes each side's connection details along and rings the other person.
+// Some networks (often schools) block direct connections; a TURN relay server
+// can be added to CALL_ICE_SERVERS to get through those.
+const CALL_ICE_SERVERS = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
+let call = null; // the call in progress, if any
+
+function callUi(state) {
+  const ui = $('callui');
+  ui.classList.remove('hidden');
+  const peer = call.peer;
+  const av = avatar(peer, { click: false });
+  $('cwho').firstElementChild.replaceWith(av);
+  $('cwho').classList.toggle('ringing', state === 'ringing' || state === 'incoming');
+  $('cname').textContent = peer;
+  const btn = (cls, label, title, fn) => h('button', { class: cls, title, 'aria-label': title, onclick: fn }, label);
+  if (state === 'incoming') {
+    showLocal(null, false); // no camera boxes until the call is answered
+    $('cstatus').textContent = call.video ? 'Incoming video call\u2026' : 'Incoming call\u2026';
+    $('cctrls').replaceChildren(
+      btn('hang', '\u2715', 'Decline', () => endCall(true)),
+      btn('accept', '\u{1F4DE}', 'Accept', () => acceptCall()));
+    return;
+  }
+  const muteBtn = btn('', '\u{1F399}\uFE0F', 'Mute', () => {
+    const t = call.local && call.local.getAudioTracks()[0];
+    if (!t) return;
+    t.enabled = !t.enabled;
+    muteBtn.classList.toggle('off', !t.enabled);
+    muteBtn.title = t.enabled ? 'Mute' : 'Unmute';
+  });
+  const camBtn = call.video && btn('', '\u{1F4F7}', 'Turn camera off', () => {
+    const t = call.local && call.local.getVideoTracks()[0];
+    if (!t) return;
+    t.enabled = !t.enabled;
+    camBtn.classList.toggle('off', !t.enabled);
+  });
+  $('cctrls').replaceChildren(...[muteBtn, camBtn, btn('hang', '\u{1F4DE}', 'Hang up', () => endCall(true))].filter(Boolean));
+  setCallStatus(state === 'ringing' ? 'Ringing\u2026' : state === 'connecting' ? 'Connecting\u2026' : '');
+}
+
+function setCallStatus(text) { $('cstatus').textContent = text; }
+
+// Two-tone ring, repeating, made in code like the ping.
+let ringTimer = null;
+function ringtone(on) {
+  clearInterval(ringTimer);
+  if (!on || !prefs.sound) return;
+  const once = () => { ding(); setTimeout(ding, 350); };
+  once();
+  ringTimer = setInterval(once, 2200);
+}
+
+async function getMedia(video) {
+  try {
+    return await navigator.mediaDevices.getUserMedia({ audio: true, video: video ? { width: 640, height: 480 } : false });
+  } catch (e) {
+    toast(video ? 'Allow camera and microphone access to call' : 'Allow microphone access to call', true);
+    return null;
+  }
+}
+
+function newPeer() {
+  const pc = new RTCPeerConnection({ iceServers: CALL_ICE_SERVERS });
+  pc.ontrack = e => {
+    $('rvid').srcObject = e.streams[0];
+    $('rvid').play().catch(() => {});
+  };
+  pc.onconnectionstatechange = () => {
+    if (!call || call.pc !== pc) return;
+    if (pc.connectionState === 'connected') onConnected();
+    if (pc.connectionState === 'failed') {
+      toast("Couldn't connect the call. The network might be blocking calls.", true);
+      endCall(true);
+    }
+    if (pc.connectionState === 'disconnected') setCallStatus('Reconnecting\u2026');
+  };
+  pc.ondatachannel = e => wireChannel(e.channel);
+  return pc;
+}
+
+// A tiny side channel so hanging up reaches the other person instantly.
+function wireChannel(dc) {
+  call.dc = dc;
+  dc.onmessage = e => { if (e.data === 'bye' && call) endCall(false, 'Call ended'); };
+}
+
+// Sends our connection details only once they're complete (no trickling),
+// because each trip through the server takes a couple of seconds.
+function iceDone(pc) {
+  if (pc.iceGatheringState === 'complete') return Promise.resolve();
+  return new Promise(res => {
+    const t = setTimeout(res, 3000);
+    pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+  });
+}
+
+function showLocal(stream, video) {
+  $('lvid').classList.toggle('hidden', !video);
+  $('rvid').classList.toggle('hidden', !video);
+  $('callui').classList.toggle('hasvideo', !!video);
+  $('lvid').srcObject = video ? stream : null;
+}
+
+async function startCall(video) {
+  const c = st && st.convos.find(x => x.id === openId);
+  if (!c || c.type !== 'dm') return;
+  if (call) return toast("You're already in a call", true);
+  const peer = convoLabel(c);
+  call = { role: 'caller', peer, convo: c.id, video };
+  showLocal(null, false);
+  callUi('connecting');
+  setCallStatus('Starting\u2026');
+  const stream = await getMedia(video);
+  if (!stream || !call) { cleanupCall(); return; }
+  call.local = stream;
+  showLocal(stream, video);
+  const pc = call.pc = newPeer();
+  stream.getTracks().forEach(t => pc.addTrack(t, stream));
+  wireChannel(pc.createDataChannel('ctl'));
+  await pc.setLocalDescription(await pc.createOffer());
+  await iceDone(pc);
+  if (!call) return;
+  const d = await api('callStart', { convo: c.id, offer: pc.localDescription.sdp, video }).catch(() => null);
+  if (!d || !d.ok) { toast((d && d.error) || "Couldn't start the call", true); cleanupCall(); return; }
+  if (!call) { api('callEnd', { callId: d.callId }).catch(() => {}); return; }
+  call.id = d.callId;
+  call.startedRinging = Date.now();
+  callUi('ringing');
+  watchCall();
+}
+
+async function incomingCall(p) {
+  if (call) { api('callEnd', { callId: p.call }).catch(() => {}); return; } // busy: decline
+  const d = await api('callGet', { callId: p.call }).catch(() => null);
+  if (!d || !d.ok || d.call.status !== 'ringing' || call) return;
+  call = { role: 'callee', id: p.call, peer: d.call.from, convo: d.call.convo, video: d.call.video, offer: d.call.offer };
+  callUi('incoming');
+  ringtone(true);
+  if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(`${call.peer} is calling you`, { body: call.video ? 'Video call' : 'Voice call', icon: $('favicon').href, tag: 'idiocy-call' });
+      n.onclick = () => { window.focus(); n.close(); };
+    } catch (e) {}
+  }
+  watchCall();
+}
+
+async function acceptCall() {
+  if (!call || call.role !== 'callee') return;
+  ringtone(false);
+  callUi('connecting');
+  const stream = await getMedia(call.video);
+  if (!stream || !call) { endCall(true); return; }
+  call.local = stream;
+  showLocal(stream, call.video);
+  const pc = call.pc = newPeer();
+  stream.getTracks().forEach(t => pc.addTrack(t, stream));
+  await pc.setRemoteDescription({ type: 'offer', sdp: call.offer });
+  await pc.setLocalDescription(await pc.createAnswer());
+  await iceDone(pc);
+  if (!call) return;
+  const d = await api('callAnswer', { callId: call.id, answer: pc.localDescription.sdp }).catch(() => null);
+  if (!d || !d.ok) { toast((d && d.error) || "Couldn't answer the call", true); cleanupCall(); }
+}
+
+// Checks the call record: the caller waits for an answer, both notice hang-ups.
+function watchCall() {
+  clearTimeout(call && call.watch);
+  if (!call) return;
+  const me = call;
+  call.watch = setTimeout(async () => {
+    if (call !== me) return;
+    const d = await api('callGet', { callId: me.id }).catch(() => null);
+    if (call !== me) return;
+    if (d && d.ok) {
+      const c = d.call;
+      if (['ended', 'declined', 'missed'].includes(c.status)) {
+        endCall(false, c.status === 'declined' ? `${me.peer} declined` : c.status === 'missed' && me.role === 'callee' ? 'Missed call' : 'Call ended');
+        return;
+      }
+      if (me.role === 'caller' && c.status === 'active' && !me.answered) {
+        me.answered = true;
+        setCallStatus('Connecting\u2026');
+        await me.pc.setRemoteDescription({ type: 'answer', sdp: c.answer }).catch(() => {});
+      }
+      if (me.role === 'caller' && c.status === 'ringing' && Date.now() - me.startedRinging > 45000) {
+        endCall(true, 'No answer');
+        return;
+      }
+    }
+    watchCall();
+  }, call.connected ? 4000 : 1500);
+}
+
+function onConnected() {
+  if (!call || call.connected) return;
+  call.connected = true;
+  call.since = Date.now();
+  $('cwho').classList.remove('ringing');
+  const tick = () => {
+    if (!call || !call.connected) return;
+    const s = Math.floor((Date.now() - call.since) / 1000);
+    setCallStatus(`${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`);
+    call.tickTimer = setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+// tellServer: we're the one hanging up/declining (the other side learns via the server and the side channel).
+function endCall(tellServer, message) {
+  if (!call) return;
+  const c = call;
+  if (tellServer && c.id) api('callEnd', { callId: c.id }).catch(() => {});
+  try { if (c.dc && c.dc.readyState === 'open') c.dc.send('bye'); } catch (e) {}
+  cleanupCall();
+  if (message) toast(message);
+}
+
+function cleanupCall() {
+  if (!call) return;
+  ringtone(false);
+  clearTimeout(call.watch);
+  clearTimeout(call.tickTimer);
+  if (call.local) call.local.getTracks().forEach(t => t.stop());
+  try { if (call.pc) call.pc.close(); } catch (e) {}
+  call = null;
+  $('rvid').srcObject = null;
+  $('lvid').srcObject = null;
+  $('callui').classList.add('hidden');
+  $('callui').classList.remove('hasvideo');
+}
+
+$('callbtn').onclick = () => startCall(false);
+$('vcallbtn').onclick = () => startCall(true);
+window.addEventListener('beforeunload', () => { if (call) endCall(true); });
+
 // ---------- notifications ----------
 let settings = { slow: 0 };
 let pingTop = null; // newest notification we've handled
@@ -2283,6 +2569,10 @@ const prefs = Object.assign({ sound: true, desktop: false }, JSON.parse(store.ge
 const savePrefs = () => store.set('chat_prefs', JSON.stringify(prefs));
 
 function handlePings(pings) {
+  // Incoming calls get their own ringing screen instead of a pop-up.
+  pings.filter(p => p.kind === 'call').forEach(p => incomingCall(p));
+  pings = pings.filter(p => p.kind !== 'call');
+  if (!pings.length) return;
   // Skip what you're already looking at (comments live inside the feed, so they always count).
   // Friend requests/accepts change the friends list: fetch it on the very next poll.
   if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept')) { uv = null; pollNow(); }
