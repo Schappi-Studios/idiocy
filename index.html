@@ -2483,7 +2483,7 @@ function openAdmin() {
       search.oninput = () => { query = search.value; drawUsers(); };
       const list = h('div');
       const drawUsers = () => list.replaceChildren(...data.users
-        .filter(u => key(u.username).includes(key(query)))
+        .filter(u => u.username && key(u.username).includes(key(query)))
         .slice(0, 100)
         .map(u => h('div', { class: 'urow' },
           avatar(u.username),
