@@ -795,6 +795,7 @@ async function openProfile(name) {
       btns.push(p.banned
         ? h('button', { class: 'ghost', onclick: run('unban', { username: name }, () => toast(`${name} unbanned`)) }, 'Unban')
         : h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Ban ${name}?`)) run('ban', { username: name }, () => toast(`${name} banned`))(); } }, 'Ban'));
+      if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => m.close()) }, 'Delete account'));
     }
     m.box.replaceChildren(
       h('div', { class: 'banner', style: `background:${colorFor(name, 80)}` }),
@@ -2379,7 +2380,54 @@ function openSettings() {
     h('label', { class: 'toggle' }, h('span', null, 'Desktop notifications', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'When this tab is in the background')), desk),
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
-      h('button', { class: 'primary', onclick: () => md.close() }, 'Done')));
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Done')),
+    serverApi >= 5 && me && me.role !== 'admin' && h('button', {
+      class: 'ghost danger', style: 'align-self:flex-start;font-size:12px', onclick: () => { md.close(); openDeleteMyAccount(); },
+    }, 'Delete my account'));
+}
+
+// ---------- deleting accounts ----------
+const DELETE_WARNING = 'This removes the account and everything it made: messages, posts, comments, pictures, reactions and DMs. It can\u2019t be undone.';
+
+async function adminDeleteAccount(name, done) {
+  const typed = prompt(`Delete ${name} forever?\n\n${DELETE_WARNING}\n\nType their username to confirm:`);
+  if (typed == null) return;
+  if (key(typed) !== key(name)) return toast("That doesn't match, so nothing was deleted", true);
+  if (await act('adminDeleteAccount', { username: name })) {
+    toast(`${name} was deleted`);
+    profiles.delete(key(name));
+    if (done) done();
+  }
+}
+
+function openDeleteMyAccount() {
+  const pass = h('input', { type: 'password', placeholder: 'Your password', autocomplete: 'current-password' });
+  const confirmBox = h('input', { type: 'checkbox' });
+  const go = h('button', { class: 'primary', style: 'background:var(--danger)' }, 'Delete my account');
+  const md = modal('',
+    h('h2', null, 'Delete your account?'),
+    h('div', { style: 'color:var(--muted);font-size:14px' }, DELETE_WARNING),
+    pass,
+    h('label', { class: 'toggle' }, h('span', null, 'I understand this is permanent'), confirmBox),
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'), go));
+  go.onclick = async () => {
+    if (!confirmBox.checked) return toast('Tick the box to confirm', true);
+    if (!pass.value) return toast('Enter your password', true);
+    go.disabled = true;
+    go.classList.add('busy');
+    try {
+      const d = await api('deleteMyAccount', { password: pass.value });
+      if (!d.ok) { if (!d.auth) toast(d.error || 'Something went wrong', true); return; }
+      md.close();
+      signOut('Your account was deleted. Bye!');
+    } catch (e) {
+      toast('Could not reach the server', true);
+    } finally {
+      go.disabled = false;
+      go.classList.remove('busy');
+    }
+  };
+  pass.focus();
 }
 
 // ---------- admin panel ----------
@@ -2449,7 +2497,8 @@ function openAdmin() {
               : timeoutButtons(u.username, load)[1],
             u.banned
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('unban', { username: u.username })) load(); } }, 'Unban')
-              : h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${u.username}?`) && await act('ban', { username: u.username })) load(); } }, 'Ban')))));
+              : h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${u.username}?`) && await act('ban', { username: u.username })) load(); } }, 'Ban'),
+            serverApi >= 5 && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(u.username, load) }, 'Delete')))));
       drawUsers();
       body.replaceChildren(search, h('div', { class: 'meta', style: 'color:var(--muted);font-size:12px' }, `${data.users.length} accounts`), list);
       search.focus();
