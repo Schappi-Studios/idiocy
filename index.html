@@ -108,6 +108,44 @@
   }
   main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
 
+  /* Phones: a thin strip of chat icons down the left, like Discord. */
+  #rail { display: none; }
+  #rail {
+    width: 64px; flex-shrink: 0; flex-direction: column; align-items: center; gap: 8px;
+    padding: max(10px, env(safe-area-inset-top)) 0 max(10px, env(safe-area-inset-bottom));
+    background: var(--panel-2); border-right: 1px solid var(--border);
+    overflow-y: auto; scrollbar-width: none;
+  }
+  #rail::-webkit-scrollbar { display: none; }
+  #rail .ri {
+    position: relative; flex-shrink: 0; width: 44px; height: 44px; padding: 0; border: 0; background: none;
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  #rail .ri .avatar { width: 44px; height: 44px; font-size: 17px; transition: border-radius .15s; }
+  #rail .ri.on .avatar { border-radius: 14px; }
+  #rail .ri .avatar.icon { background: var(--panel); color: var(--muted); font-size: 20px; border-radius: 14px; }
+  #rail .ri.on .avatar.icon { background: var(--accent); color: #fff; }
+  /* the little bar on the left: short = unread, tall = open */
+  #rail .ri::before {
+    content: ''; position: absolute; left: -10px; top: 50%; width: 4px; height: 0; border-radius: 0 4px 4px 0;
+    background: var(--text); transform: translateY(-50%); transition: height .15s;
+  }
+  #rail .ri.unread::before { height: 8px; }
+  #rail .ri.on::before { height: 32px; }
+  #rail .badge-n {
+    position: absolute; right: -3px; bottom: -3px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
+    background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
+    border: 2px solid var(--panel-2);
+  }
+  #rail .ri .presence { border-color: var(--panel-2); }
+  #rail .sep { flex-shrink: 0; width: 28px; height: 2px; border-radius: 1px; background: var(--border); }
+  #rail .tool {
+    position: relative; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--panel); color: var(--muted); font-size: 22px; display: flex; align-items: center; justify-content: center;
+  }
+  #rail .tool.add { color: var(--ok); }
+  #rail .grow { flex: 1; min-height: 8px; }
+
   .me {
     display: flex; align-items: center; gap: 8px;
     padding: 14px 16px; border-bottom: 1px solid var(--border);
@@ -631,6 +669,8 @@
     #scrim { position: fixed; inset: 0; z-index: 9; background: rgba(20,24,40,.25); display: none; }
     body.side-open #scrim { display: block; }
     #sideclose { display: flex; }
+    #rail { display: flex; }
+    #menu { display: none !important; } /* the rail's expand button does this job */
     /* iPhone Safari colours the strip behind the clock from the page and from things stuck
        to the top, so make that white to match the header instead of grey. */
     body { background: var(--panel); }
@@ -696,6 +736,7 @@
 </div>
 
 <div id="app" class="hidden">
+  <nav id="rail" aria-label="Chats"></nav>
   <aside>
     <div class="brand"><img class="logo" alt="">Idiocy<button id="sideclose" title="Close menu" aria-label="Close menu">✕</button></div>
     <div class="me">
@@ -1470,6 +1511,32 @@ function renderSide() {
         }, '✕')), 'f:' + key(n)))
     : [h('div', { class: 'muted' }, 'No friends yet. Add someone by username!')]));
   seenRows = seen;
+  renderRail(convos);
+}
+
+// Phones: the icon strip. Tap an icon to open that chat; the top button expands the
+// full sidebar with names, friends and settings.
+function renderRail(convos) {
+  const open = () => document.body.classList.add('side-open');
+  const reqs = st.incoming.length;
+  $('rail').replaceChildren(
+    h('button', { class: 'tool', title: 'Show names and friends', 'aria-label': 'Show names and friends', onclick: open },
+      '\u00bb', reqs ? h('span', { class: 'badge-n', title: 'Friend requests' }, String(reqs)) : null),
+    h('div', { class: 'sep' }),
+    ...convos.map(c => {
+      const label = convoLabel(c);
+      const icon = c.type === 'dm' ? avatar(label, { dot: true, click: false })
+        : c.type === 'group' ? groupIcon(c) : h('div', { class: 'avatar icon' }, '#');
+      icon.style.cursor = 'pointer';
+      return h('button', {
+        class: 'ri' + (c.id === openId ? ' on' : '') + (isUnread(c.id) ? ' unread' : ''),
+        title: label, 'aria-label': label, onclick: () => switchTo(c.id),
+      }, icon);
+    }),
+    h('button', { class: 'tool add', title: 'New group', 'aria-label': 'New group', onclick: () => $('newgroup').click() }, '+'),
+    h('div', { class: 'grow' }),
+    h('button', { class: 'ri', title: 'You', 'aria-label': 'Your profile', onclick: () => $('mename').click() },
+      avatar(me.name, { dot: true, click: false })));
 }
 
 // Friend actions update the sidebar immediately; the server catches up after.
