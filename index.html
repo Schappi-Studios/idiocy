@@ -279,38 +279,58 @@
   .olderload { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
 
   /* ---------- calls ---------- */
-  #callui {
-    position: fixed; inset: 0; z-index: 45; background: #0d0f16; color: #fff;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
-    animation: fadein .2s ease-out;
+  /* Call panel at the top of the DM (like Discord), so the chat stays usable. */
+  #callpanel {
+    background: #10131c; color: #fff; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
+    border-bottom: 1px solid var(--border); animation: slidein .2s ease-out;
   }
-  #callui.hidden { display: none; }
-  #callui video { background: #000; }
-  #rvid { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
-  #lvid {
-    position: absolute; right: 16px; top: 16px; width: 26vw; max-width: 200px; aspect-ratio: 3 / 4;
-    object-fit: cover; border-radius: 12px; border: 2px solid rgba(255, 255, 255, .3); transform: scaleX(-1);
+  #callpanel .tiles { display: flex; gap: 10px; justify-content: center; align-items: center; }
+  #callpanel .tile {
+    position: relative; background: #1b1f2b; border-radius: 12px; overflow: hidden;
+    display: flex; align-items: center; justify-content: center; width: 150px; height: 104px; flex-shrink: 1;
   }
-  #callui .who { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 0 16px; }
-  #callui .who .avatar { width: 112px; height: 112px; font-size: 44px; cursor: default; }
-  #callui .who.ringing .avatar { animation: ring 1.4s ease-out infinite; }
-  @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(124, 92, 255, .6); } 100% { box-shadow: 0 0 0 28px rgba(124, 92, 255, 0); } }
-  #callui .cname { font-size: 24px; font-weight: 800; }
-  #callui .cstatus { color: rgba(255, 255, 255, .7); font-size: 15px; }
-  #callui.hasvideo .who { position: absolute; top: 16px; left: 16px; flex-direction: row; text-align: left; }
-  #callui.hasvideo .who .avatar { width: 44px; height: 44px; font-size: 18px; animation: none; }
-  #callui.hasvideo .who .cname { font-size: 17px; }
-  #callui .ctrls { position: absolute; bottom: 28px; left: 0; right: 0; display: flex; justify-content: center; gap: 16px; }
-  #callui .ctrls button {
-    width: 58px; height: 58px; border-radius: 50%; border: 0; cursor: pointer; font-size: 24px;
-    background: rgba(255, 255, 255, .15); color: #fff; display: flex; align-items: center; justify-content: center;
+  #callpanel.hasvideo .tile { width: min(46%, 360px); height: auto; aspect-ratio: 4 / 3; }
+  #callpanel .tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #callpanel .tile .avatar { width: 60px; height: 60px; font-size: 24px; cursor: default; }
+  #callpanel .tile .label { position: absolute; left: 8px; bottom: 6px; font-size: 12px; font-weight: 700; text-shadow: 0 1px 3px #000; }
+  #callpanel .tile.ringing .avatar, #callring .avatar { animation: ring 1.4s ease-out infinite; }
+  @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(124, 92, 255, .6); } 100% { box-shadow: 0 0 0 22px rgba(124, 92, 255, 0); } }
+  #lvid { transform: scaleX(-1); }
+  #callpanel .bar { display: flex; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  #cstatus { color: rgba(255, 255, 255, .75); font-size: 13px; min-width: 70px; text-align: center; }
+  .cbtn {
+    width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer; font-size: 18px; flex-shrink: 0;
+    background: rgba(255, 255, 255, .14); color: #fff; display: flex; align-items: center; justify-content: center;
   }
-  #callui .ctrls button:hover { background: rgba(255, 255, 255, .25); }
-  #callui .ctrls button.off { background: #fff; color: #111; }
-  #callui .ctrls .hang { background: #e0344f; }
-  #callui .ctrls .hang:hover { background: #f04763; }
-  #callui .ctrls .accept { background: #1fae6e; }
-  #callui .ctrls .accept:hover { background: #26c77f; }
+  .cbtn:hover { background: rgba(255, 255, 255, .24); }
+  .cbtn.off { background: #fff; color: #111; }
+  .cbtn.hang { background: #e0344f; }
+  .cbtn.hang:hover { background: #f04763; }
+  .cbtn.accept { background: #1fae6e; }
+  .cbtn.accept:hover { background: #26c77f; }
+  .vol { display: flex; align-items: center; gap: 6px; font-size: 12px; color: rgba(255, 255, 255, .8); }
+  .vol input { width: 110px; accent-color: #9b82ff; }
+  .vol .pct { width: 38px; text-align: right; }
+
+  /* Small bar at the bottom of the sidebar while you're in another chat. */
+  #callmini {
+    position: sticky; bottom: 0; margin-top: auto; background: #10131c; color: #fff;
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px; cursor: pointer;
+  }
+  #callmini .t { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #callmini .t b { display: block; color: #3ddc97; font-size: 12px; }
+  #callmini .cbtn { width: 34px; height: 34px; font-size: 15px; }
+
+  /* Incoming call: a card in the corner instead of covering the screen. */
+  #callring {
+    position: fixed; right: 16px; bottom: 16px; z-index: 45; background: #10131c; color: #fff; border-radius: 16px;
+    padding: 14px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .35);
+    animation: popin .25s ease-out; max-width: calc(100% - 32px);
+  }
+  #callring .avatar { width: 48px; height: 48px; font-size: 20px; cursor: default; }
+  #callring .t { min-width: 0; }
+  #callring .t b { display: block; font-size: 15px; }
+  #callring .t span { font-size: 12px; color: rgba(255, 255, 255, .7); }
   #callbtn, #vcallbtn { width: 38px; height: 34px; font-size: 16px; }
 
   /* ---------- groups ---------- */
@@ -614,12 +634,7 @@
 
 <div id="progress"></div>
 
-<div id="callui" class="hidden">
-  <video id="rvid" autoplay playsinline></video>
-  <video id="lvid" autoplay playsinline muted></video>
-  <div class="who" id="cwho"><div class="avatar"></div><div><div class="cname" id="cname"></div><div class="cstatus" id="cstatus"></div></div></div>
-  <div class="ctrls" id="cctrls"></div>
-</div>
+<div id="callring" class="hidden"></div>
 
 <div id="loading" class="hidden">
   <div class="wordmark">Idiocy</div>
@@ -652,6 +667,7 @@
       <div id="requests"></div>
       <div id="friends"></div>
     </div>
+    <div id="callmini" class="hidden"></div>
   </aside>
   <div id="scrim"></div>
 
@@ -669,6 +685,13 @@
       <button class="iconbtn hidden" id="callbtn" title="Voice call" aria-label="Voice call">&#x1F4DE;</button>
       <button class="iconbtn hidden" id="vcallbtn" title="Video call" aria-label="Video call">&#x1F3A5;</button>
     </header>
+    <div id="callpanel" class="hidden">
+      <div class="tiles">
+        <div class="tile" id="rtile"><video id="rvid" autoplay playsinline></video><span class="label" id="rlabel"></span></div>
+        <div class="tile" id="ltile"><video id="lvid" autoplay playsinline muted></video><span class="label">You</span></div>
+      </div>
+      <div class="bar"><span id="cstatus"></span><span id="cctrls" style="display:contents"></span></div>
+    </div>
     <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
@@ -1483,6 +1506,7 @@ function switchTo(id) {
   closePicker();
   setReply(null);
   showTyping([]);
+  if (call) syncCallView();
   olderMore = false;
   olderLoading = false;
   clearLog();
@@ -2500,41 +2524,132 @@ mainEl.addEventListener('drop', e => {
 const CALL_ICE_SERVERS = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
 let call = null; // the call in progress, if any
 
+const cbtn = (cls, label, title, fn) => h('button', { class: 'cbtn ' + cls, title, 'aria-label': title, onclick: fn }, label);
+
+// state: 'incoming' | 'ringing' | 'connecting' | 'connected'
 function callUi(state) {
-  const ui = $('callui');
-  ui.classList.remove('hidden');
-  const peer = call.peer;
-  const av = avatar(peer, { click: false });
-  $('cwho').firstElementChild.replaceWith(av);
-  $('cwho').classList.toggle('ringing', state === 'ringing' || state === 'incoming');
-  $('cname').textContent = peer;
-  const btn = (cls, label, title, fn) => h('button', { class: cls, title, 'aria-label': title, onclick: fn }, label);
+  call.state = state;
   if (state === 'incoming') {
-    showLocal(null, false); // no camera boxes until the call is answered
-    $('cstatus').textContent = call.video ? 'Incoming video call\u2026' : 'Incoming call\u2026';
-    $('cctrls').replaceChildren(
-      btn('hang', '\u2715', 'Decline', () => endCall(true)),
-      btn('accept', '\u{1F4DE}', 'Accept', () => acceptCall()));
+    $('callring').replaceChildren(
+      avatar(call.peer, { click: false }),
+      h('div', { class: 't' }, h('b', null, call.peer), h('span', null, call.video ? 'Incoming video call\u2026' : 'Incoming call\u2026')),
+      cbtn('hang', '\u2715', 'Decline', () => endCall(true)),
+      cbtn('accept', '\u{1F4DE}', 'Accept', () => acceptCall()));
+    $('callring').classList.remove('hidden');
+    syncCallView();
     return;
   }
-  const muteBtn = btn('', '\u{1F399}\uFE0F', 'Mute', () => {
-    const t = call.local && call.local.getAudioTracks()[0];
-    if (!t) return;
-    t.enabled = !t.enabled;
-    muteBtn.classList.toggle('off', !t.enabled);
-    muteBtn.title = t.enabled ? 'Mute' : 'Unmute';
-  });
-  const camBtn = call.video && btn('', '\u{1F4F7}', 'Turn camera off', () => {
+  $('callring').classList.add('hidden');
+  $('rlabel').textContent = call.peer;
+  paintRemoteTile();
+  const muteBtn = cbtn('', '\u{1F399}\uFE0F', call.micOff ? 'Unmute' : 'Mute', () => toggleMute());
+  muteBtn.classList.toggle('off', !!call.micOff);
+  call.muteBtns = [muteBtn];
+  const camBtn = call.video && cbtn('', '\u{1F4F7}', 'Turn camera off', () => {
     const t = call.local && call.local.getVideoTracks()[0];
     if (!t) return;
     t.enabled = !t.enabled;
     camBtn.classList.toggle('off', !t.enabled);
+    camBtn.title = t.enabled ? 'Turn camera off' : 'Turn camera on';
   });
-  $('cctrls').replaceChildren(...[muteBtn, camBtn, btn('hang', '\u{1F4DE}', 'Hang up', () => endCall(true))].filter(Boolean));
+  const vol = h('input', { type: 'range', min: 0, max: 200, step: 5, 'aria-label': 'Volume' });
+  const pct = h('span', { class: 'pct' });
+  vol.value = peerVolume(call.peer);
+  pct.textContent = vol.value + '%';
+  vol.oninput = () => { pct.textContent = vol.value + '%'; setPeerVolume(Number(vol.value)); };
+  const full = call.video && cbtn('', '\u26F6', 'Full screen', () => {
+    const t = $('rtile');
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else if (t.requestFullscreen) t.requestFullscreen().catch(() => {});
+  });
+  $('cctrls').replaceChildren(...[muteBtn, camBtn,
+    h('label', { class: 'vol', title: `${call.peer}'s volume` }, '\u{1F50A}', vol, pct),
+    full, cbtn('hang', '\u{1F4DE}', 'Hang up', () => endCall(true))].filter(Boolean));
   setCallStatus(state === 'ringing' ? 'Ringing\u2026' : state === 'connecting' ? 'Connecting\u2026' : '');
+  syncCallView();
 }
 
-function setCallStatus(text) { $('cstatus').textContent = text; }
+function toggleMute() {
+  const t = call && call.local && call.local.getAudioTracks()[0];
+  if (!t) return;
+  t.enabled = !t.enabled;
+  call.micOff = !t.enabled;
+  document.querySelectorAll('.cbtn[title="Mute"], .cbtn[title="Unmute"]').forEach(b => {
+    b.classList.toggle('off', call.micOff);
+    b.title = call.micOff ? 'Unmute' : 'Mute';
+  });
+}
+
+// Their video, or their picture for voice calls (and until video arrives).
+function paintRemoteTile() {
+  const tile = $('rtile');
+  tile.querySelectorAll('.avatar').forEach(a => a.remove());
+  const hasVideo = call.video && call.remote && call.remote.getVideoTracks().length;
+  $('rvid').classList.toggle('hidden', !hasVideo);
+  if (!hasVideo) tile.prepend(avatar(call.peer, { click: false }));
+  tile.classList.toggle('ringing', call.state === 'ringing' || call.state === 'connecting');
+}
+
+// Shows the panel when you're looking at the call's DM, the small sidebar bar otherwise.
+function syncCallView() {
+  const active = call && call.state && call.state !== 'incoming';
+  const here = active && openId === call.convo;
+  $('callpanel').classList.toggle('hidden', !here);
+  $('callmini').classList.toggle('hidden', !active || here);
+  if (active && !here) {
+    const mute = cbtn('', '\u{1F399}\uFE0F', call.micOff ? 'Unmute' : 'Mute', e => { e.stopPropagation(); toggleMute(); });
+    mute.classList.toggle('off', !!call.micOff);
+    $('callmini').replaceChildren(
+      h('div', { class: 't' }, h('b', { id: 'ministatus' }, miniStatus()), call.peer),
+      mute, cbtn('hang', '\u{1F4DE}', 'Hang up', e => { e.stopPropagation(); endCall(true); }));
+  }
+}
+$('callmini').onclick = () => { if (call) switchTo(call.convo); };
+
+function miniStatus() {
+  if (!call) return '';
+  if (call.connected) {
+    const s = Math.floor((Date.now() - call.since) / 1000);
+    return `Call connected \u00b7 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  }
+  return call.state === 'ringing' ? 'Ringing\u2026' : 'Connecting\u2026';
+}
+
+function setCallStatus(text) {
+  $('cstatus').textContent = text;
+  const m = $('ministatus');
+  if (m) m.textContent = miniStatus();
+}
+
+// Their volume, 0-200%, remembered per person. Above 100% needs Web Audio.
+function peerVolume(name) {
+  const v = (prefs.vol || {})[key(name)];
+  return v == null ? 100 : v;
+}
+
+function setPeerVolume(v) {
+  prefs.vol = Object.assign({}, prefs.vol, { [key(call.peer)]: v });
+  savePrefs();
+  if (call.gain) call.gain.gain.value = v / 100;
+  else $('rvid').volume = Math.min(1, v / 100);
+}
+
+// Plays their audio through a volume control (so it can go above 100%).
+function routeAudio(stream) {
+  if (call.audioSrc || !stream.getAudioTracks().length) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    call.audioSrc = audio.createMediaStreamSource(stream);
+    call.gain = audio.createGain();
+    call.gain.gain.value = peerVolume(call.peer) / 100;
+    call.audioSrc.connect(call.gain).connect(audio.destination);
+    $('rvid').muted = true; // the audio now comes through the volume control instead
+  } catch (e) {
+    $('rvid').muted = false;
+    $('rvid').volume = Math.min(1, peerVolume(call.peer) / 100);
+  }
+}
 
 // Two-tone ring, repeating, made in code like the ping.
 // Call sounds, made in code like the ping. The person being called hears a
@@ -2584,8 +2699,12 @@ async function getMedia(video) {
 function newPeer() {
   const pc = new RTCPeerConnection({ iceServers: CALL_ICE_SERVERS });
   pc.ontrack = e => {
+    if (!call) return;
+    call.remote = e.streams[0];
     $('rvid').srcObject = e.streams[0];
     $('rvid').play().catch(() => {});
+    routeAudio(e.streams[0]);
+    paintRemoteTile();
   };
   pc.onconnectionstatechange = () => {
     if (!call || call.pc !== pc) return;
@@ -2617,9 +2736,8 @@ function iceDone(pc) {
 }
 
 function showLocal(stream, video) {
-  $('lvid').classList.toggle('hidden', !video);
-  $('rvid').classList.toggle('hidden', !video);
-  $('callui').classList.toggle('hasvideo', !!video);
+  $('ltile').classList.toggle('hidden', !video);
+  $('callpanel').classList.toggle('hasvideo', !!video);
   $('lvid').srcObject = video ? stream : null;
 }
 
@@ -2679,6 +2797,7 @@ async function incomingCall(p) {
 async function acceptCall() {
   if (!call || call.role !== 'callee') return;
   ringtone(null);
+  if (openId !== call.convo) switchTo(call.convo); // show the call panel in their DM
   callUi('connecting');
   const stream = await getMedia(call.video);
   if (!stream || !call) { endCall(true); return; }
@@ -2752,7 +2871,8 @@ function onConnected() {
   if (!call || call.connected) return;
   call.connected = true;
   call.since = Date.now();
-  $('cwho').classList.remove('ringing');
+  call.state = 'connected';
+  paintRemoteTile();
   const tick = () => {
     if (!call || !call.connected) return;
     const s = Math.floor((Date.now() - call.since) / 1000);
@@ -2780,11 +2900,14 @@ function cleanupCall() {
   clearTimeout(call.answerTimer);
   if (call.local) call.local.getTracks().forEach(t => t.stop());
   try { if (call.pc) call.pc.close(); } catch (e) {}
+  try { if (call.audioSrc) call.audioSrc.disconnect(); } catch (e) {}
   call = null;
   $('rvid').srcObject = null;
+  $('rvid').muted = false;
   $('lvid').srcObject = null;
-  $('callui').classList.add('hidden');
-  $('callui').classList.remove('hasvideo');
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  ['callring', 'callpanel', 'callmini'].forEach(id => $(id).classList.add('hidden'));
+  $('callpanel').classList.remove('hasvideo');
 }
 
 $('callbtn').onclick = () => startCall(false);
