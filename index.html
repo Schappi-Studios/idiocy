@@ -246,14 +246,6 @@
   .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
   #toast.click { cursor: pointer; }
 
-  /* ---------- email ---------- */
-  .vbadge { color: var(--accent); font-weight: 800; }
-  .linkbtn { background: none; border: 0; color: var(--accent); cursor: pointer; padding: 0; font: inherit; font-size: 13px; }
-  .linkbtn:hover { text-decoration: underline; }
-  .emailbox { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
-  .emailbox .row2 { display: flex; gap: 8px; }
-  .emailbox .row2 input { flex: 1; min-width: 0; }
-
   /* ---------- calls ---------- */
   #callui {
     position: fixed; inset: 0; z-index: 45; background: #0d0f16; color: #fff;
@@ -583,7 +575,6 @@
       <input id="auser" placeholder="Username" autocomplete="username" maxlength="20">
       <input id="apass" type="password" placeholder="Password" autocomplete="current-password">
       <div id="autherr"></div>
-      <button type="button" class="linkbtn" id="forgotbtn" style="align-self:flex-start">Forgot password?</button>
       <button class="primary" type="submit">Log in</button>
     </form>
   </div>
@@ -857,8 +848,7 @@ async function openProfile(name) {
         big,
         h('div', { class: 'pname' + (p.role === 'admin' ? ' admin-name' : '') }, p.username || name, p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
-          p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
-          p.verified && h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713 Verified')),
+          p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT')),
         h('div', { class: 'pstatus' },
           h('span', { class: 'dotsm' + (p.online ? ' on' : '') }),
           p.status || (p.online ? 'Online' : 'Offline')),
@@ -2726,101 +2716,6 @@ function updateTitle() {
   img.src = baseIcon;
 }
 
-// ---------- email ----------
-// Settings section: add and verify an email (so a forgotten password can be reset).
-function emailSection(refresh) {
-  const box = h('div', { class: 'emailbox' });
-  const title = h('b', null, 'Email');
-  const hint = t => h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, t);
-  const run = async (btn, action, data) => {
-    btn.disabled = true; btn.classList.add('busy');
-    try {
-      const d = await api(action, data);
-      if (!d.ok) { if (!d.auth) toast(d.error || 'Something went wrong', true); return null; }
-      return d;
-    } catch (e) { toast('Could not reach the server', true); return null; }
-    finally { btn.disabled = false; btn.classList.remove('busy'); }
-  };
-  const askEmail = () => {
-    const email = h('input', { type: 'email', placeholder: 'you@example.com', autocomplete: 'email', value: me.email || '' });
-    const send = h('button', { class: 'primary', type: 'button' }, 'Send code');
-    send.onclick = async () => {
-      if (await run(send, 'emailStart', { email: email.value })) askCode(email.value.trim().toLowerCase());
-    };
-    box.replaceChildren(title, hint('Optional. Lets you reset your password if you forget it. Nobody else can see it.'), h('div', { class: 'row2' }, email, send));
-    email.focus();
-  };
-  const askCode = address => {
-    const code = h('input', { inputmode: 'numeric', placeholder: '6-digit code', maxlength: 7, autocomplete: 'one-time-code' });
-    const verify = h('button', { class: 'primary', type: 'button' }, 'Verify');
-    verify.onclick = async () => {
-      const d = await run(verify, 'emailVerify', { code: code.value });
-      if (!d) return;
-      me.email = d.email; me.verified = true;
-      toast('Email verified \u2713');
-      profiles.delete(key(me.name));
-      refresh();
-    };
-    box.replaceChildren(title, hint(`We sent a code to ${address}. It expires in 10 minutes (check spam too).`),
-      h('div', { class: 'row2' }, code, verify), h('button', { class: 'linkbtn', type: 'button', onclick: askEmail }, 'Use a different email'));
-    code.focus();
-  };
-  if (me.verified && me.email) {
-    const remove = h('button', { class: 'ghost danger', type: 'button' }, 'Remove');
-    remove.onclick = async () => {
-      if (!confirm('Remove your email? You won\u2019t be able to reset your password if you forget it.')) return;
-      if (await run(remove, 'emailRemove', {})) { me.email = ''; me.verified = false; profiles.delete(key(me.name)); refresh(); }
-    };
-    box.replaceChildren(title, h('div', null, me.email, ' ', h('span', { class: 'vbadge' }, '\u2713 Verified')),
-      h('div', { class: 'row2' }, h('button', { class: 'ghost', type: 'button', onclick: askEmail }, 'Change'), remove));
-  } else {
-    box.replaceChildren(title, hint('Add an email so you can reset your password if you forget it. Nobody else can see it.'),
-      h('button', { class: 'ghost', type: 'button', style: 'align-self:flex-start', onclick: askEmail }, 'Add email'));
-  }
-  return box;
-}
-
-// Login screen: reset a forgotten password with a code sent to a verified email.
-function openForgot() {
-  const user = h('input', { placeholder: 'Your username', autocomplete: 'username', value: $('auser').value });
-  const send = h('button', { class: 'primary' }, 'Send code');
-  const md = modal('', h('h2', null, 'Forgot password'),
-    h('div', { style: 'color:var(--muted);font-size:14px' }, 'If your account has a verified email, we\u2019ll send it a code.'), user, send);
-  const step2 = message => {
-    const code = h('input', { inputmode: 'numeric', placeholder: '6-digit code', maxlength: 7, autocomplete: 'one-time-code' });
-    const pass = h('input', { type: 'password', placeholder: 'New password', autocomplete: 'new-password' });
-    const reset = h('button', { class: 'primary' }, 'Reset password');
-    reset.onclick = async () => {
-      reset.disabled = true; reset.classList.add('busy');
-      try {
-        const d = await api('forgotReset', { username: user.value, code: code.value, password: pass.value });
-        if (!d.ok) { $('autherr').textContent = ''; toast(d.error || 'Something went wrong', true); return; }
-        token = d.token;
-        store.set('chat_token', token);
-        md.close();
-        toast('Password changed. You\u2019re logged in!');
-        start();
-      } catch (e) { toast('Could not reach the server', true); }
-      finally { reset.disabled = false; reset.classList.remove('busy'); }
-    };
-    md.box.replaceChildren(h('h2', null, 'Forgot password'), h('div', { style: 'color:var(--muted);font-size:14px' }, message), code, pass,
-      h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'), reset));
-    code.focus();
-  };
-  send.onclick = async () => {
-    if (!user.value.trim()) return toast('Enter your username', true);
-    send.disabled = true; send.classList.add('busy');
-    try {
-      const d = await api('forgotStart', { username: user.value });
-      if (!d.ok) { toast(d.error === 'Unknown action' ? "Password resets aren't switched on yet" : d.error, true); return; }
-      step2(d.message);
-    } catch (e) { toast('Could not reach the server', true); }
-    finally { send.disabled = false; send.classList.remove('busy'); }
-  };
-  user.focus();
-}
-$('forgotbtn').onclick = openForgot;
-
 function openSettings() {
   const sound = h('input', { type: 'checkbox' });
   sound.checked = prefs.sound;
@@ -2844,7 +2739,6 @@ function openSettings() {
     h('label', { class: 'toggle' }, h('span', null, 'Ping sound', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'For DMs, group messages and @mentions')), sound),
     serverApi >= 6 && h('label', { class: 'toggle' }, h('span', null, 'Call ringtone', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Ringing when someone calls you, and while you call someone')), ringBox),
     h('label', { class: 'toggle' }, h('span', null, 'Desktop notifications', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'When this tab is in the background')), desk),
-    serverApi >= 8 && emailSection(() => { md.close(); openSettings(); }),
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
       h('button', { class: 'primary', onclick: () => md.close() }, 'Done')),
@@ -2977,7 +2871,6 @@ function openAdmin() {
           u.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
           u.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
-          u.verified && h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713'),
           u.role !== 'admin' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' },
             u.muted > Date.now()
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('timeout', { username: u.username, minutes: 0 })) load(); } }, 'End timeout')
