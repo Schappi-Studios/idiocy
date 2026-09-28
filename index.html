@@ -631,6 +631,11 @@
     #scrim { position: fixed; inset: 0; z-index: 9; background: rgba(20,24,40,.25); display: none; }
     body.side-open #scrim { display: block; }
     #sideclose { display: flex; }
+    /* iPhone Safari colours the strip behind the clock from the page and from things stuck
+       to the top, so make that white to match the header instead of grey. */
+    body { background: var(--panel); }
+    #auth, #app { background: var(--bg); }
+    main header { position: sticky; top: 0; z-index: 5; }
     #menu { position: relative; }
     #menu.unread::after {
       content: ''; position: absolute; top: 2px; right: -2px; width: 9px; height: 9px; border-radius: 50%;
