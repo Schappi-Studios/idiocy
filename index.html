@@ -246,6 +246,38 @@
   .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
   #toast.click { cursor: pointer; }
 
+  /* ---------- chat polish ---------- */
+  .msg .body a, .post .body a, .cmt .bubble a { color: var(--accent); text-decoration: underline; overflow-wrap: anywhere; }
+  .quote {
+    display: block; border-left: 3px solid var(--accent); background: var(--panel-2); border-radius: 6px;
+    padding: 3px 8px; margin: 2px 0 4px; font-size: 13px; color: var(--muted); cursor: pointer;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px;
+  }
+  .quote b { color: var(--text); margin-right: 4px; }
+  .quote:hover { background: var(--hover); }
+  .edtag { color: var(--muted); font-size: 11px; }
+  .msg.flash { animation: glow 1.2s ease-out 2; }
+  .editbox { display: flex; flex-direction: column; gap: 4px; margin-top: 2px; }
+  .editbox textarea { min-height: 38px; font-size: 14px; padding: 6px 10px; }
+  .editbox .hint { color: var(--muted); font-size: 11px; }
+  #replybar {
+    display: flex; align-items: center; gap: 10px; padding: 8px 16px 0; background: var(--panel);
+    border-top: 1px solid var(--border); font-size: 13px; color: var(--muted);
+  }
+  #replybar + #composernote, #replybar ~ #send { border-top: 0; }
+  #replybar .rtext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #replybar b { color: var(--text); }
+  #replyx { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; border-radius: 6px; padding: 2px 8px; }
+  #replyx:hover { color: var(--danger); background: var(--hover); }
+  #typing { height: 0; overflow: visible; position: relative; }
+  #typing span {
+    position: absolute; left: 16px; bottom: 4px; font-size: 12px; color: var(--muted); background: var(--bg);
+    padding: 1px 8px; border-radius: 999px; animation: fadein .2s;
+  }
+  #typing i { display: inline-block; width: 4px; height: 4px; border-radius: 50%; background: var(--muted); margin-left: 2px; animation: pulse 1s infinite; }
+  #typing i:nth-child(2) { animation-delay: .2s; } #typing i:nth-child(3) { animation-delay: .4s; }
+  .olderload { text-align: center; color: var(--muted); font-size: 12px; padding: 8px; }
+
   /* ---------- calls ---------- */
   #callui {
     position: fixed; inset: 0; z-index: 45; background: #0d0f16; color: #fff;
@@ -652,6 +684,8 @@
         <button class="primary" id="postbtn" type="button">Post</button>
       </div>
     </div>
+    <div id="typing"></div>
+    <div id="replybar" class="hidden"><span class="rtext" id="replytext"></span><button type="button" id="replyx" title="Cancel reply" aria-label="Cancel reply">✕</button></div>
     <div id="composernote" class="composer-note hidden"></div>
     <div id="attachbar" class="hidden">
       <img id="attachimg" alt="">
@@ -1226,12 +1260,14 @@ async function poll() {
         const sending = [...log.querySelectorAll('.pending')];
         clearLog();
         openRev = d.rev;
+        olderMore = d.messages.length >= 100; // the server keeps the latest 100; there may be more
         if (!d.messages.length && !sending.length) sys(emptyText()).classList.add('empty');
         log.append(...sending);
       }
       if (d.messages) renderBatch(d.messages, !d.reset);
       if (d.messages && d.messages.length && !d.reset) lastActivity = Date.now();
       if (d.edited) d.edited.forEach(updateMessage);
+      showTyping(d.typing || []);
       if (d.reset) { hideLoading(); scrollDown(); }
       markRead();
     }
@@ -1445,6 +1481,10 @@ function switchTo(id) {
   openRev = null;
   eMax = 0;
   closePicker();
+  setReply(null);
+  showTyping([]);
+  olderMore = false;
+  olderLoading = false;
   clearLog();
   setFeedMode(isFeed());
   const cached = chatCache.get(id);
@@ -1453,6 +1493,7 @@ function switchTo(id) {
     // reloads fully if something was deleted meanwhile.
     openRev = cached.rev;
     eMax = cached.eMax;
+    olderMore = cached.msgs.length >= 100;
     if (cached.msgs.length) renderBatch(cached.msgs, false);
     else sys(emptyText()).classList.add('empty');
     scrollDown();
@@ -1731,19 +1772,32 @@ function buildMessage(m, pending) {
     h('div', { class: 'head' },
       h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }, m.name),
       m.admin && h('span', { class: 'badge' }, 'ADMIN'),
-      time),
-    h('div', { class: 'body' }, m.text ? richText(m.text) : null, m.img && imageBlock(m)),
+      time, h('span', { class: 'edtag' })),
+    h('div', { class: 'body' },
+      m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, h('b', null, m.rp.name), m.rp.text || '[image]'),
+      h('span', { class: 'txt' }), m.img && imageBlock(m)),
     h('div', { class: 'reacts' }),
     !pending && h('div', { class: 'acts' },
       h('button', { title: 'Add reaction', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642}+'),
+      serverApi >= 9 && h('button', { title: 'Reply', onclick: () => startReply(el._m) }, '\u21A9'),
+      serverApi >= 9 && isMine(m) && h('button', { title: 'Edit', onclick: () => startEdit(el) }, '\u270E'),
       !isMine(m) && h('button', { title: 'Report', onclick: () => openReport(el._m) }, '\u2691'),
       canDelete(m) && h('button', { class: 'del danger', title: 'Delete', onclick: () => deleteMessage(el._m, el) }, '\u{1F5D1}')));
   el._m = m;
   el.dataset.id = m.id || '';
   if (m.text && mentionsMe(m.text) && !isMine(m)) el.classList.add('mentioned');
+  paintText(el);
   paintReactions(el);
   if (m.e) eMax = Math.max(eMax, m.e);
   return el;
+}
+
+// The message text and "(edited)" tag, repainted when an edit arrives.
+function paintText(el) {
+  const m = el._m, t = el.querySelector('.txt');
+  if (t) t.replaceChildren(...(m.text ? [richText(m.text)] : []));
+  const tag = el.querySelector('.edtag');
+  if (tag) tag.textContent = m.ed ? '(edited)' : '';
 }
 
 const isMine = m => me && key(m.name) === key(me.name);
@@ -1760,20 +1814,22 @@ function buildPost(m, pending) {
         h('div', { class: 'line' },
           h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }, m.name),
           m.admin && h('span', { class: 'badge' }, 'ADMIN')),
-        time)),
-    h('div', { class: 'body' }, m.text ? richText(m.text) : null),
+        h('span', null, time, ' ', h('span', { class: 'edtag' })))),
+    h('div', { class: 'body' }, h('span', { class: 'txt' })),
     m.img && imageBlock(m, 520),
     h('div', { class: 'reacts' }),
     !pending && h('div', { class: 'pfoot' },
       h('button', { title: 'React', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642} React'),
       cbtn),
     !pending && h('div', { class: 'acts' },
+      serverApi >= 9 && isMine(m) && h('button', { title: 'Edit', onclick: () => startEdit(el) }, '\u270E'),
       !isMine(m) && h('button', { title: 'Report', onclick: () => openReport(el._m) }, '\u2691'),
       canDelete(m) && h('button', { class: 'del danger', title: 'Delete', onclick: () => deleteMessage(el._m, el) }, '\u{1F5D1}')));
   el._m = m;
   el._cbtn = cbtn;
   el.dataset.id = m.id || '';
   if (m.text && mentionsMe(m.text) && !isMine(m)) el.classList.add('mentioned');
+  paintText(el);
   paintReactions(el);
   paintCommentCount(el);
   if (m.e) eMax = Math.max(eMax, m.e);
@@ -1903,17 +1959,121 @@ function mentionsMe(text) {
 function richText(text) {
   const mine = myMentionRe();
   // (?!) never matches, for when we don't know our own name yet.
-  const re = new RegExp('(' + (mine ? mine.source : '(?!)') + ')|(@[A-Za-z0-9_-]+)', 'gi');
+  const re = new RegExp('(' + (mine ? mine.source : '(?!)') + ')|(@[A-Za-z0-9_-]+)|(https?:\\/\\/[^\\s<>"]+)', 'gi');
   const out = [];
   let last = 0, m;
   while ((m = re.exec(text))) {
     out.push(text.slice(last, m.index));
+    if (m[3]) {
+      // Links: only http(s), opened in a new tab. Trailing punctuation stays as text.
+      const url = m[3].replace(/[.,!?;:)\]'"]+$/, '');
+      out.push(h('a', { href: url, target: '_blank', rel: 'noopener noreferrer nofollow' }, url));
+      last = m.index + url.length;
+      re.lastIndex = last;
+      continue;
+    }
     out.push(h('span', { class: 'ment' + (m[1] ? ' you' : '') }, m[0]));
     last = m.index + m[0].length;
   }
   out.push(text.slice(last));
   return h('span', null, out.filter(x => x !== ''));
 }
+
+// ---------- replies, editing, typing, older messages ----------
+let replying = null; // the message being replied to
+
+function setReply(m) {
+  replying = m;
+  $('replybar').classList.toggle('hidden', !m);
+  if (m) {
+    $('replytext').replaceChildren('Replying to ', h('b', null, m.name), ': ', m.text || '[image]');
+    textEl.focus();
+  }
+}
+function startReply(m) { if (!isFeed()) setReply(m); }
+$('replyx').onclick = () => setReply(null);
+
+// Scroll to a message (e.g. the one a reply quotes) and flash it.
+function jumpTo(id) {
+  const el = log.querySelector(`.msg[data-id="${id}"]`);
+  if (!el) return toast('That message is further back. Scroll up to load older messages.');
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+}
+
+function startEdit(el) {
+  if (el._editing) return;
+  const m = el._m, t = el.querySelector('.txt');
+  el._editing = true;
+  const box = h('textarea', { maxlength: isFeed() ? 1000 : 300 });
+  box.value = m.text || '';
+  const done = () => { el._editing = false; editor.remove(); t.classList.remove('hidden'); paintText(el); };
+  const save = async () => {
+    const text = box.value.trim();
+    if (text === (m.text || '')) return done();
+    box.disabled = true;
+    const d = await act('editMessage', { convo: openId, id: m.id, text });
+    box.disabled = false;
+    if (!d) return;
+    el._m = d.message;
+    if (d.message.e) eMax = Math.max(eMax, d.message.e);
+    done();
+  };
+  box.onkeydown = e => {
+    if (e.key === 'Escape') { e.preventDefault(); done(); }
+    if (e.key === 'Enter' && (!isFeed() || e.ctrlKey || e.metaKey) && !e.shiftKey) { e.preventDefault(); save(); }
+  };
+  const editor = h('div', { class: 'editbox' }, box,
+    h('span', { class: 'hint' }, (isFeed() ? 'Ctrl+Enter' : 'Enter') + ' to save \u00b7 Esc to cancel'));
+  t.classList.add('hidden');
+  t.after(editor);
+  box.focus();
+  box.setSelectionRange(box.value.length, box.value.length);
+}
+
+function showTyping(names) {
+  const el = $('typing');
+  if (!names.length || isFeed()) { el.replaceChildren(); return; }
+  const who = names.length === 1 ? `${names[0]} is typing` : names.length === 2 ? `${names[0]} and ${names[1]} are typing` : 'Several people are typing';
+  el.replaceChildren(h('span', null, who, h('i'), h('i'), h('i')));
+}
+
+// Older messages load when you scroll to the top of a chat (or the bottom of the feed).
+let olderMore = false, olderLoading = false;
+async function loadOlder() {
+  if (!olderMore || olderLoading || serverApi < 9 || isPendingChat(openId)) return;
+  const ids = [...log.querySelectorAll('.msg:not(.pending)')].map(el => Number(el.dataset.id)).filter(Boolean);
+  if (!ids.length) return;
+  olderLoading = true;
+  const myEpoch = epoch;
+  const note = h('div', { class: 'olderload' }, h('span', { class: 'spinner', style: 'display:inline-block;vertical-align:middle;margin-right:6px' }), 'Loading older messages\u2026');
+  if (isFeed()) log.append(note); else log.prepend(note);
+  try {
+    const d = await api('older', { convo: openId, before: Math.min(...ids) });
+    if (myEpoch !== epoch || !d.ok) return;
+    olderMore = d.more;
+    const fresh = d.messages.filter(m => !shown.has(m.id));
+    fresh.forEach(m => shown.add(m.id));
+    if (isFeed()) {
+      fresh.forEach(m => placeInFeed(buildMessage(m)));
+    } else {
+      // Add above, keeping what you're looking at in the same place.
+      const before = log.scrollHeight;
+      const first = log.querySelector('.msg');
+      fresh.forEach(m => log.insertBefore(buildMessage(m), first));
+      groupMessages();
+      log.scrollTop += log.scrollHeight - before;
+    }
+    if (!olderMore && !isFeed()) log.prepend(h('div', { class: 'sys' }, 'This is the start of the chat.'));
+  } catch (e) {
+  } finally {
+    note.remove();
+    olderLoading = false;
+  }
+}
+log.addEventListener('scroll', () => {
+  if (isFeed() ? log.scrollHeight - log.scrollTop - log.clientHeight < 200 : log.scrollTop < 60) loadOlder();
+});
 
 // ---------- reactions ----------
 const REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F480}', '\u{1F525}'];
@@ -1941,6 +2101,7 @@ function updateMessage(m) {
   if (!el || el._busy) return;
   const countChanged = (el._m.cc || 0) !== (m.cc || 0);
   el._m = m;
+  if (!el._editing) paintText(el);
   paintReactions(el);
   paintCommentCount(el);
   if (countChanged && el._cmts) loadComments(el);
@@ -2116,16 +2277,19 @@ async function send(text, att) {
   const myEpoch = epoch;
   btn.disabled = true;
   // Show the message right away while the server catches up.
+  const rp = !isFeed() && replying ? replying : null;
   const pending = buildMessage({
     name: me ? me.name : '', admin: me && me.role === 'admin', text,
     ...(att && { img: 'local', local: att.data, w: att.w, h: att.h }),
+    ...(rp && { rp: { id: rp.id, name: rp.name, text: (rp.text || '[image]').slice(0, 100) } }),
   }, true);
+  if (rp) setReply(null);
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
   if (isFeed()) log.prepend(pending); else log.appendChild(pending);
   scrollDown();
   try {
-    const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }) });
-    if (!d.ok) { pending.remove(); if (!d.auth) sys(d.error || 'Could not send', true); return false; }
+    const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }) });
+    if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (!d.auth) sys(d.error || 'Could not send', true); return false; }
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
     const m = d.message;
     if (att && m.img) rememberImage(m.img, att.data); // no need to download what we just sent
@@ -2987,6 +3151,14 @@ function updateCount() {
   $('count').textContent = left <= 50 ? left : '';
 }
 textEl.addEventListener('input', updateCount);
+let typingSent = 0;
+textEl.addEventListener('input', () => {
+  const c = st && st.convos.find(x => x.id === openId);
+  if (!c || (c.type !== 'dm' && c.type !== 'group') || !textEl.value.trim() || serverApi < 9) return;
+  if (Date.now() - typingSent < 3000) return;
+  typingSent = Date.now();
+  apiRaw('typing', { convo: openId }).catch(() => {});
+});
 
 $('newmsgs').onclick = scrollDown;
 log.addEventListener('scroll', () => { if (nearBottom()) $('newmsgs').style.display = 'none'; });
