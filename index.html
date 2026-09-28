@@ -280,23 +280,23 @@
 
   /* ---------- calls ---------- */
   /* Call panel at the top of the DM (like Discord), so the chat stays usable. */
-  #callpanel {
+  .callpanel {
     background: #10131c; color: #fff; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
     border-bottom: 1px solid var(--border); animation: slidein .2s ease-out;
   }
-  #callpanel .tiles { display: flex; gap: 10px; justify-content: center; align-items: center; }
-  #callpanel .tile {
+  .callpanel .tiles { display: flex; gap: 10px; justify-content: center; align-items: center; }
+  .callpanel .tile {
     position: relative; background: #1b1f2b; border-radius: 12px; overflow: hidden;
     display: flex; align-items: center; justify-content: center; width: 150px; height: 104px; flex-shrink: 1;
   }
-  #callpanel.hasvideo .tile { width: min(46%, 360px); height: auto; aspect-ratio: 4 / 3; }
-  #callpanel .tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
-  #callpanel .tile .avatar { width: 60px; height: 60px; font-size: 24px; cursor: default; }
-  #callpanel .tile .label { position: absolute; left: 8px; bottom: 6px; font-size: 12px; font-weight: 700; text-shadow: 0 1px 3px #000; }
-  #callpanel .tile.ringing .avatar, #callring .avatar { animation: ring 1.4s ease-out infinite; }
+  .callpanel.hasvideo .tile { width: min(46%, 360px); height: auto; aspect-ratio: 4 / 3; }
+  .callpanel .tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .callpanel .tile .avatar { width: 60px; height: 60px; font-size: 24px; cursor: default; }
+  .callpanel .tile .label { position: absolute; left: 8px; bottom: 6px; font-size: 12px; font-weight: 700; text-shadow: 0 1px 3px #000; }
+  .callpanel .tile.ringing .avatar, #callring .avatar { animation: ring 1.4s ease-out infinite; }
   @keyframes ring { 0% { box-shadow: 0 0 0 0 rgba(124, 92, 255, .6); } 100% { box-shadow: 0 0 0 22px rgba(124, 92, 255, 0); } }
   #lvid { transform: scaleX(-1); }
-  #callpanel .bar { display: flex; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .callpanel .bar { display: flex; align-items: center; gap: 10px; justify-content: center; flex-wrap: wrap; }
   #cstatus { color: rgba(255, 255, 255, .75); font-size: 13px; min-width: 70px; text-align: center; }
   .cbtn {
     width: 42px; height: 42px; border-radius: 50%; border: 0; cursor: pointer; font-size: 18px; flex-shrink: 0;
@@ -312,6 +312,16 @@
   .vol input { width: 110px; accent-color: #9b82ff; }
   .vol .pct { width: 38px; text-align: right; }
 
+  .callpanel .tiles { flex-wrap: wrap; }
+  .callpanel.group .tile { width: 150px; height: 112px; }
+  .callpanel.group.hasvideo .tile { width: min(31%, 260px); height: auto; aspect-ratio: 4 / 3; }
+  .tile .tvol {
+    position: absolute; right: 6px; bottom: 4px; width: 70px; accent-color: #9b82ff; opacity: 0; transition: opacity .15s;
+  }
+  .tile:hover .tvol, .tile .tvol:focus { opacity: 1; }
+  .tile .tstate { position: absolute; top: 6px; left: 8px; font-size: 11px; color: rgba(255, 255, 255, .75); }
+  #joincall { background: #1fae6e; color: #fff; border: 0; border-radius: 8px; padding: 6px 12px; font-weight: 700; cursor: pointer; font-size: 13px; }
+  #joincall:hover { background: #26c77f; }
   /* Small bar at the bottom of the sidebar while you're in another chat. */
   #callmini {
     position: sticky; bottom: 0; margin-top: auto; background: #10131c; color: #fff;
@@ -682,10 +692,15 @@
       </div>
       <button class="ghost hidden" id="gadd">Add people</button>
       <button class="ghost hidden" id="ginfo">Info</button>
+      <button class="hidden" id="joincall" title="Join the group call">&#x1F4DE; Join call</button>
       <button class="iconbtn hidden" id="callbtn" title="Voice call" aria-label="Voice call">&#x1F4DE;</button>
       <button class="iconbtn hidden" id="vcallbtn" title="Video call" aria-label="Video call">&#x1F3A5;</button>
     </header>
-    <div id="callpanel" class="hidden">
+    <div id="gcallpanel" class="callpanel group hidden">
+      <div class="tiles" id="gtiles"></div>
+      <div class="bar"><span id="gstatus"></span><span id="gctrls" style="display:contents"></span></div>
+    </div>
+    <div id="callpanel" class="callpanel hidden">
       <div class="tiles">
         <div class="tile" id="rtile"><video id="rvid" autoplay playsinline></video><span class="label" id="rlabel"></span></div>
         <div class="tile" id="ltile"><video id="lvid" autoplay playsinline muted></video><span class="label">You</span></div>
@@ -1170,6 +1185,7 @@ function showAuth(msg) {
 
 function signOut(msg) {
   if (call) endCall(true);
+  if (gcall) leaveGroupCall(true);
   token = null;
   store.del('chat_token');
   clearTimeout(pollTimer);
@@ -1291,6 +1307,7 @@ async function poll() {
       if (d.messages && d.messages.length && !d.reset) lastActivity = Date.now();
       if (d.edited) d.edited.forEach(updateMessage);
       showTyping(d.typing || []);
+      openGcall = d.gcall || null;
       if (d.reset) { hideLoading(); scrollDown(); }
       markRead();
     }
@@ -1452,9 +1469,14 @@ function renderHeader() {
     : `${c.members.length} members: ${c.members.join(', ')}`;
   $('gadd').classList.toggle('hidden', !isGroup);
   $('ginfo').classList.toggle('hidden', !isGroup);
-  const canCall = !!c && c.type === 'dm' && serverApi >= 6;
+  // DMs: 1-to-1 calls. Groups: start a group call, or join the one that's on.
+  const inThisCall = gcall && gcall.convo === openId;
+  const groupCallOn = isGroup && openGcall && !inThisCall;
+  const canCall = !!c && ((c.type === 'dm' && serverApi >= 6) || (isGroup && serverApi >= 10 && !openGcall && !inThisCall));
   $('callbtn').classList.toggle('hidden', !canCall);
   $('vcallbtn').classList.toggle('hidden', !canCall);
+  $('joincall').classList.toggle('hidden', !groupCallOn);
+  if (groupCallOn) $('joincall').textContent = `\u{1F4DE} Join call \u00b7 ${openGcall.people.length}`;
   textEl.placeholder = c ? `Message ${c.type === 'global' ? 'everyone' : convoLabel(c)}…` : 'Say something…';
 }
 
@@ -1506,7 +1528,7 @@ function switchTo(id) {
   closePicker();
   setReply(null);
   showTyping([]);
-  if (call) syncCallView();
+  if (call || gcall) syncCallView();
   olderMore = false;
   olderLoading = false;
   clearLog();
@@ -2570,13 +2592,14 @@ function callUi(state) {
 }
 
 function toggleMute() {
-  const t = call && call.local && call.local.getAudioTracks()[0];
+  const c = call || gcall;
+  const t = c && c.local && c.local.getAudioTracks()[0];
   if (!t) return;
   t.enabled = !t.enabled;
-  call.micOff = !t.enabled;
+  c.micOff = !t.enabled;
   document.querySelectorAll('.cbtn[title="Mute"], .cbtn[title="Unmute"]').forEach(b => {
-    b.classList.toggle('off', call.micOff);
-    b.title = call.micOff ? 'Unmute' : 'Mute';
+    b.classList.toggle('off', c.micOff);
+    b.title = c.micOff ? 'Unmute' : 'Mute';
   });
 }
 
@@ -2592,6 +2615,7 @@ function paintRemoteTile() {
 
 // Shows the panel when you're looking at the call's DM, the small sidebar bar otherwise.
 function syncCallView() {
+  if (gcall) return syncGroupView();
   const active = call && call.state && call.state !== 'incoming';
   const here = active && openId === call.convo;
   $('callpanel').classList.toggle('hidden', !here);
@@ -2604,7 +2628,7 @@ function syncCallView() {
       mute, cbtn('hang', '\u{1F4DE}', 'Hang up', e => { e.stopPropagation(); endCall(true); }));
   }
 }
-$('callmini').onclick = () => { if (call) switchTo(call.convo); };
+$('callmini').onclick = () => { const c = call || gcall; if (c) switchTo(c.convo); };
 
 function miniStatus() {
   if (!call) return '';
@@ -2742,6 +2766,7 @@ function showLocal(stream, video) {
 }
 
 async function startCall(video) {
+  if (gcall) return toast("You're already in a call", true);
   const c = st && st.convos.find(x => x.id === openId);
   if (!c || c.type !== 'dm') return;
   if (call) return toast("You're already in a call", true);
@@ -2772,7 +2797,7 @@ async function startCall(video) {
 }
 
 async function incomingCall(p) {
-  if (call) { api('callEnd', { callId: p.call }).catch(() => {}); return; } // busy: decline
+  if (call || gcall) { api('callEnd', { callId: p.call }).catch(() => {}); return; } // busy: decline
   if (Date.now() - (p.time || 0) > 60000) return; // an old ring that's long over
   let info = p.offer ? { from: p.from, convo: p.convo, video: !!p.video, offer: p.offer } : null;
   if (!info) {
@@ -2910,9 +2935,241 @@ function cleanupCall() {
   $('callpanel').classList.remove('hasvideo');
 }
 
-$('callbtn').onclick = () => startCall(false);
-$('vcallbtn').onclick = () => startCall(true);
-window.addEventListener('beforeunload', () => { if (call) endCall(true); });
+const inGroupChat = () => { const c = st && st.convos.find(x => x.id === openId); return c && c.type === 'group'; };
+$('callbtn').onclick = () => (inGroupChat() ? joinGroupCall(openId, false) : startCall(false));
+$('vcallbtn').onclick = () => (inGroupChat() ? joinGroupCall(openId, true) : startCall(true));
+$('joincall').onclick = () => joinGroupCall(openId, !!(openGcall && openGcall.video));
+window.addEventListener('beforeunload', () => { if (call) endCall(true); if (gcall) leaveGroupCall(true); });
+
+// ---------- group calls ----------
+// Everyone connects directly to everyone else. Whoever joins sends an offer
+// to each person already in the call; they answer. The server passes these
+// along and keeps track of who's in.
+let gcall = null;      // the group call you're in
+let openGcall = null;  // the call happening in the group you're looking at, if any
+
+async function joinGroupCall(convoId, video) {
+  if (call || gcall) return toast("You're already in a call", true);
+  const c = st && st.convos.find(x => x.id === convoId);
+  if (!c) return;
+  $('callring').classList.add('hidden');
+  ringtone(null);
+  if (openId !== convoId) switchTo(convoId);
+  gcall = { convo: convoId, name: c.name, video: !!video, peers: new Map(), tiles: new Map(), people: [], after: 0 };
+  syncGroupView();
+  setGStatus('Joining\u2026');
+  const stream = await getMedia(video);
+  if (!stream || !gcall) { leaveGroupCall(false); return; }
+  gcall.local = stream;
+  const d = await api('gcallJoin', { convo: convoId, video: !!video }).catch(() => null);
+  if (!gcall) { if (d && d.ok) api('gcallLeave', { convo: convoId }).catch(() => {}); stream.getTracks().forEach(t => t.stop()); return; }
+  if (!d || !d.ok) { toast((d && d.error) || "Couldn't join the call", true); leaveGroupCall(false); return; }
+  Object.assign(gcall, { id: d.callId, after: d.cursor, since: Date.now(), people: d.others.slice() });
+  d.others.forEach(name => offerTo(name).catch(() => {}));
+  syncGroupView();
+  gcall.tick = setInterval(updateGStatus, 1000);
+  gpoll();
+}
+
+function groupPeer(name) {
+  let p = gcall.peers.get(key(name));
+  if (p) return p;
+  const pc = new RTCPeerConnection({ iceServers: CALL_ICE_SERVERS });
+  gcall.local.getTracks().forEach(t => pc.addTrack(t, gcall.local));
+  p = { name, pc, stream: null };
+  const me = gcall;
+  pc.ontrack = e => { if (gcall !== me) return; p.stream = e.streams[0]; groupAudio(p); paintGroup(); };
+  pc.onconnectionstatechange = () => { if (gcall === me) paintGroup(); };
+  gcall.peers.set(key(name), p);
+  return p;
+}
+
+// We joined after them, so we make the offer.
+async function offerTo(name) {
+  const me = gcall;
+  const p = groupPeer(name);
+  await p.pc.setLocalDescription(await p.pc.createOffer());
+  await iceDone(p.pc);
+  if (gcall !== me) return;
+  await api('gcallSignal', { convo: me.convo, to: name, type: 'offer', sdp: p.pc.localDescription.sdp });
+}
+
+async function onGroupSignal(sig) {
+  const me = gcall;
+  if (sig.type === 'offer') {
+    const old = me.peers.get(key(sig.from));
+    if (old) { closeGroupPeer(old); me.peers.delete(key(sig.from)); } // they rejoined
+    const p = groupPeer(sig.from);
+    await p.pc.setRemoteDescription({ type: 'offer', sdp: sig.sdp });
+    await p.pc.setLocalDescription(await p.pc.createAnswer());
+    await iceDone(p.pc);
+    if (gcall !== me) return;
+    await api('gcallSignal', { convo: me.convo, to: sig.from, type: 'answer', sdp: p.pc.localDescription.sdp });
+  } else {
+    const p = me.peers.get(key(sig.from));
+    if (p && p.pc.signalingState === 'have-local-offer') await p.pc.setRemoteDescription({ type: 'answer', sdp: sig.sdp });
+  }
+}
+
+async function gpoll() {
+  const me = gcall;
+  if (!me || !me.id) return;
+  const d = await api('gcallPoll', { convo: me.convo, after: me.after }).catch(() => null);
+  if (gcall !== me) return;
+  if (d && d.ok) {
+    if (d.ended) { leaveGroupCall(false, 'You left the call'); return; }
+    for (const sig of d.signals) {
+      me.after = Math.max(me.after, sig.n);
+      await onGroupSignal(sig).catch(() => {});
+      if (gcall !== me) return;
+    }
+    const here = new Set(d.people.map(key));
+    for (const [k, p] of me.peers) if (!here.has(k)) { closeGroupPeer(p); me.peers.delete(k); }
+    me.people = d.people;
+    paintGroup();
+  }
+  me.pollTimer = setTimeout(gpoll, 1500);
+}
+
+function closeGroupPeer(p) {
+  try { p.pc.close(); } catch (e) {}
+  try { if (p.src) p.src.disconnect(); } catch (e) {}
+  const t = gcall && gcall.tiles.get(key(p.name));
+  if (t) { t.remove(); gcall.tiles.delete(key(p.name)); }
+}
+
+// Their audio goes through a volume control (0-200%), like 1-to-1 calls.
+function groupAudio(p) {
+  if (p.src || !p.stream.getAudioTracks().length) return;
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    p.src = audio.createMediaStreamSource(p.stream);
+    p.gain = audio.createGain();
+    p.gain.gain.value = peerVolume(p.name) / 100;
+    p.src.connect(p.gain).connect(audio.destination);
+    p.muted = true;
+  } catch (e) { p.muted = false; }
+}
+
+// One tile per person. Tiles are kept between updates so video doesn't restart.
+function groupTile(name, isMe) {
+  const k = isMe ? '(me)' : key(name);
+  let t = gcall.tiles.get(k);
+  if (!t) {
+    const video = h('video', { autoplay: '', playsinline: '' });
+    video.muted = true;
+    const vol = !isMe && h('input', { class: 'tvol', type: 'range', min: 0, max: 200, step: 5, title: `${name}'s volume`, 'aria-label': `${name}'s volume` });
+    if (vol) {
+      vol.value = peerVolume(name);
+      vol.oninput = () => {
+        prefs.vol = Object.assign({}, prefs.vol, { [key(name)]: Number(vol.value) });
+        savePrefs();
+        const p = gcall && gcall.peers.get(key(name));
+        if (p && p.gain) p.gain.gain.value = vol.value / 100;
+      };
+    }
+    t = h('div', { class: 'tile' }, video, h('span', { class: 'tstate' }), h('span', { class: 'label' }, isMe ? 'You' : name), vol);
+    t._video = video;
+    gcall.tiles.set(k, t);
+  }
+  return t;
+}
+
+function paintGroup() {
+  if (!gcall) return;
+  const tiles = [];
+  const anyVideo = gcall.video || [...gcall.peers.values()].some(p => p.stream && p.stream.getVideoTracks().length);
+  $('gcallpanel').classList.toggle('hasvideo', !!anyVideo);
+  gcall.people.forEach(name => {
+    const t = groupTile(name);
+    const p = gcall.peers.get(key(name));
+    const hasVideo = p && p.stream && p.stream.getVideoTracks().length;
+    // Always attach their stream (Chrome only plays call audio through the volume
+    // control if it's also on a media element); it's muted unless that failed.
+    if (p && p.stream && t._video.srcObject !== p.stream) { t._video.srcObject = p.stream; t._video.play().catch(() => {}); }
+    t._video.muted = !(p && p.muted === false);
+    t._video.classList.toggle('hidden', !hasVideo);
+    t.querySelectorAll('.avatar').forEach(a => a.remove());
+    if (!hasVideo) t.prepend(avatar(name, { click: false }));
+    const state = p ? p.pc.connectionState : 'new';
+    t.querySelector('.tstate').textContent = state === 'connected' ? '' : state === 'failed' ? "Couldn't connect" : 'Connecting\u2026';
+    tiles.push(t);
+  });
+  if (gcall.video && gcall.local) {
+    const mine = groupTile(me_name(), true);
+    if (mine._video.srcObject !== gcall.local) { mine._video.srcObject = gcall.local; mine._video.style.transform = 'scaleX(-1)'; }
+    tiles.push(mine);
+  }
+  $('gtiles').replaceChildren(...tiles);
+  if (!gcall.people.length) $('gtiles').prepend(h('div', { style: 'color:rgba(255,255,255,.7);font-size:13px;padding:20px' }, 'Waiting for others to join\u2026'));
+  updateGStatus();
+}
+const me_name = () => (me ? me.name : 'You');
+
+function setGStatus(text) { $('gstatus').textContent = text; }
+
+function updateGStatus() {
+  if (!gcall) return;
+  const n = gcall.people.length + 1;
+  const s = gcall.since ? Math.floor((Date.now() - gcall.since) / 1000) : 0;
+  const text = gcall.id ? `${n} ${n === 1 ? 'person' : 'people'} \u00b7 ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : 'Joining\u2026';
+  setGStatus(text);
+  const m = $('ministatus');
+  if (m) m.textContent = `Group call \u00b7 ${text}`;
+}
+
+function syncGroupView() {
+  const here = gcall && openId === gcall.convo;
+  $('callpanel').classList.add('hidden');
+  $('gcallpanel').classList.toggle('hidden', !here);
+  $('callmini').classList.toggle('hidden', !gcall || here);
+  if (!gcall) return;
+  const muteBtn = () => { const b = cbtn('', '\u{1F399}\uFE0F', gcall.micOff ? 'Unmute' : 'Mute', e => { e.stopPropagation(); toggleMute(); }); b.classList.toggle('off', !!gcall.micOff); return b; };
+  const camBtn = gcall.video && cbtn('', '\u{1F4F7}', 'Turn camera off', () => {
+    const t = gcall.local && gcall.local.getVideoTracks()[0];
+    if (!t) return;
+    t.enabled = !t.enabled;
+    camBtn.classList.toggle('off', !t.enabled);
+  });
+  $('gctrls').replaceChildren(...[muteBtn(), camBtn, cbtn('hang', '\u{1F4DE}', 'Leave call', () => leaveGroupCall(true))].filter(Boolean));
+  if (!here) {
+    $('callmini').replaceChildren(
+      h('div', { class: 't' }, h('b', { id: 'ministatus' }, 'Group call'), gcall.name),
+      muteBtn(), cbtn('hang', '\u{1F4DE}', 'Leave call', e => { e.stopPropagation(); leaveGroupCall(true); }));
+  }
+  paintGroup();
+  renderHeader();
+}
+
+function leaveGroupCall(tellServer, message) {
+  if (!gcall) return;
+  const g = gcall;
+  gcall = null;
+  if (tellServer && g.id) api('gcallLeave', { convo: g.convo }).catch(() => {});
+  clearTimeout(g.pollTimer);
+  clearInterval(g.tick);
+  for (const p of g.peers.values()) { try { p.pc.close(); } catch (e) {} try { if (p.src) p.src.disconnect(); } catch (e) {} }
+  if (g.local) g.local.getTracks().forEach(t => t.stop());
+  $('gtiles').replaceChildren();
+  ['gcallpanel', 'callmini'].forEach(id => $(id).classList.add('hidden'));
+  if (message) toast(message);
+  renderHeader();
+  pollNow();
+}
+
+// "alice started a call in Squad" card with Join.
+function groupCallInvite(p) {
+  if (call || gcall || isMuted(p.convo)) return;
+  $('callring').replaceChildren(
+    avatar(p.from, { click: false }),
+    h('div', { class: 't' }, h('b', null, p.text || 'Group call'), h('span', null, `${p.from} started a ${p.video ? 'video ' : ''}call`)),
+    cbtn('hang', '\u2715', 'Dismiss', () => { ringtone(null); $('callring').classList.add('hidden'); }),
+    cbtn('accept', '\u{1F4DE}', 'Join', () => joinGroupCall(p.convo, !!p.video)));
+  $('callring').classList.remove('hidden');
+  ringtone('incoming');
+  setTimeout(() => { if (!gcall && !call) { ringtone(null); $('callring').classList.add('hidden'); } }, 15000);
+}
 
 // ---------- notifications ----------
 let settings = { slow: 0 };
@@ -2924,7 +3181,8 @@ const savePrefs = () => store.set('chat_prefs', JSON.stringify(prefs));
 function handlePings(pings) {
   // Incoming calls get their own ringing screen instead of a pop-up.
   pings.filter(p => p.kind === 'call').forEach(p => incomingCall(p));
-  pings = pings.filter(p => p.kind !== 'call');
+  pings.filter(p => p.kind === 'gcall').forEach(p => groupCallInvite(p));
+  pings = pings.filter(p => p.kind !== 'call' && p.kind !== 'gcall');
   if (!pings.length) return;
   // Skip what you're already looking at (comments live inside the feed, so they always count).
   // Friend requests/accepts change the friends list: fetch it on the very next poll.
