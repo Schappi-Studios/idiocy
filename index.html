@@ -667,9 +667,12 @@
       position: fixed; inset: 0 auto 0 0; z-index: 10; width: 85%; max-width: 320px;
       transform: translateX(-100%); transition: transform .2s;
     }
-    body.side-open aside { transform: none; box-shadow: 0 0 40px rgba(20,24,40,.25); }
+    /* The dimming beside the open sidebar is the sidebar's own shadow, not a grey layer over
+       the whole screen: iPhone Safari copies the colour of full-screen layers into the strip
+       behind the clock, and then keeps it after the layer's gone. */
+    body.side-open aside { transform: none; box-shadow: 0 0 0 100vmax rgba(20,24,40,.25), 0 0 40px rgba(20,24,40,.25); }
     #menu { display: block; }
-    #scrim { position: fixed; inset: 0; z-index: 9; background: rgba(20,24,40,.25); display: none; }
+    #scrim { position: fixed; inset: 0; z-index: 9; background: transparent; display: none; } /* just catches taps */
     body.side-open #scrim { display: block; }
     #sideclose { display: flex; }
     #rail { display: flex; }
