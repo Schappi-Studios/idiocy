@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#eef0f5"> <!-- the sidebar grey (--panel-2) -->
+<meta name="theme-color" content="#ffffff">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- black-translucent puts the app under the status bar instead of leaving
@@ -111,44 +111,6 @@
   }
   main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
 
-  /* Phones: a thin strip of chat icons down the left, like Discord. */
-  #rail { display: none; }
-  #tint { display: none; }
-  #rail {
-    width: 64px; flex-shrink: 0; flex-direction: column; align-items: center; gap: 8px;
-    padding: max(10px, env(safe-area-inset-top)) 0 max(10px, env(safe-area-inset-bottom));
-    background: var(--panel-2); border-right: 1px solid var(--border);
-    overflow-y: auto; scrollbar-width: none;
-  }
-  #rail::-webkit-scrollbar { display: none; }
-  #rail .ri {
-    position: relative; flex-shrink: 0; width: 44px; height: 44px; padding: 0; border: 0; background: none;
-    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
-  }
-  #rail .ri .avatar { width: 44px; height: 44px; font-size: 17px; transition: border-radius .15s; }
-  #rail .ri.on .avatar { border-radius: 14px; }
-  #rail .ri .avatar.icon { background: var(--panel); color: var(--muted); font-size: 20px; border-radius: 14px; }
-  #rail .ri.on .avatar.icon { background: var(--accent); color: #fff; }
-  /* the little bar on the left: short = unread, tall = open */
-  #rail .ri::before {
-    content: ''; position: absolute; left: -10px; top: 50%; width: 4px; height: 0; border-radius: 0 4px 4px 0;
-    background: var(--text); transform: translateY(-50%); transition: height .15s;
-  }
-  #rail .ri.unread::before { height: 8px; }
-  #rail .ri.on::before { height: 32px; }
-  #rail .badge-n {
-    position: absolute; right: -3px; bottom: -3px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px;
-    background: var(--danger); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center;
-    border: 2px solid var(--panel-2);
-  }
-  #rail .ri .presence { border-color: var(--panel-2); }
-  #rail .sep { flex-shrink: 0; width: 28px; height: 2px; border-radius: 1px; background: var(--border); }
-  #rail .tool {
-    position: relative; flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--panel); color: var(--muted); font-size: 22px; display: flex; align-items: center; justify-content: center;
-  }
-  #rail .tool.add { color: var(--ok); }
-  #rail .grow { flex: 1; min-height: 8px; }
 
   .me {
     display: flex; align-items: center; gap: 8px;
@@ -663,41 +625,95 @@
   }
   #toast.err { border-color: var(--danger); color: var(--danger); }
 
+  /* ---------- phones: a chat list with tabs at the bottom, chats open full screen ---------- */
+  #mtabs, #mhead, #msearch, #myou, #mback, .row .prev, .row .when { display: none; }
+  .row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 720px) {
-    aside {
-      position: fixed; inset: 0 auto 0 0; z-index: 10; width: 85%; max-width: 320px;
-      transform: translateX(-100%); transition: transform .2s;
+    body { background: var(--panel); } /* iPhone Safari copies this into the strip behind the clock */
+    #auth { background: var(--bg); }
+    #app { flex-direction: column; }
+    aside { width: 100%; flex: 1; min-height: 0; border-right: 0; }
+    main { flex: 1; min-height: 0; background: var(--bg); }
+    /* which screen is showing */
+    body.m-chats main, body.m-friends main, body.m-you main { display: none; }
+    body.m-feed aside, body.m-chat aside { display: none; }
+    body.m-chat #mtabs { display: none; }
+    #mtabs { display: flex; }
+    .brand, #menu, #status, #gadd, .sec-head { display: none !important; }
+
+    /* list screens */
+    #mhead {
+      display: flex; align-items: center; gap: 10px;
+      padding: max(14px, env(safe-area-inset-top)) 16px 6px;
     }
-    /* The dimming beside the open sidebar is the sidebar's own shadow, not a grey layer over
-       the whole screen: iPhone Safari copies the colour of full-screen layers into the strip
-       behind the clock, and then keeps it after the layer's gone. */
-    body.side-open aside { transform: none; box-shadow: 0 0 0 100vmax rgba(20,24,40,.25), 0 0 40px rgba(20,24,40,.25); }
-    #menu { display: block; }
-    #scrim { position: fixed; inset: 0; z-index: 9; background: transparent; display: none; } /* just catches taps */
-    body.side-open #scrim { display: block; }
-    #sideclose { display: flex; }
-    #rail { display: flex; }
-    #menu { display: none !important; } /* the rail's expand button does this job */
-    /* iPhone Safari colours the strip behind the clock from the page's background, so make
-       that the sidebar's grey: the strip then runs straight into the icon rail. */
-    body { background: var(--panel-2); }
-    body.side-open { background: var(--panel); } /* white like the open sidebar */
-    /* An almost-invisible layer in the strip's colour, put back each time the sidebar opens
-       or closes: Safari only looks at the strip's colour again when something new appears
-       at the top of the screen, and closing the sidebar otherwise adds nothing. */
-    #tint {
-      display: block; position: fixed; inset: 0; z-index: 80; pointer-events: none;
-      background: rgba(238, 240, 245, .02);
+    #mhead h1 { flex: 1; margin: 0; font-size: 28px; letter-spacing: -.5px; }
+    #mnew {
+      width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--accent); color: #fff;
+      font-size: 24px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
     }
-    body.side-open #tint { background: rgba(255, 255, 255, .02); }
-    #auth, #app { background: var(--bg); }
-    #menu { position: relative; }
-    #menu.unread::after {
-      content: ''; position: absolute; top: 2px; right: -2px; width: 9px; height: 9px; border-radius: 50%;
-      background: var(--danger); border: 2px solid var(--panel);
+    body:not(.m-chats) #mnew { display: none; }
+    body.m-chats .me, body.m-chats .sec.friends,
+    body.m-friends .me, body.m-friends .sec.chats,
+    body.m-you .sec.chats, body.m-you .sec.friends { display: none; }
+    body.m-chats #msearch { display: block; padding: 6px 16px 8px; }
+    #msearch input { width: 100%; border-radius: 12px; padding: 10px 14px; }
+    .sec { padding: 4px 8px; }
+    #convos .row { gap: 12px; padding: 10px 10px; border-radius: 14px; }
+    #convos .row .avatar { width: 50px; height: 50px; font-size: 19px; }
+    #convos .row.global { display: none; }
+    #convos .row .label { display: flex; flex-direction: column; gap: 2px; }
+    #convos .row .nm { font-size: 17px; font-weight: 600; }
+    #convos .row .prev { display: block; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #convos .row.unread .prev { color: var(--text); font-weight: 600; }
+    #convos .row .when { display: block; align-self: flex-start; margin-top: 4px; color: var(--muted); font-size: 12px; }
+    #convos .row.on { background: none; }
+    #convos .row:active { background: var(--hover); }
+    #convos .row .dot { width: 10px; height: 10px; }
+    body.m-friends .sec.friends { padding: 4px 16px; }
+    #friends .row, #requests .row { padding: 10px 4px; gap: 12px; }
+    #friends .row .avatar, #requests .row .avatar { width: 44px; height: 44px; font-size: 17px; }
+    /* You */
+    body.m-you .me { flex-direction: column; border: 0; padding: 24px 16px 12px; gap: 12px; }
+    body.m-you .me .who { flex-direction: column; text-align: center; gap: 10px; margin: 0; }
+    body.m-you .me .who .avatar { width: 88px; height: 88px; font-size: 34px; }
+    body.m-you .me .who .two { align-items: center; }
+    body.m-you .me .who b { font-size: 22px; }
+    body.m-you .me .iconbtn { display: none; }
+    body.m-you #myou { display: flex; flex-direction: column; gap: 8px; padding: 8px 16px; }
+    #myou button {
+      display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; border: 0;
+      background: var(--panel-2); font-size: 16px; text-align: left; cursor: pointer;
     }
-    /* Roomier header: "Add people" lives in Info, and the name gets the space. */
-    #gadd, #status { display: none !important; }
+    #myou button.danger { color: var(--danger); }
+
+    /* tab bar */
+    #mtabs {
+      flex-shrink: 0; border-top: 1px solid var(--border); background: var(--panel);
+      padding: 6px 4px max(6px, env(safe-area-inset-bottom));
+    }
+    #mtabs button {
+      flex: 1; position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+      border: 0; background: none; color: var(--muted); font-size: 11px; font-weight: 600; padding: 4px 0; cursor: pointer;
+    }
+    #mtabs button svg { width: 26px; height: 26px; }
+    #mtabs button .avatar { width: 26px; height: 26px; font-size: 11px; }
+    #mtabs button.on { color: var(--accent); }
+    #mtabs button.on .avatar { box-shadow: 0 0 0 2px var(--accent); }
+    #mtabs .tb {
+      position: absolute; top: 0; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+      background: var(--danger); color: #fff; font-size: 11px; line-height: 18px; text-align: center;
+    }
+    #mtabs .tb:empty { min-width: 10px; height: 10px; padding: 0; top: 2px; }
+    body.m-feed #feedbox { padding-bottom: 12px; }
+
+    /* chat screen */
+    #mback {
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      width: 36px; height: 36px; margin-left: -6px; border: 0; background: none; border-radius: 50%;
+      color: var(--accent); cursor: pointer;
+    }
+    #mback svg { width: 26px; height: 26px; }
+    body.m-feed #mback { display: none; }
     main header { gap: 8px; padding-left: 10px; padding-right: 10px; }
     #joincall .jlabel { display: none; }
     .callpanel { padding: 10px; }
@@ -706,19 +722,14 @@
 
   /* Notched phones: keep things clear of the notch and home bar. */
   main header, .brand { padding-top: max(10px, env(safe-area-inset-top)); }
-  /* The strip behind the clock and battery, on a home-screen app. Same colour
-     as the rail below it, so the top of the screen reads as one piece instead
-     of a band of someone else's grey. Zero height in a browser, where the
-     inset is 0, and above everything else because the status bar sits on top
-     of the app, not in it. */
+  body.m-chat #send { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  /* The strip behind the clock and battery, on a home-screen app: white like the headers
+     under it. Zero height in a browser, where the inset is 0. */
   body::before {
     content: ''; position: fixed; top: 0; left: 0; right: 0; z-index: 70;
-    height: env(safe-area-inset-top); background: var(--panel-2);
+    height: env(safe-area-inset-top); background: var(--panel);
     pointer-events: none;
   }
-  /* With the sidebar open, the strip turns white to match it. */
-  body::before { transition: background-color .2s; }
-  body.side-open::before { background: var(--panel); }
   #send, #feedbox { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   #callmini { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 
@@ -764,9 +775,9 @@
 </div>
 
 <div id="app" class="hidden">
-  <nav id="rail" aria-label="Chats"></nav>
   <aside>
     <div class="brand"><img class="logo" alt="">Idiocy<button id="sideclose" title="Close menu" aria-label="Close menu">✕</button></div>
+    <div id="mhead"><h1 id="mtitle">Chats</h1><button id="mnew" title="New group" aria-label="New group">+</button></div>
     <div class="me">
       <button class="who" id="mename" title="Your profile"></button>
       <button class="iconbtn hidden" id="adminbtn" title="Admin panel" aria-label="Admin panel">
@@ -776,11 +787,13 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.26.6.84 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
     </div>
-    <div class="sec">
+    <div id="myou"></div>
+    <div class="sec chats">
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
+      <div id="msearch"><input type="search" placeholder="Search" autocomplete="off" aria-label="Search chats"></div>
       <div id="convos"></div>
     </div>
-    <div class="sec">
+    <div class="sec friends">
       <div class="sec-head">Friends</div>
       <form id="addfriend">
         <input placeholder="Add by username" maxlength="20" autocomplete="off">
@@ -795,6 +808,7 @@
 
   <main>
     <header>
+      <button id="mback" aria-label="Back to chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
       <button id="menu" aria-label="Menu">☰</button>
       <div id="status" title="Connecting…"></div>
       <span id="hicon"></span>
@@ -854,6 +868,12 @@
       <button class="primary" type="submit">Send</button>
     </form>
   </main>
+  <nav id="mtabs" aria-label="Sections">
+    <button data-tab="chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Chats<span class="tb hidden"></span></button>
+    <button data-tab="feed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/></svg>Feed<span class="tb hidden"></span></button>
+    <button data-tab="friends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Friends<span class="tb hidden"></span></button>
+    <button data-tab="you"><span class="avatar" id="mtabme"></span>You</button>
+  </nav>
 </div>
 
 <script>
@@ -1326,6 +1346,7 @@ async function logOut() {
 function start() {
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
+  if (isPhone()) { openId = 'global'; setView('chats'); } // phones open on the chat list
   showLoading();
   switchTo(openId);
 }
@@ -1487,7 +1508,7 @@ let seenRows = null; // row ids from the last render, so new rows can animate in
 
 function renderSide() {
   if (!st || !me) return;
-  const sig = JSON.stringify([st, latest, openId, read, me, profileVer, picVer, prefs.muted]);
+  const sig = JSON.stringify([st, latest, openId, read, me, profileVer, picVer, prefs.muted, prevVer, Math.floor(Date.now() / 60000)]);
   if (sig === sideSig) return;
   sideSig = sig;
   const seen = new Set();
@@ -1511,9 +1532,11 @@ function renderSide() {
     const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : h('div', { class: 'avatar icon' }, '#');
     const unread = isUnread(c.id);
     return fresh(h('button', {
-      class: 'row' + (c.id === openId ? ' on' : '') + (unread ? ' unread' : ''),
+      class: 'row' + (c.id === openId ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
       onclick: () => switchTo(c.id),
-    }, icon, h('span', { class: 'label' }, label), isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
+    }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, label), h('span', { class: 'prev' }, previewText(c))),
+      isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
+      h('span', { class: 'when' }, ago(latest[c.id])),
       unread && h('span', { class: 'dot' })), 'c:' + c.id);
   }));
 
@@ -1539,33 +1562,10 @@ function renderSide() {
         }, '✕')), 'f:' + key(n)))
     : [h('div', { class: 'muted' }, 'No friends yet. Add someone by username!')]));
   seenRows = seen;
-  renderRail(convos);
+  renderTabs();
+  filterChats();
 }
 
-// Phones: the icon strip. Tap an icon to open that chat; the top button expands the
-// full sidebar with names, friends and settings.
-function renderRail(convos) {
-  const open = () => document.body.classList.add('side-open');
-  const reqs = st.incoming.length;
-  $('rail').replaceChildren(
-    h('button', { class: 'tool', title: 'Show names and friends', 'aria-label': 'Show names and friends', onclick: open },
-      '\u00bb', reqs ? h('span', { class: 'badge-n', title: 'Friend requests' }, String(reqs)) : null),
-    h('div', { class: 'sep' }),
-    ...convos.map(c => {
-      const label = convoLabel(c);
-      const icon = c.type === 'dm' ? avatar(label, { dot: true, click: false })
-        : c.type === 'group' ? groupIcon(c) : h('div', { class: 'avatar icon' }, '#');
-      icon.style.cursor = 'pointer';
-      return h('button', {
-        class: 'ri' + (c.id === openId ? ' on' : '') + (isUnread(c.id) ? ' unread' : ''),
-        title: label, 'aria-label': label, onclick: () => switchTo(c.id),
-      }, icon);
-    }),
-    h('button', { class: 'tool add', title: 'New group', 'aria-label': 'New group', onclick: () => $('newgroup').click() }, '+'),
-    h('div', { class: 'grow' }),
-    h('button', { class: 'ri', title: 'You', 'aria-label': 'Your profile', onclick: () => $('mename').click() },
-      avatar(me.name, { dot: true, click: false })));
-}
 
 // Friend actions update the sidebar immediately; the server catches up after.
 function respond(n, accept) {
@@ -1657,6 +1657,8 @@ function rememberChat() {
 }
 
 function switchTo(id) {
+  if (id !== 'global') setView('chat');
+  else if (mview === 'chat') setView('feed');
   rememberChat();
   openId = id;
   if (!isPendingChat(id)) store.set('chat_open', id);
@@ -2175,22 +2177,99 @@ log.addEventListener('click', e => {
   if (el && !was) el.classList.add('sel');
 });
 
-// Swipe right from the left edge to open the chat list, swipe left to close it.
+// Phones: swipe right from the left edge of a chat to go back to the list.
 $('sideclose').onclick = () => document.body.classList.remove('side-open');
 let swipe = null;
 document.addEventListener('touchstart', e => {
   const t = e.touches[0];
-  swipe = { x: t.clientX, y: t.clientY, open: document.body.classList.contains('side-open') };
+  swipe = { x: t.clientX, y: t.clientY };
 }, { passive: true });
 document.addEventListener('touchend', e => {
-  if (!swipe || innerWidth > 720) return;
+  if (!swipe || !isPhone()) return;
   const t = e.changedTouches[0], dx = t.clientX - swipe.x, dy = Math.abs(t.clientY - swipe.y);
-  if (dy < 60) {
-    if (!swipe.open && swipe.x < 30 && dx > 60) document.body.classList.add('side-open');
-    if (swipe.open && dx < -60) document.body.classList.remove('side-open');
-  }
+  if (mview === 'chat' && swipe.x < 30 && dx > 70 && dy < 60 && !document.querySelector('.modal')) mtab('chats');
   swipe = null;
 }, { passive: true });
+
+// ---------- phone screens ----------
+// Chats / Feed / Friends / You tabs at the bottom; a chat opens full screen with a back arrow.
+const isPhone = () => matchMedia('(max-width: 720px)').matches;
+let mview = 'chats';
+function setView(v) {
+  mview = v;
+  document.body.classList.remove('m-chats', 'm-feed', 'm-friends', 'm-you', 'm-chat');
+  document.body.classList.add('m-' + v);
+  $('mtitle').textContent = v === 'friends' ? 'Friends' : v === 'you' ? 'You' : 'Chats';
+  document.querySelectorAll('#mtabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === v));
+}
+function mtab(t) {
+  setView(t);
+  if (openId !== 'global') switchTo('global'); // nothing sits open (and gets marked read) behind the list
+  if (t === 'chats' || t === 'friends' || t === 'you') $('app').querySelector('aside').scrollTop = 0;
+}
+document.querySelectorAll('#mtabs button').forEach(b => b.onclick = () => mtab(b.dataset.tab));
+$('mback').onclick = () => mtab('chats');
+$('mnew').onclick = () => $('newgroup').click();
+$('msearch').querySelector('input').oninput = filterChats;
+setView('chats');
+
+function filterChats() {
+  const q = $('msearch').querySelector('input').value.trim().toLowerCase();
+  $('convos').querySelectorAll('.row').forEach(r => {
+    r.style.display = q && !r.querySelector('.nm').textContent.toLowerCase().includes(q) ? 'none' : '';
+  });
+}
+
+function renderTabs() {
+  if (!st || !me) return;
+  const badge = (tab, n, dotOnly) => {
+    const b = document.querySelector(`#mtabs button[data-tab="${tab}"] .tb`);
+    b.classList.toggle('hidden', !n);
+    b.textContent = dotOnly || !n ? '' : n > 9 ? '9+' : String(n);
+  };
+  badge('chats', st.convos.filter(c => c.type !== 'global' && isUnread(c.id)).length);
+  badge('feed', isUnread('global') ? 1 : 0, true);
+  badge('friends', st.incoming.length);
+  const mine = $('mtabme');
+  if (mine.dataset.name !== me.name) mine.replaceWith(Object.assign(avatar(me.name, { click: false }), { id: 'mtabme' }));
+  else paintAvatar(mine);
+  $('myou').replaceChildren(
+    h('button', { onclick: () => openProfile(me.name) }, '\u{1F464}', ' Your profile'),
+    h('button', { onclick: openSettings }, '\u2699\uFE0F', ' Settings'),
+    ...(me.role === 'admin' ? [h('button', { onclick: openAdmin }, '\u{1F6E1}\uFE0F', ' Admin panel')] : []),
+    h('button', { class: 'danger', onclick: () => { if (confirm('Log out?')) logOut(); } }, '\u{1F6AA}', ' Log out'));
+}
+
+// Each chat's last message, remembered on this device for the chat list.
+const previews = (() => { try { return JSON.parse(store.get('chat_prev') || '{}'); } catch (e) { return {}; } })();
+let prevVer = 0;
+function notePreview(convo, m) {
+  if (!convo || !m || isPendingChat(convo)) return;
+  const old = previews[convo];
+  if (old && old.time > (m.time || 0)) return;
+  const text = m.sys ? m.text : m.img && !m.text ? '\u{1F4F7} Photo' : (m.text || '');
+  previews[convo] = { name: m.sys ? '' : m.name || '', text: String(text).slice(0, 120), time: m.time || Date.now() };
+  prevVer++;
+  store.set('chat_prev', JSON.stringify(previews));
+  renderSide();
+}
+function previewText(c) {
+  const p = previews[c.id];
+  if (p && p.text) {
+    const who = !p.name ? '' : me && key(p.name) === key(me.name) ? 'You: ' : c.type === 'group' ? p.name + ': ' : '';
+    return who + p.text;
+  }
+  return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : '';
+}
+function ago(t) {
+  if (!t) return '';
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return 'now';
+  if (s < 3600) return Math.floor(s / 60) + 'm';
+  if (s < 86400) return Math.floor(s / 3600) + 'h';
+  if (s < 7 * 86400) return Math.floor(s / 86400) + 'd';
+  return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
 
 // ---------- replies, editing, typing, older messages ----------
 let replying = null; // the message being replied to
@@ -2440,6 +2519,7 @@ function sys(text, isErr) {
 
 function renderBatch(msgs, animate) {
   if (!msgs.length) return;
+  if (!isFeed()) notePreview(openId, msgs[msgs.length - 1]);
   const stick = nearBottom();
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
   const before = new Set(log.children);
@@ -2487,7 +2567,7 @@ function updateComposer() {
 
 async function send(text, att) {
   const btn = isFeed() ? $('postbtn') : document.querySelector('#send button[type=submit]');
-  const myEpoch = epoch;
+  const myEpoch = epoch, sentTo = openId;
   btn.disabled = true;
   // Show the message right away while the server catches up.
   const rp = !isFeed() && replying ? replying : null;
@@ -2503,6 +2583,7 @@ async function send(text, att) {
   try {
     const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }) });
     if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (!d.auth) sys(d.error || 'Could not send', true); return false; }
+    if (sentTo !== 'global') notePreview(sentTo, d.message);
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
     const m = d.message;
     if (att && m.img) rememberImage(m.img, att.data); // no need to download what we just sent
@@ -3350,6 +3431,8 @@ function handlePings(pings) {
   pings.filter(p => p.kind === 'call').forEach(p => incomingCall(p));
   pings.filter(p => p.kind === 'gcall').forEach(p => groupCallInvite(p));
   pings = pings.filter(p => p.kind !== 'call' && p.kind !== 'gcall');
+  pings.filter(p => (p.kind === 'dm' || p.kind === 'group') && p.convo)
+    .forEach(p => notePreview(p.convo, { name: p.from, text: p.text, time: Date.now() }));
   if (!pings.length) return;
   // Skip what you're already looking at (comments live inside the feed, so they always count).
   // Friend requests/accepts change the friends list: fetch it on the very next poll.
@@ -3367,7 +3450,7 @@ function handlePings(pings) {
     : p.kind === 'friendaccept' ? `${p.from} accepted your friend request! Click to say hi.`
     : `${p.from} ${where}: ${p.text}`;
   const go = () => (p.kind === 'removed' ? null
-    : p.kind === 'friendreq' ? document.body.classList.add('side-open') // requests live in the sidebar
+    : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' ? openDm(p.from)
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
@@ -3714,18 +3797,6 @@ $('newmsgs').onclick = scrollDown;
 log.addEventListener('scroll', () => { if (nearBottom()) $('newmsgs').style.display = 'none'; });
 $('menu').onclick = () => document.body.classList.add('side-open');
 $('scrim').onclick = () => document.body.classList.remove('side-open');
-// Safari also reads theme-color for the strip behind the clock: white while the
-// sidebar is open, the sidebar grey otherwise.
-const tint = h('div', { id: 'tint' });
-document.body.append(tint);
-let sideWasOpen = false;
-new MutationObserver(() => {
-  const open = document.body.classList.contains('side-open');
-  if (open === sideWasOpen) return;
-  sideWasOpen = open;
-  document.querySelector('meta[name="theme-color"]').content = open ? '#ffffff' : '#eef0f5';
-  tint.remove(); requestAnimationFrame(() => document.body.append(tint)); // makes Safari look again
-}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNow(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.querySelectorAll('.overlay').forEach(o => o.remove());
