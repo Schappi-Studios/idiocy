@@ -113,6 +113,7 @@
 
   /* Phones: a thin strip of chat icons down the left, like Discord. */
   #rail { display: none; }
+  #tint { display: none; }
   #rail {
     width: 64px; flex-shrink: 0; flex-direction: column; align-items: center; gap: 8px;
     padding: max(10px, env(safe-area-inset-top)) 0 max(10px, env(safe-area-inset-bottom));
@@ -681,6 +682,14 @@
        that the sidebar's grey: the strip then runs straight into the icon rail. */
     body { background: var(--panel-2); }
     body.side-open { background: var(--panel); } /* white like the open sidebar */
+    /* An almost-invisible layer in the strip's colour, put back each time the sidebar opens
+       or closes: Safari only looks at the strip's colour again when something new appears
+       at the top of the screen, and closing the sidebar otherwise adds nothing. */
+    #tint {
+      display: block; position: fixed; inset: 0; z-index: 80; pointer-events: none;
+      background: rgba(238, 240, 245, .02);
+    }
+    body.side-open #tint { background: rgba(255, 255, 255, .02); }
     #auth, #app { background: var(--bg); }
     #menu { position: relative; }
     #menu.unread::after {
@@ -3707,9 +3716,15 @@ $('menu').onclick = () => document.body.classList.add('side-open');
 $('scrim').onclick = () => document.body.classList.remove('side-open');
 // Safari also reads theme-color for the strip behind the clock: white while the
 // sidebar is open, the sidebar grey otherwise.
+const tint = h('div', { id: 'tint' });
+document.body.append(tint);
+let sideWasOpen = false;
 new MutationObserver(() => {
-  document.querySelector('meta[name="theme-color"]').content =
-    document.body.classList.contains('side-open') ? '#ffffff' : '#eef0f5';
+  const open = document.body.classList.contains('side-open');
+  if (open === sideWasOpen) return;
+  sideWasOpen = open;
+  document.querySelector('meta[name="theme-color"]').content = open ? '#ffffff' : '#eef0f5';
+  tint.remove(); requestAnimationFrame(() => document.body.append(tint)); // makes Safari look again
 }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNow(); });
 document.addEventListener('keydown', e => {
