@@ -680,6 +680,7 @@
     /* iPhone Safari colours the strip behind the clock from the page's background, so make
        that the sidebar's grey: the strip then runs straight into the icon rail. */
     body { background: var(--panel-2); }
+    body.side-open { background: var(--panel); } /* white like the open sidebar */
     #auth, #app { background: var(--bg); }
     #menu { position: relative; }
     #menu.unread::after {
@@ -706,10 +707,9 @@
     height: env(safe-area-inset-top); background: var(--panel-2);
     pointer-events: none;
   }
-  /* With the sidebar open, step aside: the white sidebar runs up behind the clock
-     and the dimmed chat beside it does too, like a real drawer. */
-  body::before { transition: opacity .2s; }
-  body.side-open::before { opacity: 0; }
+  /* With the sidebar open, the strip turns white to match it. */
+  body::before { transition: background-color .2s; }
+  body.side-open::before { background: var(--panel); }
   #send, #feedbox { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   #callmini { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 
@@ -3705,6 +3705,12 @@ $('newmsgs').onclick = scrollDown;
 log.addEventListener('scroll', () => { if (nearBottom()) $('newmsgs').style.display = 'none'; });
 $('menu').onclick = () => document.body.classList.add('side-open');
 $('scrim').onclick = () => document.body.classList.remove('side-open');
+// Safari also reads theme-color for the strip behind the clock: white while the
+// sidebar is open, the sidebar grey otherwise.
+new MutationObserver(() => {
+  document.querySelector('meta[name="theme-color"]').content =
+    document.body.classList.contains('side-open') ? '#ffffff' : '#eef0f5';
+}).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNow(); });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') document.querySelectorAll('.overlay').forEach(o => o.remove());
