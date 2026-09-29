@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
+<meta name="theme-color" content="#eef0f5"> <!-- the sidebar grey (--panel-2) -->
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <!-- black-translucent puts the app under the status bar instead of leaving
@@ -677,11 +677,10 @@
     #sideclose { display: flex; }
     #rail { display: flex; }
     #menu { display: none !important; } /* the rail's expand button does this job */
-    /* iPhone Safari colours the strip behind the clock from the page and from things stuck
-       to the top, so make that white to match the header instead of grey. */
-    body { background: var(--panel); }
+    /* iPhone Safari colours the strip behind the clock from the page's background, so make
+       that the sidebar's grey: the strip then runs straight into the icon rail. */
+    body { background: var(--panel-2); }
     #auth, #app { background: var(--bg); }
-    main header { position: sticky; top: 0; z-index: 5; }
     #menu { position: relative; }
     #menu.unread::after {
       content: ''; position: absolute; top: 2px; right: -2px; width: 9px; height: 9px; border-radius: 50%;
