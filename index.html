@@ -634,9 +634,14 @@
     #app { flex-direction: column; }
     aside { width: 100%; flex: 1; min-height: 0; border-right: 0; }
     main { flex: 1; min-height: 0; background: var(--bg); }
-    /* which screen is showing */
-    body.m-chats main, body.m-friends main, body.m-you main { display: none; }
-    body.m-feed aside, body.m-chat aside { display: none; }
+    /* Which screen is showing. The other one slides off to the side rather than being
+       hidden outright: iPhone Safari forgets a hidden list can scroll, and then won't
+       scroll it after it comes back until you tap it. */
+    body.m-chats main, body.m-friends main, body.m-you main,
+    body.m-feed aside, body.m-chat aside {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      transform: translateX(-110%); pointer-events: none;
+    }
     body.m-chat #mtabs { display: none; }
     #mtabs { display: flex; }
     .brand, #menu, #status, #gadd, .sec-head { display: none !important; }
@@ -2201,7 +2206,12 @@ function setView(v) {
   document.body.classList.add('m-' + v);
   $('mtitle').textContent = v === 'friends' ? 'Friends' : v === 'you' ? 'You' : 'Chats';
   document.querySelectorAll('#mtabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === v));
+  // The off-screen one can't be tabbed into or read out.
+  const list = v === 'chats' || v === 'friends' || v === 'you', phone = isPhone();
+  document.querySelector('main').inert = phone && list;
+  document.querySelector('aside').inert = phone && !list;
 }
+matchMedia('(max-width: 720px)').addEventListener('change', () => setView(mview));
 function mtab(t) {
   setView(t);
   if (openId !== 'global') switchTo('global'); // nothing sits open (and gets marked read) behind the list
