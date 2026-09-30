@@ -387,6 +387,17 @@
   /* Post sits on the same line as the typing box, a bit smaller than other buttons. */
   #feedbox .fbrow #postbtn { flex-shrink: 0; height: 36px; margin-top: 3px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
   #feedbox .fbact .hint { color: var(--muted); font-size: 12px; }
+  .camerabtn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; padding: 0 18px;
+    border: 0; border-radius: 999px; background: rgba(106, 76, 245, .12); color: var(--accent);
+    font-size: 15px; font-weight: 600; cursor: pointer; flex-shrink: 0;
+  }
+  .camerabtn:hover { background: rgba(106, 76, 245, .2); }
+  .camerabtn:disabled { opacity: .5; cursor: default; }
+  @media (max-width: 720px) { #feedbox .camerabtn { flex: 1; max-width: 280px; height: 44px; } }
+  .modal.camera video { display: block; width: 100%; max-height: 60vh; border-radius: 12px; background: #000; transform: scaleX(-1); }
+  .modal.camera .snap { width: 64px; height: 64px; border-radius: 50%; border: 4px solid var(--accent); background: #fff; cursor: pointer; margin: 0 auto; display: block; }
+  .modal.camera .snap:active { background: var(--panel-2); }
   #feedbox #attachbar, #feedbox #composernote { background: none; border: 0; padding: 0 0 0 46px; }
   body.feedmode #send { display: none; }
   body:not(.feedmode) #feedbox { display: none; }
@@ -849,6 +860,7 @@
             <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
           </svg>
         </button>
+        <button type="button" class="camerabtn" id="postcam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Take photo</button>
         <span class="hint" id="postcount">Ctrl+Enter to post</span>
       </div>
     </div>
@@ -867,6 +879,8 @@
         </svg>
       </button>
       <input type="file" id="attachfile" accept="image/*" class="hidden">
+      <button type="button" class="iconbtn" id="cam" title="Take a photo" aria-label="Take a photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+      <input type="file" id="camfile" accept="image/*" capture="environment" class="hidden">
       <input id="text" autocomplete="off" placeholder="Say something…" maxlength="300">
       <span id="count"></span>
       <button class="primary" type="submit">Send</button>
@@ -2560,6 +2574,8 @@ function updateComposer() {
   $('attach').disabled = !!muted || waiting;
   $('posttext').disabled = !!muted;
   $('postimg').disabled = !!muted;
+  $('postcam').disabled = !!muted;
+  $('cam').disabled = !!muted || waiting;
   if (muted) {
     note.textContent = `You're timed out until ${new Date(me.muted).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. You can still read messages.`;
     note.className = 'composer-note warn';
@@ -2765,6 +2781,50 @@ function openLightbox(src) {
 }
 
 $('attach').onclick = () => $('attachfile').click();
+
+// ---------- taking a photo ----------
+// Phones open their own camera from the file picker. Computers can't, so they get a
+// little camera window instead.
+function takePhoto() {
+  if (matchMedia('(hover: none)').matches || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return $('camfile').click();
+  openCamera();
+}
+$('postcam').onclick = takePhoto;
+$('cam').onclick = takePhoto;
+$('camfile').onchange = () => {
+  const f = $('camfile').files[0];
+  $('camfile').value = '';
+  if (f) attachFile(f);
+};
+
+async function openCamera() {
+  const video = h('video', { autoplay: '', playsinline: '' });
+  video.muted = true;
+  let stream = null;
+  const stop = () => { if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; };
+  const snap = h('button', { class: 'snap', title: 'Take photo', 'aria-label': 'Take photo', disabled: '' });
+  const m = modal('camera', h('h2', null, 'Take a photo'), video, snap,
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => m.close() }, 'Cancel')));
+  // However the window closes (Cancel, clicking outside, Escape), let go of the camera.
+  const watch = setInterval(() => { if (!m.overlay.isConnected) { stop(); clearInterval(watch); } }, 300);
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 1280 } }, audio: false });
+  } catch (e) {
+    m.close();
+    toast(e && e.name === 'NotAllowedError' ? 'Idiocy isn\u2019t allowed to use your camera.' : 'Couldn\u2019t find a camera. Pick a picture instead.', true);
+    return;
+  }
+  if (!m.overlay.isConnected) return stop();
+  video.srcObject = stream;
+  video.onloadedmetadata = () => snap.removeAttribute('disabled');
+  snap.onclick = () => {
+    const c = document.createElement('canvas');
+    c.width = video.videoWidth; c.height = video.videoHeight;
+    c.getContext('2d').drawImage(video, 0, 0);
+    c.toBlob(b => { if (b) attachFile(new File([b], 'photo.jpg', { type: 'image/jpeg' })); }, 'image/jpeg', 0.9);
+    m.close();
+  };
+}
 $('attachfile').onchange = () => {
   const f = $('attachfile').files[0];
   $('attachfile').value = '';
