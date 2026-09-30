@@ -843,6 +843,9 @@
     #convos .row:active { background: var(--hover); }
     #convos .row .dot { width: 10px; height: 10px; }
     body.m-friends .sec.friends { padding: 4px 16px; }
+    .req { padding: 12px 4px; font-size: 16px; }
+    .req .actions { margin-top: 8px; gap: 8px; }
+    .req .actions button { padding: 10px 20px !important; font-size: 15px; } /* big enough to hit with a thumb */
     #friends .row, #requests .row { padding: 10px 4px; gap: 12px; }
     #friends .row .avatar, #requests .row .avatar { width: 44px; height: 44px; font-size: 17px; }
     /* You */
@@ -1743,10 +1746,26 @@ function convoLabel(c) {
 
 let seenRows = null; // row ids from the last render, so new rows can animate in
 
+let sideHeld = false, sideHeldAt = 0, sideWanted = false;
+document.querySelector('aside').addEventListener('pointerdown', () => { sideHeld = true; sideHeldAt = Date.now(); }, true);
+const releaseSide = () => {
+  if (!sideHeld) return;
+  // Give the tap's click a moment to land before the list can change.
+  setTimeout(() => {
+    sideHeld = false;
+    if (sideWanted) { sideWanted = false; renderSide(); }
+  }, 350);
+};
+document.addEventListener('pointerup', releaseSide, true);
+document.addEventListener('pointercancel', releaseSide, true);
+
 function renderSide() {
   if (!st || !me) return;
   const sig = JSON.stringify([st, latest, openId, read, me, profileVer, picVer, prefs.muted, prevVer, Math.floor(Date.now() / 60000), streaks, stories, storySeenVer, serverApi]);
   if (sig === sideSig) return;
+  // Rebuilding the list mid-tap swaps the button under your finger, and the phone
+  // then drops the tap. Wait until the finger's lifted.
+  if (sideHeld && Date.now() - sideHeldAt < 5000) { sideWanted = true; return; }
   sideSig = sig;
   const seen = new Set();
   const fresh = (el, id) => {
