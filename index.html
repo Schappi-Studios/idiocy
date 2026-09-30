@@ -759,6 +759,17 @@
 
   .profile { padding: 0; overflow: hidden; gap: 0; }
   .profile .banner { height: 72px; }
+  .profile .pgame { font-size: 14px; }
+  .pbadges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pbadge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; margin-top: 6px; }
+  .swatch { height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; }
+  .swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--panel) inset; }
+  .blockedlist .row { padding: 6px 0; }
+  .blocknote { display: none; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; padding: 4px 0; text-align: left; }
+  .msg.blockedmsg { min-height: 0; display: block; padding-top: 4px; padding-bottom: 4px; }
+  .msg.blockedmsg > :not(.blocknote) { display: none !important; }
+  .msg.blockedmsg > .blocknote { display: block; }
   .profile .inner { padding: 0 20px 20px; display: flex; flex-direction: column; gap: 10px; }
   .profile .big {
     width: 84px; height: 84px; font-size: 32px; margin-top: -42px;
@@ -1216,7 +1227,10 @@ async function openProfile(name) {
       h('button', { class: 'ghost', onclick: friendly(() => respond(name, false)) }, 'Decline'));
     else if (rel === 'outgoing') btns.push(
       h('button', { class: 'ghost', onclick: friendly(() => unfriend(name)) }, 'Cancel request'));
-    else btns.push(h('button', { class: 'primary', onclick: friendly(() => requestFriend(name), () => toast('Friend request sent')) }, 'Add friend'));
+    else if (!isBlocked(name)) btns.push(h('button', { class: 'primary', onclick: friendly(() => requestFriend(name), () => toast('Friend request sent')) }, 'Add friend'));
+    if (!isMe && serverApi >= 12 && p.role !== 'admin') btns.push(isBlocked(name)
+      ? h('button', { class: 'ghost', onclick: () => { m.close(); unblockUser(p.username || name); } }, 'Unblock')
+      : h('button', { class: 'ghost danger', onclick: () => { m.close(); blockUser(p.username || name); } }, 'Block'));
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
@@ -1227,7 +1241,7 @@ async function openProfile(name) {
       if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => m.close()) }, 'Delete account'));
     }
     m.box.replaceChildren(
-      h('div', { class: 'banner', style: `background:${colorFor(name, 80)}` }),
+      h('div', { class: 'banner', style: `background:${BANNERS[p.banner] || colorFor(name, 80)}` }),
       h('div', { class: 'inner' },
         big,
         h('div', { class: 'pname' + (p.role === 'admin' ? ' admin-name' : '') }, p.username || name, p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
@@ -1236,6 +1250,9 @@ async function openProfile(name) {
         h('div', { class: 'pstatus' },
           h('span', { class: 'dotsm' + (p.online ? ' on' : '') }),
           p.status || (p.online ? 'Online' : 'Offline')),
+        p.game && h('div', { class: 'pgame' }, '\u{1F3AE} Playing ', h('b', null, p.game)),
+        isBlocked(name) && h('div', { class: 'pmeta' }, '\u{1F6AB} You\u2019ve blocked them. They can\u2019t add or message you.'),
+        badgeRow(p, m._badges),
         p.bio && h('div', { class: 'pbio' }, p.bio),
         p.created && h('div', { class: 'pmeta' }, 'Joined ' + new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })),
         h('div', { class: 'btns' }, btns)));
@@ -1244,11 +1261,72 @@ async function openProfile(name) {
   // Keep the buttons right if your friends change while it's open.
   const stWatch = setInterval(() => { if (!m.overlay.isConnected) clearInterval(stWatch); else if (m._st !== st) { m._st = st; render(); } }, 700);
   m._st = st;
-  // Always get a fresh copy when opening someone's profile.
+  // Always get a fresh copy when opening someone's profile, plus their badges.
   try {
-    const d = await api('profiles', { names: [name] });
-    if (d.ok) { storeProfiles(d.profiles); if (m.overlay.isConnected) render(); }
+    const [d, b] = await Promise.all([api('profiles', { names: [name] }),
+      serverApi >= 12 ? api('badges', { username: name }) : Promise.resolve(null)]);
+    if (b && b.ok) m._badges = b;
+    if (d.ok) storeProfiles(d.profiles);
+    if (m.overlay.isConnected) render();
   } catch (e) {}
+}
+
+// ---------- profile flair ----------
+const BANNERS = {
+  sunset: 'linear-gradient(135deg, #ff9a3c, #ff3d6e)',
+  ocean: 'linear-gradient(135deg, #1fa2ff, #12d8fa 60%, #a6ffcb)',
+  forest: 'linear-gradient(135deg, #134e5e, #71b280)',
+  grape: 'linear-gradient(135deg, #7f53ac, #647dee)',
+  candy: 'linear-gradient(135deg, #ff9ff3, #feca57)',
+  gold: 'linear-gradient(135deg, #f7971e, #ffd200)',
+  night: 'linear-gradient(135deg, #0f2027, #203a43, #2c5364)',
+  mint: 'linear-gradient(135deg, #43e97b, #38f9d7)',
+  fire: 'linear-gradient(135deg, #f12711, #f5af19)',
+  sky: 'linear-gradient(135deg, #89f7fe, #66a6ff)',
+};
+const EARLY_CUTOFF = Date.UTC(2026, 10, 1); // joined before 1 Nov 2026: an early member
+
+function badgeRow(p, b) {
+  const list = [];
+  const created = p.created || (b && b.created);
+  if (created && created < EARLY_CUTOFF) list.push(['\u{1F331}', 'Early member', 'Joined Idiocy in its first days']);
+  const years = created ? Math.floor((Date.now() - created) / (365 * 864e5)) : 0;
+  if (years >= 1) list.push(['\u{1F382}', `${years} year${years > 1 ? 's' : ''}`, 'On Idiocy for ' + years + (years > 1 ? ' years' : ' year')]);
+  if (b && b.streak >= 3) list.push(['\u{1F525}', `${b.streak}-day streak`, 'Their best streak going right now']);
+  if (b && b.friends >= 10) list.push(['\u{1F465}', 'Popular', `${b.friends} friends`]);
+  if (!list.length) return null;
+  return h('div', { class: 'pbadges' }, ...list.map(([icon, label, tip]) => h('span', { class: 'pbadge', title: tip }, icon + ' ' + label)));
+}
+
+// ---------- blocking ----------
+const isBlocked = n => !!(st && st.blocked && st.blocked.some(b => key(b) === key(n)));
+
+async function blockUser(name) {
+  if (!confirm(`Block ${name}?\n\nYou'll stop being friends, and they won't be able to add you or message you. Their messages in groups and the feed get hidden for you. They won't be told.`)) return;
+  const d = await act('block', { username: name }, null, s => {
+    drop(s.friends, name); drop(s.incoming, name); drop(s.outgoing, name);
+    s.blocked = (s.blocked || []).concat(name);
+  });
+  if (!d) return;
+  toast(`${name} is blocked`);
+  switchTo(openId === 'global' || !isPendingChat(openId) ? openId : 'global'); // redraw with their messages hidden
+}
+
+async function unblockUser(name, done) {
+  const d = await act('unblock', { username: name }, null, s => { s.blocked = (s.blocked || []).filter(b => key(b) !== key(name)); });
+  if (!d) return;
+  toast(`${name} is unblocked`);
+  if (done) done();
+  switchTo(openId);
+}
+
+// Their message, folded away with a way to peek.
+function foldIfBlocked(el, m) {
+  if (!m.name || m.sys || isMine(m) || !isBlocked(m.name)) return el;
+  el.classList.add('blockedmsg');
+  el.prepend(h('button', { class: 'blocknote', type: 'button', onclick: e => { e.stopPropagation(); el.classList.remove('blockedmsg'); } },
+    '\u{1F6AB} Message from someone you blocked \u00b7 ', h('u', null, 'Show')));
+  return el;
 }
 
 const STATUS_PRESETS = ['Doing coding', 'Playing Minecraft', 'Touching grass', 'Doing homework', 'AFK'];
@@ -1303,6 +1381,16 @@ function openEditProfile() {
   bio.oninput = countBio;
   countBio();
 
+  let banner = p.banner || '';
+  const swatches = h('div', { class: 'swatches' });
+  const paintSwatches = () => swatches.replaceChildren(
+    h('button', { type: 'button', class: 'swatch plain' + (!banner ? ' on' : ''), title: 'Default', style: `background:${colorFor(me.name, 80)}`, onclick: () => { banner = ''; paintSwatches(); } }),
+    ...Object.keys(BANNERS).map(k => h('button', { type: 'button', class: 'swatch' + (banner === k ? ' on' : ''), title: k, 'aria-label': k + ' banner',
+      style: `background:${BANNERS[k]}`, onclick: () => { banner = k; paintSwatches(); } })));
+  paintSwatches();
+  const game = h('input', { maxlength: 30, placeholder: 'e.g. Slope, Minecraft, Retro Bowl' });
+  game.value = p.game || '';
+
   const save = h('button', { class: 'primary', type: 'submit' }, 'Save');
   const cur = h('input', { type: 'password', placeholder: 'Current password', autocomplete: 'current-password' });
   const next = h('input', { type: 'password', placeholder: 'New password', autocomplete: 'new-password' });
@@ -1317,7 +1405,8 @@ function openEditProfile() {
       onsubmit: async e => {
         e.preventDefault();
         save.disabled = true;
-        const d = await act('updateProfile', { avatar: pic, status: status.value, bio: bio.value });
+        const d = await act('updateProfile', { avatar: pic, status: status.value, bio: bio.value,
+          ...(serverApi >= 12 && { banner, game: game.value }) });
         save.disabled = false;
         if (d) { storeProfiles(d.profiles); toast('Profile saved'); m.close(); }
       },
@@ -1330,6 +1419,8 @@ function openEditProfile() {
         h('button', { class: 'ghost', type: 'button', onclick: () => { status.value = t; } }, t)),
         h('button', { class: 'ghost', type: 'button', onclick: () => { status.value = ''; } }, 'Clear')),
       h('label', { class: 'field' }, h('span', null, 'About me ', bioCount), bio),
+      serverApi >= 12 && h('label', { class: 'field' }, '\u{1F3AE} Currently playing', game),
+      serverApi >= 12 && h('div', { class: 'field' }, 'Banner', swatches),
       h('div', { class: 'btns' },
         h('button', { class: 'ghost', type: 'button', onclick: () => m.close() }, 'Cancel'),
         save)),
@@ -1811,7 +1902,7 @@ function renderSide() {
     ? st.friends.slice().sort((a, b) => a.localeCompare(b)).map(n => fresh(h('div', { class: 'row', onclick: () => openDm(n) },
         avatar(n, { dot: true }),
         h('span', { class: 'label two' }, h('b', { style: 'font-weight:500', class: profileOf(n) && profileOf(n).role === 'admin' ? 'admin-name' : null }, n),
-          profileOf(n) && profileOf(n).status && h('span', { class: 'st' }, profileOf(n).status)),
+          profileOf(n) && (profileOf(n).status || profileOf(n).game) && h('span', { class: 'st' }, profileOf(n).status || '\u{1F3AE} ' + profileOf(n).game)),
         h('button', {
           class: 'x', title: 'Remove friend',
           onclick: e => { e.stopPropagation(); if (confirm(`Remove ${n} from your friends?`)) unfriend(n); },
@@ -2235,7 +2326,7 @@ function buildMessage(m, pending) {
   paintReactions(el);
   paintPoll(el);
   if (m.e) eMax = Math.max(eMax, m.e);
-  return el;
+  return foldIfBlocked(el, m);
 }
 
 // The message text and "(edited)" tag, repainted when an edit arrives.
@@ -2280,7 +2371,7 @@ function buildPost(m, pending) {
   paintCommentCount(el);
   paintPoll(el);
   if (m.e) eMax = Math.max(eMax, m.e);
-  return el;
+  return foldIfBlocked(el, m);
 }
 
 let serverApi = 0; // features the backend supports; comments need 3
@@ -4283,11 +4374,18 @@ function openSettings() {
       prefs.theme = v; savePrefs(); applyTheme();
       theme.querySelectorAll('button').forEach(b => { b.className = b === e.currentTarget ? 'primary' : 'ghost'; });
     } }, label)));
+  const blockedList = h('div', { class: 'blockedlist' });
+  const paintBlocked = () => blockedList.replaceChildren(...((st && st.blocked) || []).map(n =>
+    h('div', { class: 'row' }, avatar(n), h('span', { class: 'label' }, n),
+      h('button', { class: 'ghost', onclick: () => unblockUser(n, () => setTimeout(paintBlocked, 50)) }, 'Unblock'))));
+  paintBlocked();
   const md = modal('',
     h('h2', null, 'Settings'),
     h('div', { class: 'toggle' }, h('span', null, 'Theme', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Auto matches your device')), theme),
     h('label', { class: 'toggle' }, h('span', null, 'Ping sound', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'For DMs, group messages and @mentions')), sound),
     serverApi >= 6 && h('label', { class: 'toggle' }, h('span', null, 'Call ringtone', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Ringing when someone calls you, and while you call someone')), ringBox),
+    serverApi >= 12 && st && st.blocked && st.blocked.length > 0 && h('div', null,
+      h('div', { style: 'font-weight:600;margin:4px 0' }, '\u{1F6AB} Blocked accounts'), blockedList),
     h('label', { class: 'toggle' }, h('span', null, 'Desktop notifications', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'When this tab is in the background')), desk),
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
