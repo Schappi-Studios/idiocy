@@ -494,9 +494,14 @@
   .story .ring .avatar { width: 52px; height: 52px; font-size: 19px; border: 2.5px solid var(--panel); cursor: pointer; }
   .story .ring.none .avatar { border-color: transparent; }
   .story .plus {
-    position: absolute; right: -1px; bottom: -1px; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: #fff;
-    border: 2px solid var(--panel); font-size: 14px; line-height: 15px; text-align: center; font-weight: 700;
+    position: absolute; right: -3px; bottom: -3px; width: 22px; height: 22px; cursor: pointer; border-radius: 50%; background: var(--accent); color: #fff;
+    border: 2px solid var(--panel); font-size: 14px; line-height: 17px; text-align: center; font-weight: 700;
   }
+  .story .addcircle {
+    display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 50%;
+    border: 2px dashed var(--accent); color: var(--accent); font-size: 26px; font-weight: 600; background: var(--accent-soft, rgba(106, 76, 245, .1));
+  }
+  .story.addstory .sn { color: var(--accent); font-weight: 600; }
   .story .sn { font-size: 11px; max-width: 62px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .storyview {
     position: fixed; inset: 0; z-index: 90; background: #000; color: #fff; display: flex; flex-direction: column;
@@ -2812,12 +2817,17 @@ function renderStories() {
     .sort((a, b) => ((storySeen[key(a.name)] || 0) >= a.last) - ((storySeen[key(b.name)] || 0) >= b.last) || b.last - a.last);
   const item = (name, label, ringCls, onclick, plus) => {
     const av = avatar(name, { click: false });
-    return h('button', { class: 'story', title: label, onclick }, h('span', { class: 'ring ' + ringCls }, av, plus && h('span', { class: 'plus' }, '+')),
+    // The + on your own picture always adds, even when tapping the picture shows your story.
+    const badge = plus && h('span', { class: 'plus', title: 'Add to your story', onclick: e => { e.stopPropagation(); addToStory(); } }, '+');
+    return h('button', { class: 'story', title: label, onclick }, h('span', { class: 'ring ' + ringCls }, av, badge),
       h('span', { class: 'sn' }, label));
   };
   bar.replaceChildren(
     item(me.name, 'Your story', mine ? ((storySeen[key(me.name)] || 0) >= mine.last ? 'seen' : '') : 'none',
-      () => (mine ? openStoryViewer([me.name], 0) : addToStory()), !mine),
+      () => (mine ? openStoryViewer([me.name], 0) : addToStory()), true),
+    // Once you've posted, a separate "Add" button makes adding more obvious.
+    mine && h('button', { class: 'story addstory', title: 'Add to your story', onclick: addToStory },
+      h('span', { class: 'ring none' }, h('span', { class: 'addcircle' }, '+')), h('span', { class: 'sn' }, 'Add')),
     ...others.map((s, i) => item(s.name, s.name, (storySeen[key(s.name)] || 0) >= s.last ? 'seen' : '',
       () => openStoryViewer(others.map(o => o.name), i))));
 }
