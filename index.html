@@ -296,6 +296,9 @@
   .emailbox .row2 { display: flex; gap: 8px; }
   .emailbox .row2 input { flex: 1; min-width: 0; }
   .emailbox .hint { color: var(--muted); font-size: 12px; }
+  #acodebox { display: flex; flex-direction: column; gap: 8px; }
+  #acodebox.hidden { display: none; }
+  .authhint { color: var(--muted); font-size: 13px; }
   #toast.click { cursor: pointer; }
 
   /* ---------- chat polish ---------- */
@@ -956,6 +959,12 @@
     <form id="authform">
       <input id="auser" placeholder="Username" autocomplete="username" maxlength="20">
       <input id="apass" type="password" placeholder="Password" autocomplete="current-password">
+      <input id="aemail" type="email" placeholder="Email" autocomplete="email" maxlength="100" class="hidden">
+      <div id="acodebox" class="hidden">
+        <div id="acodehint" class="authhint"></div>
+        <input id="acode" inputmode="numeric" placeholder="6-digit code" maxlength="7" autocomplete="one-time-code">
+        <button type="button" class="linkbtn" id="aresend">Send a new code</button>
+      </div>
       <div id="autherr"></div>
       <button type="button" class="linkbtn" id="forgotbtn" style="align-self:flex-start">Forgot password?</button>
       <button class="primary" type="submit">Log in</button>
@@ -1565,11 +1574,39 @@ document.querySelectorAll('.tabs button').forEach(b => {
   b.onclick = () => {
     authMode = b.dataset.mode;
     document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
-    document.querySelector('#authform .primary').textContent = authMode === 'login' ? 'Log in' : 'Create account';
     $('apass').autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
+    $('aemail').classList.toggle('hidden', authMode !== 'register');
+    $('forgotbtn').classList.toggle('hidden', authMode === 'register');
     $('autherr').textContent = '';
+    resetSignupCode();
   };
 });
+
+// Signing up is two steps: send a code to your email, then type it in to make the account.
+let signupSentTo = null; // the email/username the code went to
+function resetSignupCode() {
+  signupSentTo = null;
+  $('acodebox').classList.add('hidden');
+  $('acode').value = '';
+  document.querySelector('#authform .primary').textContent = authMode === 'login' ? 'Log in' : 'Send code';
+}
+// Changing the email or username after the code went out means a new code.
+['aemail', 'auser'].forEach(id => $(id).addEventListener('input', () => { if (signupSentTo) resetSignupCode(); }));
+async function sendSignupCode() {
+  const d = await api('signupStart', { username: $('auser').value, password: $('apass').value, email: $('aemail').value });
+  if (!d.ok && d.error === 'Unknown action') return 'old'; // backend not updated yet: sign up the old way
+  if (!d.ok) { $('autherr').textContent = d.error; return false; }
+  signupSentTo = { email: $('aemail').value.trim(), user: $('auser').value };
+  $('acodehint').textContent = `We sent a 6-digit code to ${signupSentTo.email}. Check spam too. It expires in 10 minutes.`;
+  $('acodebox').classList.remove('hidden');
+  document.querySelector('#authform .primary').textContent = 'Create account';
+  $('acode').focus();
+  return true;
+}
+$('aresend').onclick = async () => {
+  $('autherr').textContent = '';
+  if (await sendSignupCode() === true) toast('New code sent');
+};
 
 $('authform').addEventListener('submit', async e => {
   e.preventDefault();
@@ -1578,8 +1615,20 @@ $('authform').addEventListener('submit', async e => {
   btn.classList.add('busy');
   $('autherr').textContent = '';
   try {
-    const d = await api(authMode, { username: $('auser').value, password: $('apass').value });
+    let data = { username: $('auser').value, password: $('apass').value };
+    if (authMode === 'register') {
+      if (!signupSentTo) {
+        if (!$('aemail').value.trim()) { $('autherr').textContent = 'Enter your email. You\u2019ll need it if you forget your password.'; return; }
+        const sent = await sendSignupCode();
+        if (sent !== 'old') return; // now waiting for the code (or showing an error)
+      } else {
+        if (!$('acode').value.trim()) { $('autherr').textContent = 'Enter the code from your email'; return; }
+        data = Object.assign(data, { email: signupSentTo.email, code: $('acode').value });
+      }
+    }
+    const d = await api(authMode, data);
     if (!d.ok) { $('autherr').textContent = d.error; return; }
+    resetSignupCode();
     token = d.token;
     store.set('chat_token', token);
     $('apass').value = '';
@@ -3234,12 +3283,18 @@ function emailSection(refresh) {
     finally { btn.disabled = false; btn.classList.remove('busy'); }
   };
   const askEmail = () => {
-    const email = h('input', { type: 'email', placeholder: 'you@example.com', autocomplete: 'email', value: me.email || '' });
+    const changing = me.verified && me.email;
+    const email = h('input', { type: 'email', placeholder: changing ? 'New email' : 'you@example.com', autocomplete: 'email', value: changing ? '' : me.email || '' });
+    // Changing it needs your password, so nobody on your unlocked phone can take the account.
+    const pass = changing && serverApi >= 14 ? h('input', { type: 'password', placeholder: 'Current password', autocomplete: 'current-password' }) : null;
     const send = h('button', { class: 'primary', type: 'button' }, 'Send code');
     send.onclick = async () => {
-      if (await run(send, 'emailStart', { email: email.value })) askCode(email.value.trim().toLowerCase());
+      if (await run(send, 'emailStart', { email: email.value, ...(pass && { password: pass.value }) })) askCode(email.value.trim().toLowerCase());
     };
-    box.replaceChildren(title, hint('Optional. Lets you reset your password if you forget it. Nobody else can see it.'), h('div', { class: 'row2' }, email, send));
+    box.replaceChildren(title,
+      hint(changing ? `We'll send a code to the new address. ${me.email} stays until you verify it.` : 'Lets you reset your password if you forget it. Nobody else can see it.'),
+      ...(pass ? [pass] : []), h('div', { class: 'row2' }, email, send),
+      ...(changing ? [h('button', { class: 'linkbtn', type: 'button', onclick: () => refresh() }, 'Cancel')] : []));
     email.focus();
   };
   const askCode = address => {
@@ -3264,7 +3319,8 @@ function emailSection(refresh) {
       if (await run(remove, 'emailRemove', {})) { me.email = ''; me.verified = false; profiles.delete(key(me.name)); refresh(); }
     };
     box.replaceChildren(title, h('div', null, me.email, ' ', h('span', { class: 'vbadge' }, '\u2713 Verified')),
-      h('div', { class: 'row2' }, h('button', { class: 'ghost', type: 'button', onclick: askEmail }, 'Change'), remove));
+      h('div', { class: 'row2' }, h('button', { class: 'ghost', type: 'button', onclick: askEmail }, 'Change email'),
+        serverApi < 14 && remove));
   } else {
     box.replaceChildren(title, hint('Add an email so you can reset your password if you forget it. Nobody else can see it.'),
       h('button', { class: 'ghost', type: 'button', style: 'align-self:flex-start', onclick: askEmail }, 'Add email'));
