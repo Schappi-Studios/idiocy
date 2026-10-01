@@ -298,7 +298,11 @@
   .emailbox .hint { color: var(--muted); font-size: 12px; }
   #acodebox { display: flex; flex-direction: column; gap: 8px; }
   #acodebox.hidden { display: none; }
-  .authhint { color: var(--muted); font-size: 13px; }
+  .authhint { color: var(--muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+  .spamnote {
+    font-size: 13px; line-height: 1.4; padding: 10px 12px; border-radius: 10px; color: var(--text);
+    background: rgba(255, 200, 87, .18); border: 1px solid rgba(255, 200, 87, .55);
+  }
   #toast.click { cursor: pointer; }
 
   /* ---------- chat polish ---------- */
@@ -1597,7 +1601,7 @@ async function sendSignupCode() {
   if (!d.ok && d.error === 'Unknown action') return 'old'; // backend not updated yet: sign up the old way
   if (!d.ok) { $('autherr').textContent = d.error; return false; }
   signupSentTo = { email: $('aemail').value.trim(), user: $('auser').value };
-  $('acodehint').textContent = `We sent a 6-digit code to ${signupSentTo.email}. Check spam too. It expires in 10 minutes.`;
+  $('acodehint').replaceChildren(`We sent a 6-digit code to ${signupSentTo.email}. It expires in 10 minutes.`, spamNote());
   $('acodebox').classList.remove('hidden');
   document.querySelector('#authform .primary').textContent = 'Create account';
   $('acode').focus();
@@ -3267,6 +3271,12 @@ async function replyToStory(name, s, text) {
   return true;
 }
 
+// Codes from a new sender often land in spam, so say so clearly wherever one is sent.
+function spamNote() {
+  return h('div', { class: 'spamnote' }, '\u{1F4EC} ', h('b', null, 'Can\u2019t find it?'), ' Check your ', h('b', null, 'Spam'), ' or ',
+    h('b', null, 'Junk'), ' folder. If it\u2019s there, mark it \u201cNot spam\u201d so future codes go to your inbox.');
+}
+
 // ---------- email ----------
 // Settings section: add and verify an email (so a forgotten password can be reset).
 function emailSection(refresh) {
@@ -3308,7 +3318,7 @@ function emailSection(refresh) {
       profiles.delete(key(me.name));
       refresh();
     };
-    box.replaceChildren(title, hint(`We sent a code to ${address}. It expires in 10 minutes (check spam too).`),
+    box.replaceChildren(title, hint(`We sent a code to ${address}. It expires in 10 minutes.`), spamNote(),
       h('div', { class: 'row2' }, code, verify), h('button', { class: 'linkbtn', type: 'button', onclick: askEmail }, 'Use a different email'));
     code.focus();
   };
@@ -3351,7 +3361,7 @@ function openForgot() {
       } catch (e) { toast('Could not reach the server', true); }
       finally { reset.disabled = false; reset.classList.remove('busy'); }
     };
-    md.box.replaceChildren(h('h2', null, 'Forgot password'), h('div', { style: 'color:var(--muted);font-size:14px' }, message), code, pass,
+    md.box.replaceChildren(h('h2', null, 'Forgot password'), h('div', { style: 'color:var(--muted);font-size:14px' }, message), spamNote(), code, pass,
       h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'), reset));
     code.focus();
   };
