@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>School Network Test</title>
+<style>
+  :root { --bg: #f4f5f9; --panel: #fff; --text: #1d2030; --muted: #6b7084; --border: #e3e5ee; --ok: #1f9d55; --bad: #e0344f; --accent: #6c4cf5; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #12141b; --panel: #1b1e28; --text: #e9eaf0; --muted: #9a9fb3; --border: #2b2f3c; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  main { max-width: 680px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  p { color: var(--muted); margin: 0 0 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--border); }
+  .row:first-child { border-top: 0; }
+  .st { width: 26px; text-align: center; font-size: 18px; flex: none; }
+  .what { flex: 1; min-width: 0; }
+  .what b { display: block; }
+  .what span { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+  .row a { color: var(--accent); font-size: 13px; flex: none; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; margin: 16px 0; }
+  button { border: 0; border-radius: 10px; padding: 10px 16px; font: inherit; font-weight: 700; cursor: pointer; background: var(--accent); color: #fff; }
+  button.ghost { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+  .custom { display: flex; gap: 8px; margin-top: 16px; }
+  .custom input { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; }
+  .note { font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>School network test 🔌</h1>
+  <p>Open this page <b>on a school computer or school wifi</b>. It checks which kinds of addresses the school lets through, so we know where Idiocy's new server can live. It only checks whether each site answers; it doesn't send anything.</p>
+  <div class="card" id="list"></div>
+  <div class="btns">
+    <button id="again">Test again</button>
+    <button class="ghost" id="copy">Copy results</button>
+  </div>
+  <p class="note">✅ = got through. ❌ = couldn't reach it. If a ✅ looks suspicious, tap <b>Open</b>: if you see a Zscaler or "blocked" page instead of the real site, count it as ❌.</p>
+  <div class="custom">
+    <input id="url" placeholder="Test another address, e.g. https://example.com" inputmode="url">
+    <button class="ghost" id="add">Test</button>
+  </div>
+</main>
+<script>
+const TARGETS = [
+  ['Google Apps Script', 'What Idiocy uses now (should be ✅)', 'https://script.google.com/'],
+  ['GitHub Pages', 'Where this page lives (should be ✅)', 'https://schappi-studios.github.io/idiocy/'],
+  ['schappistudios.com', 'Your own site', 'https://schappistudios.com/idiocy/'],
+  ['Firebase (Google)', 'A real database on Google’s addresses', 'https://firestore.googleapis.com/'],
+  ['Firebase realtime', 'Google’s live-updates database', 'https://hacker-news.firebaseio.com/v0/maxitem.json'],
+  ['DuckDNS', 'Free home-server address', 'https://www.duckdns.org/'],
+  ['sslip.io', 'Home-server address from an IP', 'https://sslip.io/'],
+  ['Raw IP address', 'A server reached by numbers only', 'https://1.1.1.1/'],
+  ['Cloudflare Tunnel', 'Free way to share a home server', 'https://trycloudflare.com/'],
+  ['Cloudflare Workers', 'Free server hosting', 'https://workers.dev/'],
+  ['Supabase', 'Free database hosting', 'https://supabase.com/'],
+  ['ngrok', 'Free way to share a home server', 'https://ngrok.com/'],
+  ['Tailscale', 'Free way to share a home server', 'https://tailscale.com/'],
+];
+const list = document.getElementById('list');
+const rows = [];
+
+function addRow(name, desc, url) {
+  const st = document.createElement('span'); st.className = 'st';
+  const what = document.createElement('div'); what.className = 'what';
+  const b = document.createElement('b'); b.textContent = name;
+  const s = document.createElement('span'); s.textContent = desc;
+  what.append(b, s);
+  const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Open';
+  const row = document.createElement('div'); row.className = 'row';
+  row.append(st, what, a);
+  list.append(row);
+  const r = { name, url, st, result: '' };
+  rows.push(r);
+  return r;
+}
+
+// A "no-cors" request can't read the reply, but it only succeeds if the site answered at all.
+async function check(r) {
+  r.st.textContent = '⏳'; r.result = '';
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10000);
+  const t0 = performance.now();
+  try {
+    await fetch(r.url + (r.url.includes('?') ? '&' : '?') + 't=' + Date.now(), { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal });
+    r.st.textContent = '✅'; r.result = 'ok ' + Math.round(performance.now() - t0) + 'ms';
+  } catch (e) {
+    r.st.textContent = '❌'; r.result = ctrl.signal.aborted ? 'timed out' : 'blocked';
+  }
+  clearTimeout(timer);
+}
+
+const runAll = () => Promise.all(rows.map(check));
+TARGETS.forEach(t => addRow(...t));
+runAll();
+
+document.getElementById('again').onclick = runAll;
+document.getElementById('add').onclick = () => {
+  let u = document.getElementById('url').value.trim();
+  if (!u) return;
+  if (!/^https?:\/\//.test(u)) u = 'https://' + u;
+  check(addRow(u.replace(/^https?:\/\//, ''), 'Your address', u));
+};
+document.getElementById('copy').onclick = async () => {
+  const text = 'School test results:\n' + rows.map(r => `${r.st.textContent} ${r.name}: ${r.result || 'still checking'}`).join('\n');
+  try { await navigator.clipboard.writeText(text); document.getElementById('copy').textContent = 'Copied!'; }
+  catch (e) { prompt('Copy these results:', text); }
+};
+</script>
+</body>
+</html>
