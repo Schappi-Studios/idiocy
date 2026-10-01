@@ -312,6 +312,30 @@
   aside .verifybar { border-radius: 14px; margin: 4px 12px 8px; }
   @media (min-width: 721px) { aside .verifybar { display: none; } } /* computers: the one above the chat is enough */
   .composer-note.verify { cursor: pointer; font-weight: 600; }
+  /* ---------- pinned message ---------- */
+  #pinbar {
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+    background: var(--panel-2); border-bottom: 1px solid var(--border);
+  }
+  #pinbar.hidden { display: none; }
+  #pinbar .pintext { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #pinbar button { border: 0; background: none; color: var(--muted); font-size: 15px; cursor: pointer; padding: 4px 6px; }
+  #pinbar button.hidden { display: none; }
+  /* ---------- @mention suggestions ---------- */
+  .mentionbox {
+    position: fixed; z-index: 1000; display: flex; flex-direction: column; padding: 4px; max-height: 260px; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  }
+  .mentionbox button {
+    display: flex; align-items: center; gap: 8px; border: 0; background: none; color: var(--text); font: inherit; font-size: 14px;
+    padding: 6px 8px; border-radius: 8px; cursor: pointer; text-align: left;
+  }
+  .mentionbox button.on, .mentionbox button:hover { background: var(--hover); }
+  .mentionbox .avatar { width: 24px; height: 24px; font-size: 12px; flex: none; }
+  .ginfo .modbadge { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 8px; }
+  .notifychips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .notifychips button { padding: 6px 12px; font-size: 13px; }
+  .memmenu .btns { flex-direction: column; align-items: stretch; }
   .modal.verify .lead { color: var(--muted); font-size: 14px; }
   .spamnote {
     font-size: 13px; line-height: 1.4; padding: 10px 12px; border-radius: 10px; color: var(--text);
@@ -1051,6 +1075,7 @@
       <button class="iconbtn hidden" id="vcallbtn" title="Video call" aria-label="Video call">&#x1F3A5;</button>
     </header>
 <div class="verifybar hidden"><span class="vbtext">📧 <b>Verify your email</b> to post, message and add friends.</span><button type="button" class="vbgo">Verify now</button></div>
+    <div id="pinbar" class="hidden" title="Go to the pinned message"><span>📌</span><span class="pintext" id="pintext"></span><button type="button" id="pinx" title="Unpin" aria-label="Unpin">✕</button></div>
     <div id="gcallpanel" class="callpanel group hidden">
       <div class="tiles" id="gtiles"></div>
       <div class="bar"><span id="gstatus"></span><span id="gctrls" style="display:contents"></span></div>
@@ -1746,17 +1771,15 @@ addEventListener('pagehide', () => saveSnapshot(true));
 
 // ---------- what's new ----------
 // Shown once, after an update that brings new things, and only once the backend has them.
-const NEWS = { v: 13, title: 'New in Idiocy \u2728', items: [
+const NEWS = { v: 16, title: 'New in Idiocy \u2728', items: [
+  ['\u{1F4CC}', 'Pinned messages', 'Hover or tap a message in a chat and press \u{1F4CC}. It stays at the top for everyone.'],
+  ['\u2B50', 'Group admins', 'Group owners: Info \u2192 \u22EF next to someone \u2192 Make group admin. Admins can rename, pin and remove people.'],
+  ['@', '@mention suggestions & "Mentions only"', 'Type @ to pick a name. In a group\u2019s Info you can get pinged only when someone mentions or replies to you.'],
+], older: [
   ['\u2709\uFE0F', 'Add your email', 'Settings \u2192 Email. Then you can reset your password if you ever forget it.'],
   ['\u{1F3A8}', 'Banners, badges & "currently playing"', 'Edit profile to pick a banner and show what game you\u2019re on.'],
   ['\u{1F6AB}', 'Blocking', 'Open someone\u2019s profile \u2192 Block. They can\u2019t add or message you.'],
-], older: [
-  ['\u{1F4F8}', 'Stories', 'Share a photo for 24 hours. Tap "Your story" at the top of your chats.'],
-  ['\u{1F525}', 'Streaks', 'Message a friend every day, both of you, and watch the flame grow.'],
-  ['\u{1F3A4}', 'Voice messages', 'Tap the mic in any chat. Tap again to send.'],
-  ['\u{1F4CA}', 'Polls', 'Ask everyone something. Find it next to Take photo, or under + in chats.'],
-  ['\u{1F319}', 'Dark mode', 'Settings \u2192 Theme. Auto follows your device.'],
-], olderV: 11 };
+], olderV: 13 };
 function maybeShowNews() {
   if (serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
   // Missed the last update's pop-up too? Show those as well.
@@ -1974,6 +1997,7 @@ function renderSide() {
       onclick: () => switchTo(c.id),
     }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, label, streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
       isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
+      notifyLevel(c.id) === 'mentions' && h('span', { class: 'muteicon', title: 'Mentions only' }, '@'),
       h('span', { class: 'when' }, ago(latest[c.id])),
       unread && h('span', { class: 'dot' })), 'c:' + c.id);
   }));
@@ -2055,6 +2079,38 @@ function renderHeader() {
   $('joincall').classList.toggle('hidden', !groupCallOn);
   if (groupCallOn) $('joincall').replaceChildren('\u{1F4DE} ', h('span', { class: 'jlabel' }, 'Join call \u00b7 '), String(openGcall.people.length));
   textEl.placeholder = c ? `Message ${c.type === 'global' ? 'everyone' : convoLabel(c)}…` : 'Say something…';
+  paintPin(c);
+}
+
+// ---------- pinned messages ----------
+function curConvo() { return st && st.convos.find(c => c.id === openId); }
+function isGroupMod(c, name) { return (c.mods || []).some(n => key(n) === key(name)); }
+// Anyone in a DM; the owner and group admins in a group (site admins too).
+function canPin(c) {
+  if (!c || !me || serverApi < 16) return false;
+  if (c.type === 'dm') return true;
+  return c.type === 'group' && (me.role === 'admin' || key(c.owner) === key(me.name) || isGroupMod(c, me.name));
+}
+function paintPin(c) {
+  const p = c && (c.type === 'dm' || c.type === 'group') && c.pin;
+  $('pinbar').classList.toggle('hidden', !p);
+  if (!p) return;
+  $('pintext').replaceChildren(h('b', null, p.name + ': '), p.text || '[image]');
+  $('pinx').classList.toggle('hidden', !canPin(c));
+}
+$('pinbar').onclick = e => {
+  const c = curConvo();
+  if (!c || !c.pin) return;
+  if (e.target.closest('#pinx')) pinMessage(c.id, null);
+  else jumpTo(c.pin.id);
+};
+async function pinMessage(convoId, m) {
+  const pin = m && { id: m.id, name: m.name, text: (m.text || (m.vo ? '[voice message]' : m.img ? '[image]' : '')).slice(0, 120), by: me.name };
+  const d = await act('pinMessage', { convo: convoId, id: m ? m.id : 0 }, null, s => {
+    const x = s.convos.find(x => x.id === convoId);
+    if (x) { if (pin) x.pin = pin; else delete x.pin; }
+  });
+  if (d) toast(pin ? 'Pinned 📌' : 'Unpinned');
 }
 
 function emptyText() {
@@ -2280,6 +2336,12 @@ function groupIcon(c, cls) {
 }
 
 const isMuted = id => (prefs.muted || []).includes(id);
+// Per-chat notifications: everything, only @mentions and replies to you, or nothing.
+const notifyLevel = id => (isMuted(id) ? 'off' : (prefs.mentionsOnly || []).includes(id) ? 'mentions' : 'all');
+function setNotify(id, lvl) {
+  prefs.mentionsOnly = (prefs.mentionsOnly || []).filter(x => x !== id).concat(lvl === 'mentions' ? [id] : []);
+  setMuted(id, lvl === 'off');
+}
 function setMuted(id, on) {
   prefs.muted = (prefs.muted || []).filter(x => x !== id).concat(on ? [id] : []);
   savePrefs();
@@ -2293,7 +2355,7 @@ function openGroupInfo(id) {
     const c = st && st.convos.find(c => c.id === id);
     if (!c) { md.close(); return; }
     const owner = key(c.owner) === key(me.name);
-    const canManage = (owner || me.role === 'admin') && serverApi >= 4; // older backends can't rename/remove
+    const canManage = (owner || me.role === 'admin' || (serverApi >= 16 && isGroupMod(c, me.name))) && serverApi >= 4; // older backends can't rename/remove
     const file = h('input', { type: 'file', accept: 'image/*', class: 'hidden' });
     file.onchange = async () => {
       const f = file.files[0];
@@ -2307,6 +2369,42 @@ function openGroupInfo(id) {
     const mute = h('input', { type: 'checkbox' });
     mute.checked = isMuted(id);
     mute.onchange = () => setMuted(id, mute.checked);
+    const notify = h('div', { class: 'notifychips' }, ...[['all', 'All messages'], ['mentions', '@ Mentions only'], ['off', '\u{1F515} Off']].map(([v, label]) =>
+      h('button', { class: notifyLevel(id) === v ? 'primary' : 'ghost', onclick: () => { setNotify(id, v); draw(); } }, label)));
+    const iOwn = owner || me.role === 'admin';
+    const memberMenu = n => {
+      const isMod = isGroupMod(c, n), isOwn = key(n) === key(c.owner);
+      const mm = modal('memmenu', h('h2', null, n),
+        h('div', { class: 'btns' },
+          h('button', { class: 'ghost', onclick: () => { mm.close(); openProfile(n); } }, 'View profile'),
+          serverApi >= 16 && iOwn && !isOwn && h('button', { class: 'ghost', onclick: async () => {
+            mm.close();
+            const d = await act('setGroupMod', { convo: id, username: n, on: !isMod }, null, s => {
+              const x = s.convos.find(x => x.id === id);
+              if (x) x.mods = (x.mods || []).filter(m => key(m) !== key(n)).concat(isMod ? [] : [n]);
+            });
+            if (d) { toast(isMod ? `${n} is no longer a group admin` : `${n} is a group admin now`); draw(); }
+          } }, isMod ? 'Remove as group admin' : '\u2B50 Make group admin'),
+          serverApi >= 16 && iOwn && !isOwn && h('button', { class: 'ghost', onclick: async () => {
+            if (!confirm(`Make ${n} the owner of ${c.name}? You'll become a group admin.`)) return;
+            mm.close();
+            const d = await act('makeOwner', { convo: id, username: n }, null, s => {
+              const x = s.convos.find(x => x.id === id);
+              if (x) { x.mods = (x.mods || []).filter(m => key(m) !== key(n)).concat(key(x.owner) === key(me.name) ? [x.owner] : []); x.owner = n; }
+            });
+            if (d) { toast(`${n} owns the group now`); draw(); }
+          } }, '\u{1F451} Make owner'),
+          (iOwn || (!isOwn && !isMod)) && h('button', { class: 'ghost danger', onclick: async () => {
+            if (!confirm(`Remove ${n} from ${c.name}?`)) return;
+            mm.close();
+            const d = await act('removeFromGroup', { convo: id, username: n }, null, s => {
+              const x = s.convos.find(x => x.id === id);
+              if (x) { x.members = x.members.filter(m => key(m) !== key(n)); x.mods = (x.mods || []).filter(m => key(m) !== key(n)); }
+            });
+            if (d) { toast(`${n} was removed`); draw(); }
+          } }, 'Remove from group'),
+          h('button', { class: 'primary', onclick: () => mm.close() }, 'Close')));
+    };
     const members = c.members.slice().sort((a, b) => (key(a) === key(c.owner) ? -1 : key(b) === key(c.owner) ? 1 : a.localeCompare(b)));
     md.box.replaceChildren(
       h('div', { class: 'gtop' },
@@ -2329,18 +2427,24 @@ function openGroupInfo(id) {
         avatar(n, { dot: true }),
         h('span', { class: 'nm' + (profileOf(n) && profileOf(n).role === 'admin' ? ' admin-name' : ''), onclick: () => openProfile(n) }, n + (key(n) === key(me.name) ? ' (you)' : '')),
         key(n) === key(c.owner) && h('span', { class: 'ownerbadge' }, 'Owner'),
-        canManage && key(n) !== key(me.name) && h('button', {
-          class: 'ghost danger', onclick: async () => {
-            if (!confirm(`Remove ${n} from ${c.name}?`)) return;
-            const d = await act('removeFromGroup', { convo: id, username: n }, null, s => {
-              const x = s.convos.find(x => x.id === id);
-              if (x) x.members = x.members.filter(m => key(m) !== key(n));
-            });
-            if (d) { toast(`${n} was removed`); draw(); }
-          },
-        }, 'Remove')))),
-      h('label', { class: 'toggle' }, h('span', null, 'Mute notifications',
-        h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'No sound or pop-ups for this group. Unread dots still show.')), mute),
+        isGroupMod(c, n) && h('span', { class: 'modbadge' }, 'Admin'),
+        canManage && key(n) !== key(me.name) && (serverApi >= 16
+          ? h('button', { class: 'ghost', title: 'Manage', 'aria-label': 'Manage ' + n, onclick: () => memberMenu(n) }, '\u22EF')
+          : h('button', {
+            class: 'ghost danger', onclick: async () => {
+              if (!confirm(`Remove ${n} from ${c.name}?`)) return;
+              const d = await act('removeFromGroup', { convo: id, username: n }, null, s => {
+                const x = s.convos.find(x => x.id === id);
+                if (x) x.members = x.members.filter(m => key(m) !== key(n));
+              });
+              if (d) { toast(`${n} was removed`); draw(); }
+            },
+          }, 'Remove'))))),
+      serverApi >= 16
+        ? h('div', { class: 'toggle' }, h('span', null, 'Notifications',
+            h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Mentions only: just when someone @mentions or replies to you.')), notify)
+        : h('label', { class: 'toggle' }, h('span', null, 'Mute notifications',
+            h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'No sound or pop-ups for this group. Unread dots still show.')), mute),
       h('div', { class: 'btns', style: 'justify-content:space-between' },
         h('button', { class: 'ghost danger', onclick: async () => { if (await leaveGroup(id)) md.close(); } }, 'Leave group'),
         h('div', { style: 'display:flex;gap:8px' },
@@ -2407,6 +2511,10 @@ function buildMessage(m, pending) {
     !pending && h('div', { class: 'acts' },
       h('button', { title: 'Add reaction', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642}+'),
       serverApi >= 9 && h('button', { title: 'Reply', onclick: () => startReply(el._m) }, '\u21A9'),
+      !isFeed() && canPin(curConvo()) && h('button', { title: 'Pin / unpin', onclick: () => {
+        const c = curConvo();
+        if (c) pinMessage(c.id, c.pin && c.pin.id === el._m.id ? null : el._m);
+      } }, '\u{1F4CC}'),
       serverApi >= 9 && isMine(m) && h('button', { title: 'Edit', onclick: () => startEdit(el) }, '\u270E'),
       !isMine(m) && h('button', { title: 'Report', onclick: () => openReport(el._m) }, '\u2691'),
       canDelete(m) && h('button', { class: 'del danger', title: 'Delete', onclick: () => deleteMessage(el._m, el) }, '\u{1F5D1}')));
@@ -2481,6 +2589,7 @@ async function toggleComments(el, focus = true) {
   const post = el._m;
   const list = h('div', { class: 'comments' }, h('div', { class: 'shimmer', style: 'height:34px;border-radius:12px' }));
   const input = h('input', { placeholder: 'Write a comment\u2026', maxlength: 300 });
+  attachMentions(input);
   const form = h('form', { class: 'cform', onsubmit: e => { e.preventDefault(); sendComment(el, input); } },
     input, h('button', { class: 'primary', type: 'submit' }, 'Reply'));
   el._cmts = h('div', { class: 'comments enter' }, list, form);
@@ -2742,6 +2851,66 @@ function jumpTo(id) {
   el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
 }
+
+// ---------- @mention suggestions ----------
+// Type "@" and pick a name. Groups suggest their members; elsewhere friends and people in view.
+function mentionCandidates() {
+  const c = curConvo();
+  let names = c && (c.type === 'group' || c.type === 'dm') ? c.members.slice() : (st ? st.friends.slice() : []);
+  if (!c || c.type === 'global') log.querySelectorAll('.msg, .cmt').forEach(el => { if (el._m && el._m.name) names.push(el._m.name); });
+  const seen = new Set([me ? key(me.name) : '']);
+  return names.filter(n => n && !seen.has(key(n)) && seen.add(key(n)));
+}
+function attachMentions(input) {
+  let box = null, items = [], sel = 0, start = -1;
+  const close = () => { if (box) box.remove(); box = null; };
+  const pick = n => {
+    const pos = input.selectionStart;
+    input.value = input.value.slice(0, start) + '@' + n + ' ' + input.value.slice(pos);
+    const at = start + n.length + 2;
+    close();
+    input.focus();
+    input.setSelectionRange(at, at);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const update = () => {
+    const pos = input.selectionStart, m = /(^|\s)@([A-Za-z0-9_-]{0,20})$/.exec(input.value.slice(0, pos));
+    if (!m) return close();
+    start = pos - m[2].length - 1;
+    const q = key(m[2]);
+    items = mentionCandidates().filter(n => key(n).includes(q))
+      .sort((a, b) => key(b).startsWith(q) - key(a).startsWith(q) || a.localeCompare(b)).slice(0, 6);
+    if (!items.length) return close();
+    sel = Math.min(sel, items.length - 1);
+    if (!box) { box = h('div', { class: 'mentionbox', role: 'listbox' }); document.body.append(box); }
+    box.replaceChildren(...items.map((n, i) => h('button', {
+      type: 'button', class: i === sel ? 'on' : '',
+      onpointerdown: e => { e.preventDefault(); pick(n); }, // before the input loses focus
+    }, avatar(n, { click: false }), h('span', null, n))));
+    const r = input.getBoundingClientRect();
+    box.style.left = Math.max(8, r.left) + 'px';
+    box.style.bottom = (innerHeight - r.top + 6) + 'px';
+    box.style.width = Math.min(Math.max(r.width, 200), 280) + 'px';
+  };
+  input.addEventListener('input', () => { sel = 0; update(); });
+  input.addEventListener('keydown', e => {
+    if (!box) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      update();
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      // Already typed the whole name? Enter just sends.
+      const m = /@([A-Za-z0-9_-]*)$/.exec(input.value.slice(0, input.selectionStart));
+      if (e.key === 'Enter' && m && key(m[1]) === key(items[sel])) { close(); return; }
+      e.preventDefault(); e.stopImmediatePropagation();
+      pick(items[sel]);
+    } else if (e.key === 'Escape') { e.stopPropagation(); close(); }
+  }, true);
+  input.addEventListener('blur', () => setTimeout(close, 150));
+}
+attachMentions(textEl);
+attachMentions($('posttext'));
 
 function startEdit(el) {
   if (el._editing) return;
@@ -4489,6 +4658,7 @@ function applyTheme() {
 applyTheme();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
 
+const forMe = p => !!(me && (p.men || []).includes(key(me.name)));
 function handlePings(pings) {
   // Incoming calls get their own ringing screen instead of a pop-up.
   pings.filter(p => p.kind === 'call').forEach(p => incomingCall(p));
@@ -4502,11 +4672,13 @@ function handlePings(pings) {
   if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept')) { uv = null; pollNow(); }
   const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || p.kind === 'friendreq' || p.kind === 'friendaccept' ||
       !(p.convo === openId && !document.hidden))
-    .filter(p => p.kind === 'removed' || !p.convo || !isMuted(p.convo));
+    .filter(p => p.kind === 'removed' || !p.convo || (!isMuted(p.convo) && !(p.kind === 'group' && notifyLevel(p.convo) === 'mentions' && !forMe(p))));
   if (!shown.length) return;
   if (prefs.sound) ding();
-  const p = shown[shown.length - 1];
-  const where = p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group'
+  // Mentions and replies to you matter most, so they win over other pings.
+  const p = shown.filter(forMe).pop() || shown[shown.length - 1];
+  const where = p.kind === 'group' && forMe(p) ? (mentionsMe(p.text || '') ? 'mentioned you in ' : 'replied to you in ') + (p.gname || 'a group')
+    : p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group'
     : p.kind === 'comment' ? 'commented' : p.kind === 'removed' ? 'removed you from a group' : 'mentioned you';
   const text = p.kind === 'removed' ? `${p.from} removed you from "${p.text}"`
     : p.kind === 'friendreq' ? `${p.from} sent you a friend request`
@@ -4558,6 +4730,8 @@ function updateTitle() {
   if (n === lastUnread) return;
   lastUnread = n;
   document.title = n ? `(${n}) Idiocy` : 'Idiocy';
+  // Added to the home screen? Put the count on the app icon too.
+  try { if (navigator.setAppBadge) (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {}); } catch (e) {}
   if (!n) { $('favicon').href = baseIcon; return; }
   if (iconWithDot) { $('favicon').href = iconWithDot; return; }
   const img = new Image();
