@@ -299,6 +299,20 @@
   #acodebox { display: flex; flex-direction: column; gap: 8px; }
   #acodebox.hidden { display: none; }
   .authhint { color: var(--muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
+  /* ---------- verify your email ---------- */
+  .verifybar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; margin: 0;
+    background: linear-gradient(135deg, var(--accent), #b04cf5); color: #fff; font-size: 15px;
+  }
+  .verifybar.hidden { display: none; }
+  .verifybar .vbtext { flex: 1; min-width: 180px; }
+  .verifybar .vbgo {
+    border: 0; border-radius: 999px; padding: 10px 18px; background: #fff; color: var(--accent); font: inherit; font-weight: 800; cursor: pointer;
+  }
+  aside .verifybar { border-radius: 14px; margin: 4px 12px 8px; }
+  @media (min-width: 721px) { aside .verifybar { display: none; } } /* computers: the one above the chat is enough */
+  .composer-note.verify { cursor: pointer; font-weight: 600; }
+  .modal.verify .lead { color: var(--muted); font-size: 14px; }
   .spamnote {
     font-size: 13px; line-height: 1.4; padding: 10px 12px; border-radius: 10px; color: var(--text);
     background: rgba(255, 200, 87, .18); border: 1px solid rgba(255, 200, 87, .55);
@@ -990,6 +1004,7 @@
   <aside>
     <div class="brand"><img class="logo" alt="">Idiocy<button id="sideclose" title="Close menu" aria-label="Close menu">✕</button></div>
     <div id="mhead"><h1 id="mtitle">Chats</h1><button id="mnew" title="New group" aria-label="New group">+</button></div>
+    <div class="verifybar hidden"><span class="vbtext">📧 <b>Verify your email</b> to post, message and add friends.</span><button type="button" class="vbgo">Verify now</button></div>
     <div class="me">
       <button class="who" id="mename" title="Your profile"></button>
       <button class="iconbtn hidden" id="adminbtn" title="Admin panel" aria-label="Admin panel">
@@ -1035,6 +1050,7 @@
       <button class="iconbtn hidden" id="callbtn" title="Voice call" aria-label="Voice call">&#x1F4DE;</button>
       <button class="iconbtn hidden" id="vcallbtn" title="Video call" aria-label="Video call">&#x1F3A5;</button>
     </header>
+<div class="verifybar hidden"><span class="vbtext">📧 <b>Verify your email</b> to post, message and add friends.</span><button type="button" class="vbgo">Verify now</button></div>
     <div id="gcallpanel" class="callpanel group hidden">
       <div class="tiles" id="gtiles"></div>
       <div class="bar"><span id="gstatus"></span><span id="gctrls" style="display:contents"></span></div>
@@ -1263,6 +1279,7 @@ async function openProfile(name) {
         ? h('button', { class: 'ghost', onclick: run('unban', { username: name }, () => toast(`${name} unbanned`)) }, 'Unban')
         : h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Ban ${name}?`)) run('ban', { username: name }, () => toast(`${name} banned`))(); } }, 'Ban'));
       if (serverApi >= 7) btns.push(h('button', { class: 'ghost', onclick: () => renameUser(p.username || name, true, () => m.close()) }, 'Rename'));
+      if (serverApi >= 15) btns.push(h('button', { class: 'ghost', onclick: () => adminSetEmail(p.username || name, () => { profiles.delete(key(name)); openProfile(name); m.close(); }) }, '\u2709\uFE0F Set email'));
       if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => m.close()) }, 'Delete account'));
     }
     m.box.replaceChildren(
@@ -1272,7 +1289,8 @@ async function openProfile(name) {
         h('div', { class: 'pname' + (p.role === 'admin' ? ' admin-name' : '') }, p.username || name, p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
-          p.verified && h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713 Verified')),
+          p.verified && h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713 Verified'),
+          !p.verified && p.username && me && me.role === 'admin' && serverApi >= 15 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: 'No verified email' }, 'NO EMAIL')),
         h('div', { class: 'pstatus' },
           h('span', { class: 'dotsm' + (p.online ? ' on' : '') }),
           p.status || (p.online ? 'Online' : 'Offline')),
@@ -1549,7 +1567,8 @@ async function act(action, data, onOk, optimistic) {
   try {
     const d = await api(action, data);
     if (!d.ok) {
-      if (!d.auth) toast(d.error || 'Something went wrong', true);
+      if (verifyError(d.error)) openVerify();
+      else if (!d.auth) toast(d.error || 'Something went wrong', true);
       if (before) { st = JSON.parse(before); renderSide(); renderHeader(); }
       return null;
     }
@@ -2523,7 +2542,8 @@ async function sendComment(postEl, input) {
     if (!d.ok) {
       pending.remove();
       if (!input.value) input.value = text;
-      if (!d.auth) toast(d.error || 'Could not comment', true);
+      if (verifyError(d.error)) openVerify();
+      else if (!d.auth) toast(d.error || 'Could not comment', true);
       return;
     }
     pending.replaceWith(buildComment(postEl, d.message));
@@ -3277,9 +3297,25 @@ function spamNote() {
     h('b', null, 'Junk'), ' folder. If it\u2019s there, mark it \u201cNot spam\u201d so future codes go to your inbox.');
 }
 
+// Accounts without a verified email can read but not post (the server decides; see mustVerify_).
+const mustVerify = () => !!(serverApi >= 15 && me && me.mustVerify);
+const verifyError = e => /^Verify your email first/.test(e || '');
+
+function openVerify() {
+  if (document.querySelector('.modal.verify')) return;
+  const md = modal('verify', h('h2', null, '\u{1F4E7} Verify your email'),
+    h('div', { class: 'lead' }, 'You can still read the feed and stories. To post, message, add friends or call, add an email and type in the code we send you. It also lets you reset your password if you forget it.'),
+    emailSection(() => {
+      md.close();
+      toast('Email verified \u2713 You\u2019re all set!');
+      renderSide(); renderHeader(); updateComposer();
+    }, true));
+}
+document.querySelectorAll('.verifybar .vbgo').forEach(b => { b.onclick = openVerify; });
+
 // ---------- email ----------
 // Settings section: add and verify an email (so a forgotten password can be reset).
-function emailSection(refresh) {
+function emailSection(refresh, startNow) {
   const box = h('div', { class: 'emailbox' });
   const title = h('b', null, 'Email');
   const hint = t => h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, t);
@@ -3313,7 +3349,7 @@ function emailSection(refresh) {
     verify.onclick = async () => {
       const d = await run(verify, 'emailVerify', { code: code.value });
       if (!d) return;
-      me.email = d.email; me.verified = true;
+      me.email = d.email; me.verified = true; me.mustVerify = false;
       toast('Email verified \u2713');
       profiles.delete(key(me.name));
       refresh();
@@ -3334,6 +3370,7 @@ function emailSection(refresh) {
   } else {
     box.replaceChildren(title, hint('Add an email so you can reset your password if you forget it. Nobody else can see it.'),
       h('button', { class: 'ghost', type: 'button', style: 'align-self:flex-start', onclick: askEmail }, 'Add email'));
+    if (startNow) setTimeout(askEmail, 0);
   }
   return box;
 }
@@ -3481,16 +3518,23 @@ function updateComposer() {
   const muted = me && me.muted > Date.now();
   const slowLeft = Math.ceil((slowUntil - Date.now()) / 1000);
   const waiting = isPendingChat(openId); // DM still being created
-  textEl.disabled = !!muted || waiting;
-  $('attach').disabled = !!muted || waiting;
-  $('posttext').disabled = !!muted;
-  $('postimg').disabled = !!muted;
-  $('postcam').disabled = !!muted;
-  $('mic').disabled = !!muted || waiting;
+  const locked = mustVerify();
+  textEl.disabled = !!muted || waiting || locked;
+  $('attach').disabled = !!muted || waiting || locked;
+  $('posttext').disabled = !!muted || locked;
+  $('postimg').disabled = !!muted || locked;
+  $('postcam').disabled = !!muted || locked;
+  $('mic').disabled = !!muted || waiting || locked;
   $('mic').classList.toggle('hidden', serverApi < 11);
   $('postpoll').classList.toggle('hidden', serverApi < 11);
-  $('postpoll').disabled = !!muted;
-  if (muted) {
+  $('postpoll').disabled = !!muted || locked;
+  note.onclick = null;
+  document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
+  if (locked) {
+    note.textContent = '\u{1F4E7} Verify your email to post and send messages. Tap here.';
+    note.className = 'composer-note warn verify';
+    note.onclick = openVerify;
+  } else if (muted) {
     note.textContent = `You're timed out until ${new Date(me.muted).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}. You can still read messages.`;
     note.className = 'composer-note warn';
   } else if (openId === 'global' && settings.slow && slowLeft > 0) {
@@ -3499,7 +3543,7 @@ function updateComposer() {
   } else {
     note.className = 'composer-note hidden';
   }
-  if (!btn.classList.contains('busy')) btn.disabled = !!muted || waiting || (openId === 'global' && slowLeft > 0);
+  if (!btn.classList.contains('busy')) btn.disabled = !!muted || waiting || locked || (openId === 'global' && slowLeft > 0);
   clearTimeout(slowTimer);
   if (slowLeft > 0 || muted) slowTimer = setTimeout(updateComposer, 500);
 }
@@ -3524,7 +3568,7 @@ async function send(text, att, extra = {}) {
   try {
     const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
       ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }) });
-    if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (!d.auth) sys(d.error || 'Could not send', true); return false; }
+    if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (verifyError(d.error)) openVerify(); else if (!d.auth) sys(d.error || 'Could not send', true); return false; }
     if (sentTo !== 'global') notePreview(sentTo, d.message);
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
     const m = d.message;
@@ -4576,6 +4620,17 @@ function openSettings() {
     }, 'Delete my account'));
 }
 
+// ---------- admin: set someone's email ----------
+// Makes it their verified email straight away. You never see what it was before.
+async function adminSetEmail(name, done) {
+  const typed = prompt(`New email for ${name}.\n\nIt becomes their verified email straight away (no code needed). Their current email isn't shown, and they can change it later in Settings.`);
+  if (typed == null || !typed.trim()) return;
+  const d = await act('adminSetEmail', { username: name, email: typed.trim() });
+  if (!d) return;
+  toast(`${d.username} now has a verified email \u2713`);
+  if (done) done();
+}
+
 // ---------- renaming ----------
 async function renameUser(name, asAdmin, done) {
   const self = me && key(name) === key(me.name) && !asAdmin;
@@ -4700,7 +4755,9 @@ function openAdmin() {
           u.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
           u.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
+          serverApi >= 15 && (u.verified ? h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713') : h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
           u.role !== 'admin' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' },
+            serverApi >= 15 && h('button', { class: 'ghost', onclick: () => adminSetEmail(u.username, load) }, '\u2709\uFE0F Set email'),
             u.muted > Date.now()
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('timeout', { username: u.username, minutes: 0 })) load(); } }, 'End timeout')
               : timeoutButtons(u.username, load)[1],
