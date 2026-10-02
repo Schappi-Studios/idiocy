@@ -1135,6 +1135,11 @@
 // ===== CONFIG =====
 // Your Apps Script web app URL (ends in /exec).
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwReV9VO2nrcARHTODgtMcs3H6Q6RqxEfzxxRtJcPyknqqxj8E4R04_YhCJrwczRrrw/exec';
+// If Idiocy moves to a new server, the old one says where; remember it (see apiRaw).
+const API_URL = (() => {
+  try { const u = localStorage.getItem('chat_api'); if (u && /^https:\/\/[^\s/]+/.test(u)) return u; } catch (e) {}
+  return SCRIPT_URL;
+})();
 const MAX_MSG = 300;
 // ==================
 
@@ -1543,11 +1548,16 @@ async function api(action, data) {
 async function apiRaw(action, data) {
   // A plain string body is sent as text/plain, which avoids a CORS preflight
   // (Apps Script can't answer those).
-  const res = await fetch(SCRIPT_URL, {
+  const res = await fetch(API_URL, {
     method: 'POST',
     body: JSON.stringify({ action, token, ...data }),
   });
   const d = await res.json();
+  if (d.moved && d.moved !== API_URL && /^https:\/\/[^\s/]+/.test(d.moved)) {
+    try { localStorage.setItem('chat_api', d.moved); } catch (e) {}
+    location.reload();
+    return new Promise(() => {}); // the page is reloading
+  }
   if (!d.ok && d.auth) signOut(d.error);
   return d;
 }
@@ -1725,7 +1735,7 @@ $('mename').onclick = () => { if (me) openProfile(me.name); };
 async function logOut() {
   const t = token;
   signOut();
-  try { await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify({ action: 'logout', token: t }) }); } catch (e) {}
+  try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'logout', token: t }) }); } catch (e) {}
 }
 
 function start() {
