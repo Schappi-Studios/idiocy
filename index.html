@@ -1760,13 +1760,14 @@ function saveSnapshot(force) {
   const feed = openId === 'global' && openRev
     ? { msgs: [...log.querySelectorAll('.msg:not(.pending)')].map(el => el._m).filter(m => m && m.id).slice(0, 60), rev: openRev, eMax }
     : chatCache.get('global');
-  const snap = { v: 1, tok: token.slice(-12), me, st, latest, api: serverApi, settings, streaks, stories, feed: feed || null };
+  const snap = { v: 2, tok: token.slice(-12), me, st, latest, api: serverApi, settings, streaks, stories, feed: feed || null };
   try { store.set(SNAP_KEY, JSON.stringify(snap)); } catch (e) {}
 }
 function restoreSnapshot() {
   let snap;
   try { snap = JSON.parse(store.get(SNAP_KEY) || 'null'); } catch (e) {}
-  if (!snap || snap.v !== 1 || !token || snap.tok !== token.slice(-12)) return false; // another account's, or none
+  // v1 copies were saved before the move to the new server and may hold "[unreadable message]".
+  if (!snap || snap.v !== 2 || !token || snap.tok !== token.slice(-12)) return false; // another account's, old, or none
   me = snap.me; st = snap.st; latest = snap.latest || {};
   serverApi = snap.api || 0; settings = snap.settings || settings;
   streaks = snap.streaks || {}; stories = snap.stories || [];
@@ -2809,6 +2810,12 @@ function renderTabs() {
 
 // Each chat's last message, remembered on this device for the chat list.
 const previews = (() => { try { return JSON.parse(store.get('chat_prev') || '{}'); } catch (e) { return {}; } })();
+// Previews saved while the new server was briefly missing its key; the real text loads fresh.
+{
+  const stale = Object.keys(previews).filter(id => /\[unreadable message\]/.test(previews[id].text || ''));
+  stale.forEach(id => { delete previews[id]; });
+  if (stale.length) store.set('chat_prev', JSON.stringify(previews));
+}
 let prevVer = 0;
 function notePreview(convo, m) {
   if (!convo || !m || isPendingChat(convo)) return;
