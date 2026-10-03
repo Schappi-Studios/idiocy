@@ -13,8 +13,7 @@
 <meta name="apple-mobile-web-app-title" content="Idiocy">
 <title>Idiocy</title>
 <!-- Start talking to Google straight away; the first request then skips the connection setup. -->
-<link rel="preconnect" href="https://script.google.com" crossorigin>
-<link rel="preconnect" href="https://script.googleusercontent.com" crossorigin>
+<link rel="preconnect" href="https://api.schappistudios.com" crossorigin>
 <script>
   // Before anything draws, so dark mode doesn't flash white first.
   (function () {
@@ -1134,7 +1133,7 @@
 <script>
 // ===== CONFIG =====
 // Your Apps Script web app URL (ends in /exec).
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwReV9VO2nrcARHTODgtMcs3H6Q6RqxEfzxxRtJcPyknqqxj8E4R04_YhCJrwczRrrw/exec';
+const SCRIPT_URL = 'https://api.schappistudios.com';
 // If Idiocy moves to a new server, the old one says where; remember it (see apiRaw).
 const API_URL = (() => {
   try { const u = localStorage.getItem('chat_api'); if (u && /^https:\/\/[^\s/]+/.test(u)) return u; } catch (e) {}
