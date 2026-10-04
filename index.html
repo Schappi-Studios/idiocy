@@ -993,6 +993,26 @@
     .acts button { padding: 6px 10px; font-size: 16px; }
     .reacts button { padding: 4px 10px; }
   }
+  /* ---------- search ---------- */
+  .modal.search { width: min(560px, 100%); }
+  .modal.search input[type="search"] { width: 100%; margin: 4px 0 10px; }
+  .modal.search .chips { margin-bottom: 8px; }
+  .modal.search .hint { color: var(--muted); font-size: 13px; padding: 10px 8px; }
+  .sresults { display: flex; flex-direction: column; gap: 2px; min-height: 90px; max-height: 55vh; overflow-y: auto; }
+  .sres {
+    display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 8px; border: 0; border-radius: 10px;
+    background: none; color: inherit; text-align: left; cursor: pointer;
+  }
+  .sres:hover, .sres:focus-visible { background: var(--hover); }
+  .sres .avatar { width: 34px; height: 34px; flex: none; font-size: 14px; }
+  .sres .sbody { flex: 1; min-width: 0; }
+  .sres .stop { display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+  .sres .swhere { color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .sres .swhen { color: var(--muted); margin-left: auto; flex: none; }
+  .sres .stext { font-size: 14px; overflow-wrap: anywhere; }
+  .sres mark { background: rgba(255, 200, 87, .45); color: inherit; border-radius: 3px; padding: 0 1px; }
+  #msgsearch { width: 100%; margin-top: 8px; }
+  #msgsearch.hidden { display: none; }
   /* ---------- Retro (Settings → Theme → Retro): a Nintendo 64-style look ----------
      Charcoal console plastic, the four controller-button colours, domed glossy buttons,
      bevelled panels and bubbly title text. */
@@ -1142,7 +1162,7 @@
     <div class="sec chats">
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
       <div id="storybar" class="hidden" aria-label="Stories"></div>
-      <div id="msearch"><input type="search" placeholder="Search" autocomplete="off" aria-label="Search chats"></div>
+      <div id="msearch"><input type="search" placeholder="Search" autocomplete="off" aria-label="Search chats"><button type="button" class="ghost hidden" id="msgsearch"></button></div>
       <div id="convos"></div>
     </div>
     <div class="sec friends">
@@ -1168,6 +1188,7 @@
         <h1 id="title">Global</h1>
         <div id="sub"></div>
       </div>
+      <button class="iconbtn hidden" id="searchbtn" title="Search messages (Ctrl+K)" aria-label="Search messages"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
       <button class="ghost hidden" id="gadd">Add people</button>
       <button class="ghost hidden" id="ginfo">Info</button>
       <button class="hidden" id="joincall" title="Join the group call">&#x1F4DE; Join call</button>
@@ -1882,13 +1903,11 @@ addEventListener('pagehide', () => saveSnapshot(true));
 
 // ---------- what's new ----------
 // Shown once, after an update that brings new things, and only once the backend has them.
-const NEWS = { v: 17, title: 'New in Idiocy \u2728', items: [
-  ['\u{1F3AE}', 'Retro theme', 'Settings \u2192 Theme \u2192 Retro for a 90s games-console look: chunky buttons, bubbly titles and all.'],
+const NEWS = { v: 18, title: 'New in Idiocy \u2728', items: [
+  ['\u{1F50D}', 'Search', 'Tap \u{1F50D} at the top of any chat to find old messages, in that chat or everywhere. On a computer, press Ctrl+K.'],
 ], older: [
-  ['\u{1F4CC}', 'Pinned messages', 'Hover or tap a message in a chat and press \u{1F4CC}. It stays at the top for everyone.'],
-  ['\u2B50', 'Group admins', 'Group owners: Info \u2192 \u22EF next to someone \u2192 Make group admin. Admins can rename, pin and remove people.'],
-  ['@', '@mention suggestions & "Mentions only"', 'Type @ to pick a name. In a group\u2019s Info you can get pinged only when someone mentions or replies to you.'],
-], olderV: 16 };
+  ['\u{1F3AE}', 'Retro theme', 'Settings \u2192 Theme \u2192 Retro for a 90s games-console look: chunky buttons, bubbly titles and all.'],
+], olderV: 17 };
 function maybeShowNews() {
   if (serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
   // Missed the last update's pop-up too? Show those as well.
@@ -2177,6 +2196,7 @@ function renderHeader() {
     : c.type === 'global' ? 'Posts from everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
     : c.type === 'dm' ? streakText(c.id) || 'Direct message'
     : `${c.members.length} members: ${c.members.join(', ')}`;
+  $('searchbtn').classList.toggle('hidden', !(serverApi >= 18 && c && c.type !== 'story'));
   $('gadd').classList.toggle('hidden', !isGroup);
   $('ginfo').classList.toggle('hidden', !isGroup);
   // DMs: 1-to-1 calls. Groups: start a group call, or join the one that's on.
@@ -2776,19 +2796,11 @@ async function sendComment(postEl, input) {
 }
 
 // Jump to a post in the feed (e.g. from a "commented on your post" notification).
-function openPost(id) {
-  if (openId !== 'global') switchTo('global');
-  const started = Date.now();
-  const look = () => {
-    const el = log.querySelector(`.msg.post[data-id="${id}"]`);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
-      if (!el._cmts) toggleComments(el, false);
-      else loadComments(el);
-    } else if (Date.now() - started < 15000 && openId === 'global') setTimeout(look, 300);
-  };
-  look();
+async function openPost(id) {
+  const el = await revealMessage('global', id);
+  if (!el) return;
+  if (!el._cmts) toggleComments(el, false);
+  else loadComments(el);
 }
 
 // ---------- mentions ----------
@@ -2882,6 +2894,9 @@ setView('chats');
 
 function filterChats() {
   const q = $('msearch').querySelector('input').value.trim().toLowerCase();
+  const ms = $('msgsearch');
+  ms.classList.toggle('hidden', serverApi < 18 || q.replace(/\s/g, '').length < 2);
+  ms.textContent = `\u{1F50D} Search messages for \u201C${q.slice(0, 30)}\u201D`;
   $('convos').querySelectorAll('.row').forEach(r => {
     r.style.display = q && !r.querySelector('.nm').textContent.toLowerCase().includes(q) ? 'none' : '';
   });
@@ -2960,12 +2975,92 @@ function startReply(m) { if (!isFeed()) setReply(m); }
 $('replyx').onclick = () => setReply(null);
 
 // Scroll to a message (e.g. the one a reply quotes) and flash it.
-function jumpTo(id) {
-  const el = log.querySelector(`.msg[data-id="${id}"]`);
-  if (!el) return toast('That message is further back. Scroll up to load older messages.');
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+function jumpTo(id) { revealMessage(openId, id); }
+
+// Opens a chat and shows one message in it, loading older messages until it's there.
+async function revealMessage(convoId, id) {
+  if (openId !== convoId) switchTo(convoId);
+  const myEpoch = epoch;
+  const started = Date.now();
+  while (Date.now() - started < 20000) {
+    if (epoch !== myEpoch || openId !== convoId) return null; // they went somewhere else
+    const el = log.querySelector(`.msg[data-id="${id}"]`);
+    if (el) {
+      // An instant jump: a smooth scroll near the top would be cut short by older messages loading in.
+      el.scrollIntoView({ block: 'center' });
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      return el;
+    }
+    if (openRev !== null && !olderLoading && !olderMore) break; // all loaded, and it isn't there
+    if (openRev !== null && !olderLoading) await loadOlder();
+    await new Promise(r => setTimeout(r, olderLoading ? 120 : 250));
+  }
+  if (epoch === myEpoch && openId === convoId) toast("Couldn't find that message. It may have been deleted.");
+  return null;
 }
+
+// ---------- search ----------
+function openSearch(convoId, q0) {
+  const c = convoId && st && st.convos.find(x => x.id === convoId);
+  const label = !c ? '' : c.type === 'global' ? 'Global feed' : convoLabel(c);
+  let scope = c ? convoId : '';
+  const input = h('input', { type: 'search', placeholder: 'Search messages\u2026', maxlength: 100, autocomplete: 'off', enterkeyhint: 'search' });
+  input.value = q0 || '';
+  const list = h('div', { class: 'sresults', 'aria-live': 'polite' });
+  const scopes = h('div', { class: 'chips' });
+  const hint = text => list.replaceChildren(h('div', { class: 'hint' }, text));
+  const paintScopes = () => scopes.replaceChildren(...[[c ? convoId : null, 'In ' + label], ['', 'Everywhere']]
+    .filter(([v]) => v != null)
+    .map(([v, text]) => h('button', { class: scope === v ? 'primary' : 'ghost', onclick: () => { scope = v; paintScopes(); run(); } }, text)));
+  let seq = 0, timer = null;
+  const run = async () => {
+    const q = input.value.trim();
+    const mine = ++seq;
+    if (q.replace(/\s/g, '').length < 2) return hint(c ? 'Search this chat, or everywhere you can see.' : 'Search your chats, groups and the Global feed.');
+    list.replaceChildren(h('div', { class: 'hint' }, h('span', { class: 'spinner', style: 'display:inline-block;vertical-align:middle;margin-right:6px' }), 'Searching\u2026'));
+    let d;
+    try { d = await api('search', { q, ...(scope && { convo: scope }) }); } catch (e) { d = { ok: false, error: 'Could not reach the server' }; }
+    if (mine !== seq) return; // a newer search is on its way
+    if (!d.ok) return hint(d.error || 'Search failed');
+    if (!d.results.length) return hint('No messages found.');
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    list.replaceChildren(...d.results.map(r => resultRow(r, words)),
+      ...(d.more ? [h('div', { class: 'hint' }, 'Showing the newest 40. Add another word to narrow it down.')] : []));
+  };
+  const resultRow = (r, words) => {
+    const conv = st && st.convos.find(x => x.id === r.convo);
+    const where = r.post ? 'comment on a post' : r.convo === 'global' ? 'Global feed'
+      : conv ? (conv.type === 'group' ? conv.name : 'DM with ' + convoLabel(conv)) : '';
+    return h('button', { class: 'sres', onclick: () => { md.close(); if (r.post || r.convo === 'global') openPost(r.post || r.id); else revealMessage(r.convo, r.id); } },
+      avatar(r.name, { click: false }),
+      h('div', { class: 'sbody' },
+        h('div', { class: 'stop' }, h('b', null, r.name), !scope && where && h('span', { class: 'swhere' }, where), h('span', { class: 'swhen' }, ago(r.time))),
+        h('div', { class: 'stext' }, highlightWords(r.text, words))));
+  };
+  input.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 300); };
+  input.onkeydown = e => { if (e.key === 'Enter') { clearTimeout(timer); run(); } };
+  const md = modal('search', h('h2', null, '\u{1F50D} Search'), input, scopes, list,
+    h('div', { class: 'btns' }, h('button', { class: 'primary', onclick: () => md.close() }, 'Done')));
+  paintScopes();
+  run();
+  input.focus();
+}
+
+// Text with the searched-for words in <mark>, built from text nodes (never HTML).
+function highlightWords(text, words) {
+  if (!words.length) return [text];
+  const re = new RegExp('(' + words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')', 'gi');
+  return String(text).split(re).map((part, i) => (i % 2 ? h('mark', null, part) : part));
+}
+
+$('searchbtn').onclick = () => openSearch(openId);
+$('msgsearch').onclick = () => openSearch(null, $('msearch').querySelector('input').value.trim());
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && me && serverApi >= 18 && !document.querySelector('.overlay')) {
+    e.preventDefault();
+    openSearch(isPendingChat(openId) ? null : openId);
+  }
+});
 
 // ---------- @mention suggestions ----------
 // Type "@" and pick a name. Groups suggest their members; elsewhere friends and people in view.
