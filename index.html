@@ -1122,6 +1122,18 @@
     .acts button { padding: 6px 10px; font-size: 16px; }
     .reacts button { padding: 4px 10px; }
   }
+  /* ---------- invite links ---------- */
+  #invitebanner { background: linear-gradient(135deg, var(--accent), #b04cf5); color: #fff; border-radius: 12px; padding: 10px 14px; font-size: 14px; margin-bottom: 12px; }
+  #invitebanner.hidden { display: none; }
+  #invitebtn { width: 100%; margin: 4px 0 6px; }
+  #invitebtn.hidden { display: none; }
+  .modal.invite { text-align: center; width: min(400px, 100%); }
+  .modal.invite .lead { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+  .modal.invite .linkrow { display: flex; gap: 8px; }
+  .modal.invite .linkrow input { flex: 1; min-width: 0; font-size: 13px; }
+  .modal.invite .qr { margin: 14px auto 4px; width: 208px; height: 208px; border-radius: 16px; background: #fff; padding: 8px; display: grid; place-items: center; }
+  .modal.invite .qr img { width: 192px; height: 192px; image-rendering: pixelated; }
+  .modal.invite .qrnote { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
   /* ---------- seen receipts ---------- */
   .seenline { text-align: right; font-size: 11.5px; color: var(--muted); padding: 2px 16px 6px; animation: fadein .25s ease; }
   @keyframes fadein { from { opacity: 0; } }
@@ -1264,6 +1276,7 @@
       <button type="button" data-mode="login" class="on">Log in</button>
       <button type="button" data-mode="register">Sign up</button>
     </div>
+    <div id="invitebanner" class="hidden"></div>
     <form id="authform">
       <input id="auser" placeholder="Username" autocomplete="username" maxlength="20">
       <input id="apass" type="password" placeholder="Password" autocomplete="current-password">
@@ -1317,6 +1330,7 @@
         <input placeholder="Add by username" maxlength="20" autocomplete="off">
         <button class="primary" type="submit">Add</button>
       </form>
+      <button type="button" class="ghost hidden" id="invitebtn">🔗 Invite friends with a link</button>
       <div id="requests"></div>
       <div id="friends"></div>
     </div>
@@ -1899,6 +1913,100 @@ async function act(action, data, onOk, optimistic) {
 const drop = (list, n) => { const i = list.findIndex(x => key(x) === key(n)); if (i >= 0) list.splice(i, 1); };
 const has = (list, n) => list.some(x => key(x) === key(n));
 
+// ---------- invite links ----------
+// Opening https://idiocy.schappistudios.com/?i=<code> makes you friends with whoever shared it,
+// straight away, signing up first if you need to. The code waits here until you're in.
+const INVITE_KEY = 'chat_invite';
+const INVITE_BASE = 'https://idiocy.schappistudios.com/';
+(() => {
+  const m = /[?&]i=([a-z0-9]{6,16})(?:&|$)/i.exec(location.search);
+  if (!m) return;
+  store.set(INVITE_KEY, m[1].toLowerCase());
+  try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} // tidy the address bar
+})();
+
+// Signed out with an invite waiting: "Lucas invited you", and start on Sign up.
+async function showInviteBanner() {
+  const code = store.get(INVITE_KEY);
+  if (!code || token) return;
+  try {
+    const d = await api('inviteInfo', { code });
+    if (!d.ok) { store.del(INVITE_KEY); return; }
+    $('invitebanner').replaceChildren('\u{1F44B} ', h('b', null, d.username), ' invited you to Idiocy! Sign up (or log in) and you\u2019ll be friends straight away.');
+    $('invitebanner').classList.remove('hidden');
+    if (authMode === 'login') document.querySelector('.tabs button[data-mode=register]').click();
+  } catch (e) {}
+}
+
+let redeeming = false;
+async function redeemPendingInvite() {
+  const code = store.get(INVITE_KEY);
+  if (!code || redeeming || !me || serverApi < 21 || mustVerify()) return; // after verifying, if that's needed
+  redeeming = true;
+  try {
+    const d = await api('redeemInvite', { code });
+    if (d.ok) {
+      store.del(INVITE_KEY);
+      $('invitebanner').classList.add('hidden');
+      if (d.self) toast('That\u2019s your own invite link. Share it with your friends!');
+      else if (d.already) toast(`You and ${d.username} are already friends`);
+      else { uv = null; pollNow(); toast(`\u{1F389} You and ${d.username} are friends now! Tap to say hi.`, false, () => openDm(d.username)); }
+    } else if (!d.auth && !verifyError(d.error)) {
+      store.del(INVITE_KEY);
+      toast(d.error || 'That invite link didn\u2019t work', true);
+    }
+  } catch (e) {
+  } finally {
+    redeeming = false;
+  }
+}
+
+// Your link, to copy, share or show as a QR code.
+let qrLoading = null;
+function loadQr() {
+  if (window.qrcode) return Promise.resolve(window.qrcode);
+  if (!qrLoading) {
+    qrLoading = new Promise((ok, bad) => {
+      const sc = h('script', { src: INVITE_BASE + 'qrcode.js' });
+      sc.onload = () => (window.qrcode ? ok(window.qrcode) : bad());
+      sc.onerror = () => { qrLoading = null; bad(); };
+      document.head.append(sc);
+    });
+  }
+  return qrLoading;
+}
+function openInvite() {
+  const input = h('input', { readonly: '', 'aria-label': 'Your invite link', onfocus: e => e.target.select() });
+  const qr = h('div', { class: 'qr' }, h('span', { class: 'spinner' }));
+  const share = navigator.share && h('button', { class: 'primary', onclick: () => navigator.share({ title: 'Idiocy', text: `Add me on Idiocy! I'm ${me.name}`, url: input.value }).catch(() => {}) }, 'Share');
+  const copy = h('button', { class: share ? 'ghost' : 'primary', onclick: async () => {
+    try { await navigator.clipboard.writeText(input.value); toast('Link copied'); } catch (e) { input.select(); toast('Press Ctrl+C to copy', true); }
+  } }, 'Copy');
+  const md = modal('invite',
+    h('h2', null, '\u{1F517} Invite friends'),
+    h('p', { class: 'lead' }, 'Anyone who opens your link becomes your friend straight away, even if they still need to sign up. Only share it with people you know.'),
+    h('div', { class: 'linkrow' }, input, copy, share),
+    qr, h('div', { class: 'qrnote' }, 'Or let them scan this with their phone camera'),
+    h('div', { class: 'btns', style: 'justify-content:space-between' },
+      h('button', { class: 'ghost danger', title: 'Your old link stops working', onclick: async () => {
+        if (!confirm('Make a new link? Your old link will stop working.')) return;
+        const d = await act('inviteLink', { reset: true });
+        if (d) { show(d.code); toast('New link made. The old one no longer works.'); }
+      } }, 'New link'),
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Done')));
+  const show = code => {
+    input.value = INVITE_BASE + '?i=' + code;
+    loadQr().then(q => {
+      const g = q(0, 'M');
+      g.addData(input.value);
+      g.make();
+      qr.replaceChildren(h('img', { src: g.createDataURL(6, 3), alt: 'QR code for your invite link' }));
+    }).catch(() => qr.replaceChildren(h('span', { class: 'qrnote' }, 'QR code unavailable here. Copy the link instead.')));
+  };
+  act('inviteLink', {}).then(d => { if (d) show(d.code); else md.close(); });
+}
+$('invitebtn').onclick = openInvite;
+
 // ---------- auth ----------
 let authMode = 'login';
 document.querySelectorAll('.tabs button').forEach(b => {
@@ -1978,6 +2086,7 @@ function showAuth(msg) {
   $('auth').classList.remove('hidden');
   $('autherr').textContent = msg || '';
   if (!SCRIPT_URL) $('autherr').textContent = 'Set SCRIPT_URL in chat.html first.';
+  showInviteBanner();
 }
 
 function signOut(msg) {
@@ -2055,11 +2164,11 @@ addEventListener('pagehide', () => saveSnapshot(true));
 
 // ---------- what's new ----------
 // Shown once, after an update that brings new things, and only once the backend has them.
-const NEWS = { v: 20, title: 'New in Idiocy \u2728', items: [
-  ['\u{1F4F8}', 'A new feed', 'Photos go edge to edge, with likes and comments underneath. Double-tap a photo to like it.'],
+const NEWS = { v: 21, title: 'New in Idiocy \u2728', items: [
+  ['\u{1F517}', 'Invite links', 'Get your own link (or QR code) under Friends \u2192 Invite friends. Anyone who opens it becomes your friend straight away.'],
 ], older: [
-  ['\u{1F440}', 'Seen', 'See when your DM has been read, and who\u2019s seen the latest message in a group. Don\u2019t want that? Settings \u2192 Read receipts.'],
-], olderV: 19 };
+  ['\u{1F4F8}', 'A new feed', 'Photos go edge to edge, with likes and comments underneath. Double-tap a photo to like it.'],
+], olderV: 20 };
 function maybeShowNews() {
   if (serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
   // Missed the last update's pop-up too? Show those as well.
@@ -2181,6 +2290,8 @@ async function poll() {
     loadGroupPics();
     saveSnapshot();
     maybeShowNews();
+    $('invitebtn').classList.toggle('hidden', serverApi < 21);
+    if (store.get(INVITE_KEY)) redeemPendingInvite();
   } catch (e) {
     setStatus(false);
   } finally {
@@ -3189,6 +3300,7 @@ function renderTabs() {
   else paintAvatar(mine);
   $('myou').replaceChildren(
     h('button', { onclick: () => openProfile(me.name) }, '\u{1F464}', ' Your profile'),
+    serverApi >= 21 && h('button', { onclick: openInvite }, '\u{1F517}', ' Invite friends'),
     h('button', { onclick: openSettings }, '\u2699\uFE0F', ' Settings'),
     ...(me.role === 'admin' ? [h('button', { onclick: openAdmin }, '\u{1F6E1}\uFE0F', ' Admin panel')] : []),
     h('button', { class: 'danger', onclick: () => { if (confirm('Log out?')) logOut(); } }, '\u{1F6AA}', ' Log out'));
@@ -5329,8 +5441,8 @@ function handlePings(pings) {
   if (!pings.length) return;
   // Skip what you're already looking at (comments live inside the feed, so they always count).
   // Friend requests/accepts change the friends list: fetch it on the very next poll.
-  if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept')) { uv = null; pollNow(); }
-  const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || p.kind === 'friendreq' || p.kind === 'friendaccept' ||
+  if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin')) { uv = null; pollNow(); }
+  const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' ||
       !(p.convo === openId && !document.hidden))
     .filter(p => p.kind === 'removed' || !p.convo || (!isMuted(p.convo) && !(p.kind === 'group' && notifyLevel(p.convo) === 'mentions' && !forMe(p))));
   if (!shown.length) return;
@@ -5343,16 +5455,18 @@ function handlePings(pings) {
   const text = p.kind === 'removed' ? `${p.from} removed you from "${p.text}"`
     : p.kind === 'friendreq' ? `${p.from} sent you a friend request`
     : p.kind === 'friendaccept' ? `${p.from} accepted your friend request! Click to say hi.`
+    : p.kind === 'invitejoin' ? `\u{1F389} ${p.from} joined you with your invite link! Click to say hi.`
     : `${p.from} ${where}: ${p.text}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
-    : p.kind === 'friendaccept' ? openDm(p.from)
+    : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const n = new Notification(p.kind.startsWith('friend') || p.kind === 'removed' ? text : `${p.from} ${where}`,
-        { body: p.kind.startsWith('friend') || p.kind === 'removed' ? '' : p.text, icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
+      const plain = p.kind.startsWith('friend') || p.kind === 'removed' || p.kind === 'invitejoin';
+      const n = new Notification(plain ? text : `${p.from} ${where}`,
+        { body: plain ? '' : p.text, icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
     } catch (e) {}
   }
