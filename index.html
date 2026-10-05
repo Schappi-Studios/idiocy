@@ -714,17 +714,24 @@
       scrollbar-width: none; flex: none;
     }
     #log.feed #feedstories::-webkit-scrollbar { display: none; }
-    /* One post at a time: each swipe settles on the next post, which fills the feed. */
+    /* One post at a time: each swipe settles with the next post lined up at the top.
+       Posts keep their own size, so short ones stay short. */
     #log.feed { scroll-snap-type: y mandatory; gap: 8px; }
+    #log.feed.nosnap { scroll-snap-type: none; } /* while comments are open */
     #log.feed > #feedstories, #log.feed > .msg.post.ig, #log.feed > .feedend { scroll-snap-align: start; scroll-snap-stop: always; }
-    #log.feed > .msg.post.ig { min-height: var(--feedh, 480px); display: flex; flex-direction: column; }
-    #log.feed > .feedend { min-height: var(--feedh, 480px); display: flex; flex-direction: column; justify-content: center; background: var(--panel); }
-    /* Photos fill the space left over, shown whole on a dark backdrop. */
-    #log.feed > .post.ig.hasimg .shot { flex: 1 1 auto; aspect-ratio: auto !important; min-height: 180px; background: #0b0b0f; }
-    #log.feed > .post.ig.hasimg .shot img { object-fit: contain; }
-    /* Text posts: big text in the middle. */
-    #log.feed > .post.ig:not(.hasimg) .body { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; font-size: 21px; line-height: 1.4; padding: 10px 20px; }
+    #log.feed > .feedend { background: var(--panel); }
     #log.feed > .post.ig .comments { max-height: 40vh; overflow-y: auto; }
+    /* The post box stays one slim row until you tap it. */
+    #feedbox:not(.open) { padding-top: 8px; padding-bottom: 8px; }
+    #feedbox:not(.open) .fbact, #feedbox:not(.open) #postbtn { display: none; }
+    #feedbox:not(.open) #postcammini { display: inline-flex; }
+  }
+  /* Photos are capped so a whole post (name, photo, buttons, caption) fits on the screen. */
+  #log.feed > .post.ig.hasimg .shot { max-height: max(220px, calc(var(--feedh, 640px) - 190px)); }
+  #log.feed > .post.ig.hasimg .shot img { object-fit: contain; }
+  #postcammini {
+    display: none; flex: none; align-items: center; justify-content: center; width: 42px; height: 42px; margin-top: 0;
+    border-radius: 50%; border: 0; background: var(--accent); color: #fff; cursor: pointer;
   }
   .comments { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
   .cmt { display: flex; gap: 8px; align-items: flex-start; }
@@ -1311,7 +1318,7 @@
     <div id="log"><div id="feedstories" class="hidden" aria-label="Stories"></div></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
-      <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What's on your mind?"></textarea><button class="primary" id="postbtn" type="button">Post</button></div>
+      <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What's on your mind?"></textarea><button class="primary" id="postbtn" type="button">Post</button><button type="button" id="postcammini" title="Take photo" aria-label="Take photo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button></div>
       <div class="fbact">
         <button type="button" class="iconbtn" id="postimg" title="Add a picture" aria-label="Add a picture">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -2377,7 +2384,7 @@ function setFeedMode(on) {
   const note = $('composernote'), bar = $('attachbar');
   if (on) {
     $('feedbox').prepend(note, bar); // above the post box, like in chats
-    if (me) $('fbrow').replaceChildren(avatar(me.name, { click: false }), $('posttext'), $('postbtn'));
+    if (me) $('fbrow').replaceChildren(avatar(me.name, { click: false }), $('posttext'), $('postbtn'), $('postcammini'));
   } else {
     $('send').before(note, bar);
   }
@@ -2728,6 +2735,7 @@ function placeInFeed(el, where) {
 
 function clearLog() {
   clearInterval(chatLoadTimer);
+  log.classList.remove('nosnap');
   log.replaceChildren(...(isFeed() ? [feedStories, feedSortEl] : [])); // the feed starts with stories and For you | Latest
   shown.clear();
   lastId = 0;
@@ -2916,7 +2924,8 @@ function paintCommentCount(el) {
 
 // ---------- comments ----------
 async function toggleComments(el, focus = true) {
-  if (el._cmts) { el._cmts.remove(); el._cmts = null; paintCommentCount(el); return; }
+  const snapCheck = () => log.classList.toggle('nosnap', !!log.querySelector('.msg.post > .comments'));
+  if (el._cmts) { el._cmts.remove(); el._cmts = null; paintCommentCount(el); snapCheck(); return; }
   const post = el._m;
   const list = h('div', { class: 'comments' }, h('div', { class: 'shimmer', style: 'height:34px;border-radius:12px' }));
   const input = h('input', { placeholder: 'Write a comment\u2026', maxlength: 300 });
@@ -2926,6 +2935,7 @@ async function toggleComments(el, focus = true) {
   el._cmts = h('div', { class: 'comments enter' }, list, form);
   el.append(el._cmts);
   paintCommentCount(el);
+  snapCheck();
   if (focus) input.focus();
   await loadComments(el);
 }
@@ -4360,6 +4370,7 @@ async function prepareImage(file) {
 }
 
 function setAttachment(att) {
+  if (att && isFeed()) setPostBoxOpen(true); // a picture's waiting: show the full post box
   attachment = att;
   $('attachbar').classList.toggle('hidden', !att);
   if (att) {
@@ -5639,6 +5650,15 @@ postEl.addEventListener('paste', e => {
 });
 $('postimg').onclick = () => $('attachfile').click();
 $('postbtn').onclick = submitPost;
+$('postcammini').onclick = () => $('postcam').click();
+
+// Phones: the post box is one slim row until you tap it, so the feed gets the room.
+function setPostBoxOpen(on) { $('feedbox').classList.toggle('open', on); }
+postEl.addEventListener('focus', () => setPostBoxOpen(true));
+postEl.addEventListener('blur', () => setTimeout(() => {
+  const inside = $('feedbox').contains(document.activeElement);
+  if (!inside && !postEl.value.trim() && !attachment) setPostBoxOpen(false);
+}, 200));
 
 async function submitPost() {
   const text = postEl.value.trim();
