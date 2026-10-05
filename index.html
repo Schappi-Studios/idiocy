@@ -292,7 +292,7 @@
   .urow .nm { flex: 1; min-width: 120px; cursor: pointer; font-weight: 600; }
   .urow .nm:hover { text-decoration: underline; }
   .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
-  .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .toggle input { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
 
   /* ---------- email ---------- */
   .vbadge { color: var(--accent); font-weight: 800; }
@@ -993,6 +993,23 @@
     .acts button { padding: 6px 10px; font-size: 16px; }
     .reacts button { padding: 4px 10px; }
   }
+  /* ---------- seen receipts ---------- */
+  .seenline { text-align: right; font-size: 11.5px; color: var(--muted); padding: 2px 16px 6px; animation: fadein .25s ease; }
+  @keyframes fadein { from { opacity: 0; } }
+  /* ---------- admin activity ---------- */
+  .actsum { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+  .actsum span { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+  .actsum span.warn { border-color: var(--gold); }
+  .actreq { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .actreq .when, .actp .sub, .actnote { color: var(--muted); font-size: 12px; }
+  .actreq .warn { color: var(--gold); font-size: 12px; flex-basis: 100%; }
+  .actp { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-bottom: 1px solid var(--border); }
+  .actp .avatar { flex: none; }
+  .actp .nm { font-weight: 600; cursor: pointer; }
+  .actp .on { color: var(--ok); font-weight: 600; }
+  .actp .lst { flex: 1; min-width: 0; }
+  .actp .sub { overflow-wrap: anywhere; }
+  .modal.wide h3 { margin: 16px 0 6px; font-size: 14px; }
   /* ---------- search ---------- */
   .modal.search { width: min(560px, 100%); }
   .modal.search input[type="search"] { width: 100%; margin: 4px 0 10px; }
@@ -1903,11 +1920,11 @@ addEventListener('pagehide', () => saveSnapshot(true));
 
 // ---------- what's new ----------
 // Shown once, after an update that brings new things, and only once the backend has them.
-const NEWS = { v: 18, title: 'New in Idiocy \u2728', items: [
-  ['\u{1F50D}', 'Search', 'Tap \u{1F50D} at the top of any chat to find old messages, in that chat or everywhere. On a computer, press Ctrl+K.'],
+const NEWS = { v: 19, title: 'New in Idiocy \u2728', items: [
+  ['\u{1F440}', 'Seen', 'See when your DM has been read, and who\u2019s seen the latest message in a group. Don\u2019t want that? Settings \u2192 Read receipts.'],
 ], older: [
-  ['\u{1F3AE}', 'Retro theme', 'Settings \u2192 Theme \u2192 Retro for a 90s games-console look: chunky buttons, bubbly titles and all.'],
-], olderV: 17 };
+  ['\u{1F50D}', 'Search', 'Tap \u{1F50D} at the top of any chat to find old messages, in that chat or everywhere. On a computer, press Ctrl+K.'],
+], olderV: 18 };
 function maybeShowNews() {
   if (serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
   // Missed the last update's pop-up too? Show those as well.
@@ -1969,6 +1986,7 @@ async function poll() {
   try {
     const d = await api('poll', {
       open: openId, after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop,
+      ...(lastId && document.visibilityState === 'visible' && openRev !== null && !isFeed() && { read: lastId }), // for seen receipts
       k: me ? key(me.name) : undefined, known: st ? st.convos.map(c => c.id) : undefined, // lets the server batch its reads
     });
     if (!d.ok) {
@@ -2011,6 +2029,8 @@ async function poll() {
       if (d.messages && d.messages.length && !d.reset) lastActivity = Date.now();
       if (d.edited) d.edited.forEach(updateMessage);
       showTyping(d.typing || []);
+      seenNow = d.seen || null;
+      paintSeen();
       openGcall = d.gcall || null;
       if (d.reset) { hideLoading(); scrollDown(); }
       markRead();
@@ -2297,6 +2317,7 @@ function switchTo(id) {
   if (call || gcall) syncCallView();
   olderMore = false;
   olderLoading = false;
+  seenNow = null;
   clearLog();
   setFeedMode(isFeed());
   const cached = chatCache.get(id);
@@ -3159,6 +3180,36 @@ function showTyping(names) {
   el.replaceChildren(h('span', null, who, h('i'), h('i'), h('i')));
 }
 
+// ---------- seen receipts ----------
+// DMs: "Seen 2m ago" under your last message. Groups: "Seen by Ann, Ben" under the newest message.
+let seenNow = null; // { name: [messageId, time] } for the open chat, from the server
+function seenAgo(t) {
+  const a = ago(t);
+  return a === 'now' ? 'just now' : /^\d+[mhd]$/.test(a) ? a + ' ago' : 'on ' + a;
+}
+function paintSeen() {
+  log.querySelectorAll('.seenline').forEach(el => el.remove());
+  const c = curConvo();
+  if (!seenNow || !c || (c.type !== 'dm' && c.type !== 'group')) return;
+  const msgs = log.querySelectorAll('.msg:not(.pending):not(.sysline)');
+  const last = msgs[msgs.length - 1];
+  if (!last || !last._m || !last._m.id) return;
+  const who = Object.entries(seenNow)
+    .filter(([n, v]) => Array.isArray(v) && v[0] >= last._m.id && key(n) !== key(last._m.name))
+    .map(([n, v]) => ({ n, t: v[1] }))
+    .sort((a, b) => a.t - b.t);
+  if (!who.length) return;
+  let text;
+  if (c.type === 'dm') {
+    if (!isMine(last._m)) return; // only under your own message
+    text = 'Seen ' + seenAgo(who[0].t);
+  } else {
+    const names = who.map(w => w.n);
+    text = 'Seen by ' + (names.length <= 3 ? names.join(', ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} others`);
+  }
+  last.after(h('div', { class: 'seenline', title: who.map(w => `${w.n}: ${new Date(w.t).toLocaleString()}`).join('\n') }, text));
+}
+
 // Older messages load when you scroll to the top of a chat (or the bottom of the feed).
 let olderMore = false, olderLoading = false;
 async function loadOlder() {
@@ -3852,6 +3903,7 @@ function groupMessages() {
   if (isFeed()) return; // posts stand alone
   let prev = null;
   for (const el of log.children) {
+    if (el.classList.contains('seenline')) continue;
     const isMsg = el.classList.contains('msg') && !el.classList.contains('sysline');
     el.classList.toggle('cont', isMsg && !!prev && !el.classList.contains('pending') &&
       prev.dataset.user === el.dataset.user && el.dataset.time - prev.dataset.time < 300000);
@@ -4970,6 +5022,13 @@ function openSettings() {
   const ringBox = h('input', { type: 'checkbox' });
   ringBox.checked = prefs.ring !== false;
   ringBox.onchange = () => { prefs.ring = ringBox.checked; savePrefs(); if (ringBox.checked) ringback(); };
+  const rcpt = h('input', { type: 'checkbox' });
+  rcpt.checked = !me || me.receipts !== false;
+  rcpt.onchange = async () => {
+    const on = rcpt.checked;
+    if (await act('setReceipts', { on })) { me.receipts = on; seenNow = null; paintSeen(); pollNow(); }
+    else rcpt.checked = !on;
+  };
   const desk = h('input', { type: 'checkbox' });
   desk.checked = prefs.desktop && 'Notification' in window && Notification.permission === 'granted';
   desk.onchange = async () => {
@@ -4994,6 +5053,7 @@ function openSettings() {
   const md = modal('',
     h('h2', null, 'Settings'),
     h('div', { class: 'toggle' }, h('span', null, 'Theme', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Auto matches your device')), theme),
+    serverApi >= 19 && h('label', { class: 'toggle' }, h('span', null, 'Read receipts', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Show people when you\u2019ve seen their messages. Turning this off hides theirs from you too.')), rcpt),
     h('label', { class: 'toggle' }, h('span', null, 'Ping sound', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'For DMs, group messages and @mentions')), sound),
     serverApi >= 6 && h('label', { class: 'toggle' }, h('span', null, 'Call ringtone', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Ringing when someone calls you, and while you call someone')), ringBox),
     serverApi >= 13 && emailSection(() => { md.close(); openSettings(); }),
@@ -5094,9 +5154,18 @@ function timeoutButtons(name, done) {
 }
 
 function openAdmin() {
-  let tab = 'reports', data = null;
+  let tab = 'reports', data = null, activity = null, actQuery = '';
   const body = h('div', { class: 'alist' });
-  const tabs = ['reports', 'users', 'settings'].map(t => h('button', { onclick: () => { tab = t; draw(); } }, t[0].toUpperCase() + t.slice(1)));
+  const TABS = ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), 'settings'];
+  const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; draw(); } }, t[0].toUpperCase() + t.slice(1)));
+  const loadActivity = async () => {
+    try {
+      const d = await api('adminActivity', {});
+      if (!d.ok) { if (!d.auth) toast(d.error, true); return; }
+      activity = d;
+      if (tab === 'activity') draw();
+    } catch (e) { toast('Could not reach the server', true); }
+  };
   const md = modal('wide scroll', h('h2', null, 'Admin panel'), h('div', { class: 'tabbar' }, tabs), body);
   const load = async () => {
     progress(1);
@@ -5111,9 +5180,56 @@ function openAdmin() {
       progress(-1);
     }
   };
+  // Activity: who's been on (and from which copy of the site), and every waiting friend request.
+  const siteName = v => !v ? '' : v === 'idiocy.schappistudios.com' ? 'the new site'
+    : v.endsWith('github.io') ? 'the GitHub copy' : /(^|\.)schappistudios\.com$/.test(v) ? 'schappistudios.com/idiocy'
+    : /googleusercontent|sites\.google/.test(v) ? 'the Google Sites copy' : v === 'file' ? 'a saved copy of the page' : v;
+  const lastOn = p => p.online ? h('span', { class: 'on' }, '\u25CF online now') : p.lastSeen ? 'last on ' + seenAgo(p.lastSeen) : 'not seen on this server yet';
+  const drawActivity = () => {
+    const a = activity, now = Date.now();
+    const byName = new Map(a.people.map(p => [key(p.username), p]));
+    const recent = a.people.filter(p => p.online || now - p.lastSeen < 864e5).length;
+    const unseen = a.people.filter(p => !p.online && !p.lastSeen).length;
+    const search = h('input', { placeholder: 'Search people', value: actQuery });
+    const people = h('div');
+    const drawPeople = () => people.replaceChildren(...a.people
+      .filter(p => key(p.username).includes(key(actQuery)))
+      .map(p => h('div', { class: 'actp' },
+        avatar(p.username),
+        h('div', { class: 'lst' },
+          h('div', null,
+            h('span', { class: 'nm' + (p.role === 'admin' ? ' admin-name' : ''), onclick: () => openProfile(p.username) }, p.username), ' ',
+            p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
+            p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
+            !p.verified && p.role !== 'admin' && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
+          h('div', { class: 'sub' }, lastOn(p), p.via && (' \u00b7 using ' + siteName(p.via))),
+          h('div', { class: 'sub' }, `${p.friends} friend${p.friends === 1 ? '' : 's'} \u00b7 ${p.msgs7d} message${p.msgs7d === 1 ? '' : 's'} this week`),
+          p.incoming.length > 0 && h('div', { class: 'sub' }, '\u{1F4E5} Waiting for them to answer: ' + p.incoming.join(', ')),
+          p.outgoing.length > 0 && h('div', { class: 'sub' }, '\u{1F4E4} They asked: ' + p.outgoing.join(', '))))));
+    search.oninput = () => { actQuery = search.value; drawPeople(); };
+    drawPeople();
+    body.replaceChildren(
+      h('div', { class: 'actsum' },
+        h('span', null, `${recent} on in the last day`),
+        h('span', { class: a.requests.length ? 'warn' : '' }, `${a.requests.length} waiting friend request${a.requests.length === 1 ? '' : 's'}`),
+        unseen > 0 && h('span', { class: 'warn' }, `${unseen} not seen on this server`),
+        h('span', null, `${a.blocks} block${a.blocks === 1 ? '' : 's'}`),
+        h('button', { class: 'ghost', style: 'padding:4px 12px', onclick: () => { activity = null; draw(); } }, '\u21BB Refresh')),
+      h('div', { class: 'actnote' }, 'Last-seen tracking started on 5 Oct 2026, so anyone who hasn\u2019t been on since then shows as not seen. Blocks are only counted, so who blocked whom stays private.'),
+      h('h3', null, 'Waiting friend requests'),
+      ...(a.requests.length ? a.requests.map(r => {
+        const to = byName.get(key(r.to)) || {};
+        const warn = !to.online && !to.lastSeen ? `\u26A0\uFE0F ${r.to} hasn\u2019t been on this server, so they may not have seen it.`
+          : to.via && /googleusercontent|sites\.google/.test(to.via) ? `\u26A0\uFE0F ${r.to} last used the Google Sites copy.` : '';
+        return h('div', { class: 'actreq' }, h('b', null, r.from), '\u2192', h('b', null, r.to),
+          h('span', { class: 'when' }, r.time ? 'sent ' + seenAgo(r.time) : 'sent before 5 Oct'),
+          warn && h('span', { class: 'warn' }, warn));
+      }) : [h('div', { class: 'actnote', style: 'padding:8px 4px' }, 'None waiting.')]),
+      h('h3', null, `People (${a.people.length})`), search, people);
+  };
   let query = '';
   const draw = () => {
-    tabs.forEach((b, i) => b.classList.toggle('on', ['reports', 'users', 'settings'][i] === tab));
+    tabs.forEach((b, i) => b.classList.toggle('on', TABS[i] === tab));
     if (!data) {
       body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:70px;border:0' })));
       return;
@@ -5130,6 +5246,13 @@ function openAdmin() {
           ...timeoutButtons(r.sender, load),
           h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); load(); } } }, 'Ban')))) :
         [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, 'No open reports. Everyone\u2019s behaving (for now).')]));
+    } else if (tab === 'activity') {
+      if (!activity) {
+        body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
+        loadActivity();
+        return;
+      }
+      drawActivity();
     } else if (tab === 'users') {
       const search = h('input', { placeholder: 'Search users', value: query });
       search.oninput = () => { query = search.value; drawUsers(); };
