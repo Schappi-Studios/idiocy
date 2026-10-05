@@ -695,6 +695,14 @@
   @media (prefers-reduced-motion: reduce) { .burst { animation-duration: .01s; } .post.ig .pfoot .pact.like.pop svg { animation: none; } }
   /* Stories at the top of the feed (phones) */
   #feedstories { display: none; }
+  /* For you | Latest, and the end of the feed */
+  #feedsort { display: flex; gap: 8px; padding: 10px 14px 4px; flex: none; }
+  #feedsort.hidden { display: none; }
+  #feedsort button { padding: 6px 14px; font-size: 13px; border-radius: 999px; }
+  .feedend { flex: none; text-align: center; padding: 36px 20px 44px; color: var(--muted); }
+  .feedend .big { font-size: 42px; line-height: 1; }
+  .feedend b { display: block; color: var(--text); font-size: 17px; margin: 10px 0 4px; }
+  .feedend button { margin-top: 14px; }
   /* Phones: posts go edge to edge, like Instagram */
   @media (max-width: 720px) {
     #log.feed { padding: 0 0 16px; gap: 10px; background: var(--bg); }
@@ -706,6 +714,17 @@
       scrollbar-width: none; flex: none;
     }
     #log.feed #feedstories::-webkit-scrollbar { display: none; }
+    /* One post at a time: each swipe settles on the next post, which fills the feed. */
+    #log.feed { scroll-snap-type: y mandatory; gap: 8px; }
+    #log.feed > #feedstories, #log.feed > .msg.post.ig, #log.feed > .feedend { scroll-snap-align: start; scroll-snap-stop: always; }
+    #log.feed > .msg.post.ig { min-height: var(--feedh, 480px); display: flex; flex-direction: column; }
+    #log.feed > .feedend { min-height: var(--feedh, 480px); display: flex; flex-direction: column; justify-content: center; background: var(--panel); }
+    /* Photos fill the space left over, shown whole on a dark backdrop. */
+    #log.feed > .post.ig.hasimg .shot { flex: 1 1 auto; aspect-ratio: auto !important; min-height: 180px; background: #0b0b0f; }
+    #log.feed > .post.ig.hasimg .shot img { object-fit: contain; }
+    /* Text posts: big text in the middle. */
+    #log.feed > .post.ig:not(.hasimg) .body { flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; font-size: 21px; line-height: 1.4; padding: 10px 20px; }
+    #log.feed > .post.ig .comments { max-height: 40vh; overflow-y: auto; }
   }
   .comments { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
   .cmt { display: flex; gap: 8px; align-items: flex-start; }
@@ -1352,6 +1371,11 @@ const POLL_HIDDEN = 10000;
 const $ = id => document.getElementById(id);
 const log = $('log'), textEl = $('text');
 const feedStories = $('feedstories'); // kept by reference: it moves in and out of the feed
+// "For you" (popular posts first) or "Latest", at the top of the feed.
+const feedSortEl = h('div', { id: 'feedsort', class: 'hidden', role: 'tablist', 'aria-label': 'Feed order' });
+const feedEndEl = h('div', { class: 'feedend' },
+  h('div', { class: 'big' }, '\u2728'), h('b', null, 'You\u2019re all caught up'), 'You\u2019ve seen every post. Come back later for more!',
+  h('div', null, h('button', { class: 'ghost', onclick: () => { log.scrollTo({ top: 0, behavior: 'smooth' }); } }, '\u2191 Back to the top')));
 
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -2346,6 +2370,8 @@ const isFeed = () => openId === 'global';
 // the composer's attachment bar and notes move up there while it's open.
 function setFeedMode(on) {
   document.body.classList.toggle('feedmode', on);
+  paintFeedSort();
+  if (on) requestAnimationFrame(sizeFeed);
   log.classList.toggle('feed', on);
   $('newmsgs').textContent = on ? 'New posts \u2191' : 'New messages \u2193';
   const note = $('composernote'), bar = $('attachbar');
@@ -2395,7 +2421,7 @@ function switchTo(id) {
     // reloads fully if something was deleted meanwhile.
     openRev = cached.rev;
     eMax = cached.eMax;
-    olderMore = cached.msgs.length >= 100;
+    olderMore = cached.msgs.length > 0; // the saved copy may be cut short; loading older finds out
     if (cached.msgs.length) renderBatch(cached.msgs, false);
     else sys(emptyText()).classList.add('empty');
     scrollDown();
@@ -2686,16 +2712,23 @@ function scrollDown() {
 }
 
 // Feed posts are kept newest-first; pending posts sit above everything.
-function placeInFeed(el) {
+// where: 'top' (just arrived), 'end' (older posts loading in), or by date.
+function placeInFeed(el, where) {
+  if (el.classList.contains('pending') || where === 'top') {
+    let at = feedTop();
+    if (!el.classList.contains('pending')) while (at && at.classList && at.classList.contains('pending')) at = at.nextSibling;
+    log.insertBefore(el, at || null);
+    return;
+  }
+  if (where === 'end') { log.insertBefore(el, feedEndEl.parentNode === log ? feedEndEl : null); return; }
   const id = Number(el.dataset.id) || Infinity;
   const after = [...log.children].find(c => c.classList.contains('msg') && !c.classList.contains('pending') && Number(c.dataset.id) < id);
-  if (el.classList.contains('pending')) log.insertBefore(el, log.querySelector('.msg, .sys:not(.err)') || null);
-  else log.insertBefore(el, after || null);
+  log.insertBefore(el, after || (feedEndEl.parentNode === log ? feedEndEl : null));
 }
 
 function clearLog() {
   clearInterval(chatLoadTimer);
-  log.replaceChildren(...(isFeed() ? [feedStories] : [])); // the feed starts with the stories row
+  log.replaceChildren(...(isFeed() ? [feedStories, feedSortEl] : [])); // the feed starts with stories and For you | Latest
   shown.clear();
   lastId = 0;
 }
@@ -3375,7 +3408,7 @@ async function loadOlder() {
     const fresh = d.messages.filter(m => !shown.has(m.id));
     fresh.forEach(m => shown.add(m.id));
     if (isFeed()) {
-      fresh.forEach(m => placeInFeed(buildMessage(m)));
+      fresh.forEach(m => placeInFeed(buildMessage(m), feedSort() === 'foryou' ? 'end' : undefined));
     } else {
       // Add above, keeping what you're looking at in the same place.
       const before = log.scrollHeight;
@@ -3389,6 +3422,7 @@ async function loadOlder() {
   } finally {
     note.remove();
     olderLoading = false;
+    paintFeedEnd();
   }
 }
 log.addEventListener('scroll', () => {
@@ -4064,11 +4098,11 @@ async function deleteMessage(m, el) {
   else el.classList.remove('removing');
 }
 
-function addMessage(m) {
+function addMessage(m, where) {
   if (shown.has(m.id)) return;
   shown.add(m.id);
   const el = buildMessage(m);
-  if (isFeed()) placeInFeed(el); else log.appendChild(el);
+  if (isFeed()) placeInFeed(el, where); else log.appendChild(el);
 }
 
 // Consecutive messages from one person within 5 minutes share a header.
@@ -4092,10 +4126,56 @@ function sys(text, isErr) {
   return el;
 }
 
-// Where new things go at the top of the feed: just under the stories row.
+// Where new things go at the top of the feed: just under the stories row and For you | Latest.
 function feedTop() {
-  return feedStories.parentNode === log ? feedStories.nextSibling : log.firstChild;
+  let n = log.firstChild;
+  while (n && (n === feedStories || n === feedSortEl)) n = n.nextSibling;
+  return n;
 }
+
+// ---------- feed order ----------
+const feedSort = () => (prefs.feedSort === 'latest' ? 'latest' : 'foryou');
+// Likes and comments push a post up; age slowly pulls it down.
+function postScore(m) {
+  const r = m.r || {};
+  const likes = (r[HEART] || []).length;
+  const others = Object.keys(r).reduce((n, e) => n + (e === HEART ? 0 : (r[e] || []).length), 0);
+  const hours = Math.max(0, (Date.now() - (m.time || Date.now())) / 36e5);
+  return (1 + likes * 3 + (m.cc || 0) * 4 + others) / Math.pow(hours + 2, 1.2);
+}
+function paintFeedSort() {
+  feedSortEl.classList.toggle('hidden', !isFeed());
+  feedSortEl.replaceChildren(...[['foryou', '\u{1F525} For you'], ['latest', '\u{1F552} Latest']].map(([v, label]) =>
+    h('button', { class: feedSort() === v ? 'primary' : 'ghost', role: 'tab', 'aria-selected': String(feedSort() === v), onclick: () => {
+      if (feedSort() === v) return;
+      prefs.feedSort = v; savePrefs(); paintFeedSort(); rankFeed(); log.scrollTo({ top: 0 });
+    } }, label)));
+}
+// Puts the loaded posts in order. Only when the feed opens or you switch order, never while
+// you're reading, so nothing jumps.
+function rankFeed() {
+  if (!isFeed()) return;
+  const posts = [...log.children].filter(c => c.classList.contains('post') && !c.classList.contains('pending') && c._m);
+  if (feedSort() === 'latest') posts.sort((a, b) => Number(b.dataset.id) - Number(a.dataset.id));
+  else posts.sort((a, b) => postScore(b._m) - postScore(a._m));
+  const frag = document.createDocumentFragment();
+  posts.forEach(p => frag.append(p));
+  let at = feedTop();
+  while (at && at.classList && at.classList.contains('pending')) at = at.nextSibling;
+  log.insertBefore(frag, at || null);
+  paintFeedEnd();
+}
+// "You're all caught up" once every post has loaded.
+function paintFeedEnd() {
+  const show = isFeed() && !olderMore && !olderLoading && !!log.querySelector('.msg.post');
+  if (show) log.append(feedEndEl); else feedEndEl.remove();
+}
+// Each post fills the feed on phones; keep that size up to date (not while typing, when the keyboard is up).
+const sizeFeed = () => {
+  if (document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  if (log.clientHeight) document.documentElement.style.setProperty('--feedh', log.clientHeight + 'px');
+};
+new ResizeObserver(sizeFeed).observe(log);
 
 // Runs change() without moving what you're looking at, even if things above it grow
 // or appear. (Chrome does this by itself; iPhones don't.)
@@ -4116,8 +4196,10 @@ function renderBatch(msgs, animate) {
   const stick = nearBottom();
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
   const before = new Set(log.children);
-  if (isFeed() && !stick) keepPlace(() => msgs.forEach(addMessage)); // new posts arrive above you
-  else msgs.forEach(addMessage);
+  const where = isFeed() && animate && feedSort() === 'foryou' ? 'top' : undefined; // just arrived: on top
+  if (isFeed() && !stick) keepPlace(() => msgs.forEach(m => addMessage(m, where))); // new posts arrive above you
+  else msgs.forEach(m => addMessage(m, where));
+  if (isFeed() && !animate) rankFeed(); // a fresh load: put it in order
   if (animate) {
     // Slide in only what just arrived, not a whole chat loading at once.
     for (const el of log.children) {
