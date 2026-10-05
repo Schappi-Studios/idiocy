@@ -731,6 +731,9 @@
       flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; margin: 0 12px 4px; padding: 22px; border-radius: 20px;
     }
     #log.feed > .post.ig:not(.hasimg) > .body > .txt { margin: auto 0; }
+    #log.feed > .post.ig.pollcard > .body { justify-content: center; }
+    #log.feed > .post.ig.pollcard > .body > .txt { margin: 0 0 16px; font-size: 25px; }
+    #log.feed > .post.ig.pollcard .popt { min-height: 56px; font-size: 17px; }
     #log.feed > .post.ig.txtcard > .body { background: var(--card); color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
     #log.feed > .post.ig.txtcard > .body .ment { color: #fff; background: rgba(255, 255, 255, .22); }
     #log.feed > .post.ig.t-xl > .body { font-size: 32px; line-height: 1.2; text-align: center; }
@@ -749,6 +752,26 @@
     display: none; flex: none; align-items: center; justify-content: center; width: 42px; height: 42px; margin-top: 0;
     border-radius: 50%; border: 0; background: var(--accent); color: #fff; cursor: pointer;
   }
+  /* Feed polls: a colourful card, choices as bubbles that fill up once you've voted. */
+  .post.ig.pollcard > .body {
+    background: var(--card); color: #fff; border-radius: 20px; padding: 18px 18px 14px; margin: 0 12px 8px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .2);
+  }
+  .post.ig.pollcard .plabel { font-size: 12px; font-weight: 800; letter-spacing: .09em; opacity: .85; margin-bottom: 6px; }
+  .post.ig.pollcard .txt { display: block; font-size: 21px; font-weight: 800; line-height: 1.25; margin: 0 0 14px; }
+  .post.ig.pollcard .txt .ment { color: #fff; background: rgba(255, 255, 255, .22); }
+  .post.ig.pollcard .poll { max-width: none; gap: 9px; margin: 0; }
+  .post.ig.pollcard .popt {
+    background: rgba(255, 255, 255, .17); border: 0; color: #fff; border-radius: 14px; padding: 13px 16px; min-height: 50px;
+    font-size: 16px; font-weight: 700; transition: transform .12s, background .2s;
+  }
+  .post.ig.pollcard .popt:hover { background: rgba(255, 255, 255, .24); border: 0; }
+  .post.ig.pollcard .popt:active { transform: scale(.98); }
+  .post.ig.pollcard .popt .bar { background: rgba(255, 255, 255, .3); transition: width .7s cubic-bezier(.2, .8, .2, 1); }
+  .post.ig.pollcard .popt.mine { box-shadow: inset 0 0 0 2px #fff; }
+  .post.ig.pollcard .popt.mine .bar { background: rgba(255, 255, 255, .45); }
+  .post.ig.pollcard .popt .pc { color: #fff; font-size: 15px; font-weight: 800; }
+  .post.ig.pollcard .ptotal { color: rgba(255, 255, 255, .88); font-size: 13px; margin-top: 4px; }
   .comments { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
   .cmt { display: flex; gap: 8px; align-items: flex-start; }
   .cmt .avatar { width: 28px; height: 28px; font-size: 12px; flex-shrink: 0; }
@@ -1397,8 +1420,8 @@ const feedStories = $('feedstories'); // kept by reference: it moves in and out 
 // "For you" (popular posts first) or "Latest", at the top of the feed.
 const feedSortEl = h('div', { id: 'feedsort', class: 'hidden', role: 'tablist', 'aria-label': 'Feed order' });
 const feedEndEl = h('div', { class: 'feedend' },
-  h('div', { class: 'big' }, '\u2728'), h('b', null, 'You\u2019re all caught up'), 'You\u2019ve seen every post. Come back later for more!',
-  h('div', null, h('button', { class: 'ghost', onclick: () => { log.scrollTo({ top: 0, behavior: 'smooth' }); } }, '\u2191 Back to the top')));
+  h('div', { class: 'big' }, '\u2728'), h('b', null, 'You\u2019re all caught up'), h('span', { class: 'fe-sub' }),
+  h('div', { class: 'fe-top' }, h('button', { class: 'ghost', onclick: () => { log.scrollTo({ top: 0, behavior: 'smooth' }); } }, '\u2191 Back to the top')));
 
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -2009,7 +2032,7 @@ function saveSnapshot(force) {
   if (!token || !me || !st || (!force && Date.now() - snapSaved < 15000)) return;
   snapSaved = Date.now();
   const feed = openId === 'global' && openRev
-    ? { msgs: [...log.querySelectorAll('.msg:not(.pending)')].map(el => el._m).filter(m => m && m.id).slice(0, 60), rev: openRev, eMax }
+    ? { msgs: [...log.querySelectorAll('.msg:not(.pending):not(.again)')].map(el => el._m).filter(m => m && m.id).slice(0, 60), rev: openRev, eMax }
     : chatCache.get('global');
   const snap = { v: 2, tok: token.slice(-12), me, st, latest, api: serverApi, settings, streaks, stories, feed: feed || null };
   try { store.set(SNAP_KEY, JSON.stringify(snap)); } catch (e) {}
@@ -2889,6 +2912,7 @@ function buildPost(m, pending) {
   const like = h('button', { class: 'pact like', title: 'Like', onclick: () => toggleReaction(el, HEART) });
   const body = h('div', { class: 'body' },
     m.img && h('b', { class: 'capname', onclick: () => openProfile(m.name) }, m.name),
+    !m.img && m.pl && h('div', { class: 'plabel' }, '\u{1F4CA} POLL'),
     h('span', { class: 'txt' }), h('div', { class: 'pollbox' }));
   const shot = m.img && igShot(m);
   const el = h('div', { class: 'msg post ig' + (m.img ? ' hasimg' : '') + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
@@ -2919,6 +2943,11 @@ function buildPost(m, pending) {
   el._like = like;
   el.dataset.id = m.id || '';
   if (shot && !pending) wireDoubleTap(el, shot);
+  // Polls are their own colourful card.
+  if (!m.img && m.pl) {
+    el.classList.add('pollcard');
+    el.style.setProperty('--card', CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length]);
+  }
   // Text posts become colourful cards on phones; the shorter the text, the bigger it is.
   if (!m.img && !m.pl) {
     const n = (m.text || '').length;
@@ -3467,7 +3496,10 @@ async function loadOlder() {
   }
 }
 log.addEventListener('scroll', () => {
-  if (isFeed() ? log.scrollHeight - log.scrollTop - log.clientHeight < 200 : log.scrollTop < 60) loadOlder();
+  if (isFeed() ? log.scrollHeight - log.scrollTop - log.clientHeight < 200 : log.scrollTop < 60) {
+    if (isFeed() && !olderMore && !olderLoading) topUpFeed(); // For you never runs out
+    else loadOlder();
+  }
 });
 
 
@@ -3514,15 +3546,17 @@ function paintLikes(el, pop) {
 // Messages whose reactions changed (from a poll): repaint in place.
 function updateMessage(m) {
   if (m.e) eMax = Math.max(eMax, m.e);
-  const el = log.querySelector(`.msg[data-id="${m.id}"]`);
-  if (!el || el._busy) return;
-  const countChanged = (el._m.cc || 0) !== (m.cc || 0);
-  el._m = m;
-  if (!el._editing) paintText(el);
-  paintReactions(el);
-  paintCommentCount(el);
-  paintPoll(el);
-  if (countChanged && el._cmts) loadComments(el);
+  // The feed can show a post more than once (For you keeps going), so update every copy.
+  log.querySelectorAll(`.msg[data-id="${m.id}"]`).forEach(el => {
+    if (el._busy) return;
+    const countChanged = (el._m.cc || 0) !== (m.cc || 0);
+    el._m = m;
+    if (!el._editing) paintText(el);
+    paintReactions(el);
+    paintCommentCount(el);
+    paintPoll(el);
+    if (countChanged && el._cmts) loadComments(el);
+  });
 }
 
 async function toggleReaction(el, emoji) {
@@ -3596,16 +3630,20 @@ function paintPoll(el) {
   const total = Object.values(v).reduce((a, l) => a + l.length, 0);
   const mine = me ? Object.keys(v).find(k => v[k].some(n => key(n) === key(me.name))) : undefined;
   const live = !!m.id && !el.classList.contains('pending');
-  box.replaceChildren(h('div', { class: 'poll' },
+  // Feed polls keep the results hidden until you've voted (the person who asked always sees them).
+  const feedPoll = el.classList.contains('ig');
+  const reveal = !feedPoll || mine !== undefined || isMine(m);
+  box.replaceChildren(h('div', { class: 'poll' + (reveal ? ' shown' : '') },
     ...m.pl.o.map((o, i) => {
       const who = v[i] || [], pct = total ? Math.round(who.length * 100 / total) : 0;
       return h('button', {
         type: 'button', class: 'popt' + (String(i) === mine ? ' mine' : ''), disabled: live ? null : '',
-        title: who.length ? who.join(', ') : 'No votes yet', onclick: () => castVote(el, i),
-      }, h('span', { class: 'bar', style: `width:${pct}%` }), h('span', { class: 'ol' }, String(i) === mine ? '\u2713 ' : '', o),
-        h('span', { class: 'pc' }, total ? pct + '%' : ''));
+        title: reveal ? (who.length ? who.join(', ') : 'No votes yet') : 'Vote to see the results', onclick: () => castVote(el, i),
+      }, h('span', { class: 'bar', style: `width:${reveal ? pct : 0}%` }), h('span', { class: 'ol' }, String(i) === mine ? '\u2713 ' : '', o),
+        h('span', { class: 'pc' }, reveal && total ? pct + '%' : ''));
     }),
-    h('div', { class: 'ptotal' }, `${total} vote${total === 1 ? '' : 's'}${mine !== undefined ? ' \u00b7 tap your choice again to take it back' : ''}`)));
+    h('div', { class: 'ptotal' }, `${total} vote${total === 1 ? '' : 's'}` +
+      (mine !== undefined ? ' \u00b7 tap your choice again to take it back' : !reveal ? ' \u00b7 vote to see the results' : ''))));
 }
 
 async function castVote(el, i) {
@@ -4162,7 +4200,7 @@ function groupMessages() {
 function sys(text, isErr) {
   const stick = nearBottom();
   const el = h('div', { class: 'sys' + (isErr ? ' err' : '') }, text);
-  if (isFeed()) log.prepend(el); else log.appendChild(el);
+  if (isFeed()) log.insertBefore(el, feedTop()); else log.appendChild(el);
   if (stick) scrollDown();
   return el;
 }
@@ -4194,11 +4232,19 @@ function paintFeedSort() {
 }
 // Puts the loaded posts in order. Only when the feed opens or you switch order, never while
 // you're reading, so nothing jumps.
+// Shuffles so that higher weights tend to come first, but anything can.
+function weightedOrder(items, weight) {
+  return items.map(x => ({ x, k: Math.pow(Math.random(), 1 / Math.max(1e-6, weight(x))) }))
+    .sort((a, b) => b.k - a.k).map(o => o.x);
+}
 function rankFeed() {
   if (!isFeed()) return;
+  log.querySelectorAll('.msg.post.again').forEach(e => e.remove()); // start the endless part afresh
+  feedEndEl.remove();
+  againLast = null;
   const posts = [...log.children].filter(c => c.classList.contains('post') && !c.classList.contains('pending') && c._m);
   if (feedSort() === 'latest') posts.sort((a, b) => Number(b.dataset.id) - Number(a.dataset.id));
-  else posts.sort((a, b) => postScore(b._m) - postScore(a._m));
+  else posts.splice(0, posts.length, ...weightedOrder(posts, p => postScore(p._m))); // somewhat random; liked posts usually first
   const frag = document.createDocumentFragment();
   posts.forEach(p => frag.append(p));
   let at = feedTop();
@@ -4206,10 +4252,42 @@ function rankFeed() {
   log.insertBefore(frag, at || null);
   paintFeedEnd();
 }
-// "You're all caught up" once every post has loaded.
+// Once every post has loaded: "You're all caught up". In For you the feed then keeps going,
+// mixing earlier posts back in (liked ones more often); Latest just ends there.
+let againLast = null;
+const MAX_AGAIN = 300;
 function paintFeedEnd() {
-  const show = isFeed() && !olderMore && !olderLoading && !!log.querySelector('.msg.post');
-  if (show) log.append(feedEndEl); else feedEndEl.remove();
+  const done = isFeed() && !olderMore && !olderLoading && !!log.querySelector('.msg.post:not(.again)');
+  if (!done) { feedEndEl.remove(); return; }
+  const endless = feedSort() === 'foryou';
+  feedEndEl.querySelector('b').textContent = 'You\u2019re all caught up';
+  feedEndEl.querySelector('.fe-sub').textContent = endless ? 'Here\u2019s more from earlier \u2193' : 'You\u2019ve seen every post. Come back later for more!';
+  feedEndEl.querySelector('.fe-top').classList.toggle('hidden', endless);
+  if (!feedEndEl.isConnected) {
+    const firstAgain = log.querySelector('.msg.post.again');
+    log.insertBefore(feedEndEl, firstAgain || null);
+  }
+  if (endless) topUpFeed();
+}
+// How likely a post is to come round again: likes count most.
+function againWeight(m) {
+  const r = m.r || {};
+  const others = Object.keys(r).reduce((n, e) => n + (e === HEART ? 0 : (r[e] || []).length), 0);
+  return 1 + ((r[HEART] || []).length) * 3 + (m.cc || 0) * 2 + others;
+}
+function topUpFeed(n = 6) {
+  if (!isFeed() || feedSort() !== 'foryou' || !feedEndEl.isConnected) return;
+  if (log.querySelectorAll('.msg.post.again').length >= MAX_AGAIN) return;
+  const pool = [...log.querySelectorAll('.msg.post:not(.pending):not(.again)')].map(e => e._m).filter(m => m && m.id);
+  if (!pool.length) return;
+  for (let i = 0; i < n; i++) {
+    const choices = pool.length > 1 ? pool.filter(m => m.id !== againLast) : pool; // never the same post twice in a row
+    const pick = weightedOrder(choices, againWeight)[0];
+    againLast = pick.id;
+    const el = buildMessage(pick);
+    el.classList.add('again');
+    log.append(el);
+  }
 }
 // Each post fills the feed on phones; keep that size up to date (not while typing, when the keyboard is up).
 const sizeFeed = () => {
@@ -4309,7 +4387,7 @@ async function send(text, att, extra = {}) {
   }, true);
   if (rp) setReply(null);
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
-  if (isFeed()) log.prepend(pending); else log.appendChild(pending);
+  if (isFeed()) log.insertBefore(pending, feedTop()); else log.appendChild(pending); // under stories and For you | Latest
   scrollDown();
   try {
     const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
