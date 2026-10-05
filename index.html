@@ -725,6 +725,7 @@
     #log.feed > .post.ig .comments { max-height: 40vh; overflow-y: auto; }
     /* Photos fill the space between the name and the buttons, shown whole. */
     #log.feed > .post.ig.hasimg > .shot { flex: 1 1 0; min-height: 0; max-height: none; aspect-ratio: auto !important; background: #0b0b0f; }
+    #log.feed > .post.ig.hasvid > .shot video { object-fit: contain; }
     #log.feed > .post.ig.hasimg > .body { max-height: 6em; overflow-y: auto; }
     /* Text posts: a colourful card with big text (shorter post, bigger text). */
     #log.feed > .post.ig:not(.hasimg) > .body {
@@ -1122,6 +1123,56 @@
     .acts button { padding: 6px 10px; font-size: 16px; }
     .reacts button { padding: 4px 10px; }
   }
+  /* ---------- Idiocy Shorts ---------- */
+  .vshot { position: relative; background: #000; }
+  .vshot video { display: block; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  .vshot .vbadge { position: absolute; left: 10px; top: 10px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; pointer-events: none; }
+  .vshot .vsound { position: absolute; right: 10px; bottom: 10px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; font-size: 16px; cursor: pointer; }
+  #shortsrow { width: calc(100% - 16px); margin: 0 8px 2px; }
+  #shortsrow.hidden { display: none; }
+  .modal.shortmake video { width: 100%; max-height: 50vh; border-radius: 14px; background: #000; display: block; }
+  .modal.shortmake textarea { width: 100%; margin-top: 10px; min-height: 60px; resize: vertical; }
+  .modal.shortmake .upbar { height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin-top: 10px; }
+  .modal.shortmake .upbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .modal.shortmake .upnote { color: var(--muted); font-size: 13px; margin-top: 6px; min-height: 18px; }
+  /* The full-screen player: swipe up for the next one. */
+  #shorts { position: fixed; inset: 0; z-index: 900; background: #000; color: #fff; }
+  body.shorts-open .overlay { z-index: 950; } /* pop-ups (comments, menus) go over the player */
+  body.shorts-open #toast { z-index: 960; }
+  #shorts .strack { position: absolute; inset: 0; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none; }
+  #shorts .strack::-webkit-scrollbar { display: none; }
+  #shorts .slide { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; justify-content: center; overflow: hidden; }
+  #shorts .sframe { position: relative; height: 100%; width: min(100%, calc(100dvh * 9 / 16)); background: #000; touch-action: manipulation; }
+  #shorts .sframe video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #shorts .slide.wide .sframe video { object-fit: contain; }
+  #shorts .sframe::after { content: ''; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent, rgba(0, 0, 0, .6)); pointer-events: none; }
+  #shorts .sicons { position: absolute; right: 8px; bottom: calc(96px + env(safe-area-inset-bottom)); z-index: 2; display: flex; flex-direction: column; gap: 16px; align-items: center; }
+  #shorts .sicons button { display: flex; flex-direction: column; align-items: center; gap: 3px; border: 0; background: none; color: #fff; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+  #shorts .sicons svg { width: 32px; height: 32px; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .55)); }
+  #shorts .sicons .on { color: #ff3040; }
+  #shorts .sicons .on svg { fill: #ff3040; }
+  #shorts .scap { position: absolute; left: 14px; right: 74px; bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 2; text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+  #shorts .sname { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 15px; cursor: pointer; }
+  #shorts .sname .avatar { width: 32px; height: 32px; font-size: 13px; box-shadow: 0 0 0 2px #fff; }
+  #shorts .sname .when { font-weight: 500; opacity: .8; font-size: 13px; }
+  #shorts .stext { margin-top: 6px; font-size: 14.5px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; cursor: pointer; }
+  #shorts .stext.open { -webkit-line-clamp: unset; }
+  #shorts .spaused { position: absolute; inset: 0; display: grid; place-items: center; font-size: 64px; pointer-events: none; text-shadow: 0 2px 10px rgba(0, 0, 0, .5); z-index: 1; }
+  #shorts .spaused.hidden { display: none; }
+  #shorts .stop { position: absolute; left: 0; right: 0; top: 0; z-index: 3; display: flex; align-items: center; gap: 10px; padding: calc(10px + env(safe-area-inset-top)) 12px 10px; background: linear-gradient(rgba(0, 0, 0, .45), transparent); }
+  #shorts .stop b { flex: 1; font-size: 18px; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+  #shorts .stop button { border: 0; background: rgba(255, 255, 255, .16); color: #fff; width: 40px; height: 40px; border-radius: 50%; font-size: 18px; cursor: pointer; }
+  #shorts .sempty { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 12px; padding: 24px; }
+  #shorts .sempty .big { font-size: 56px; }
+  #shorts .sload { position: absolute; inset: 0; display: grid; place-items: center; }
+  #shorts .burst { width: 120px; height: 120px; margin: -60px 0 0 -60px; z-index: 2; }
+  .modal.shortcmts .clist { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; margin: 6px 0 10px; }
+  .modal.shortcmts .crow { display: flex; gap: 8px; align-items: flex-start; }
+  .modal.shortcmts .crow .avatar { width: 28px; height: 28px; font-size: 12px; flex: none; }
+  .modal.shortcmts .crow .ct { font-size: 14px; overflow-wrap: anywhere; }
+  .modal.shortcmts .crow .when { color: var(--muted); font-size: 12px; margin-left: 4px; }
+  .modal.shortcmts form { display: flex; gap: 8px; }
+  .modal.shortcmts form input { flex: 1; min-width: 0; }
   /* ---------- invite links ---------- */
   #invitebanner { background: linear-gradient(135deg, var(--accent), #b04cf5); color: #fff; border-radius: 12px; padding: 10px 14px; font-size: 14px; margin-bottom: 12px; }
   #invitebanner.hidden { display: none; }
@@ -1322,6 +1373,7 @@
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
       <div id="storybar" class="hidden" aria-label="Stories"></div>
       <div id="msearch"><input type="search" placeholder="Search" autocomplete="off" aria-label="Search chats"><button type="button" class="ghost hidden" id="msgsearch"></button></div>
+      <button type="button" class="ghost hidden" id="shortsrow">🎬 Idiocy Shorts</button>
       <div id="convos"></div>
     </div>
     <div class="sec friends">
@@ -1380,6 +1432,8 @@
         </button>
         <button type="button" class="camerabtn" id="postcam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Take photo</button>
         <button type="button" class="pollbtn hidden" id="postpoll" title="Make a poll">📊 Poll</button>
+        <button type="button" class="pollbtn hidden" id="postshort" title="Post a Short (a video up to 60 seconds)">🎬 Short</button>
+        <input type="file" id="shortfile" accept="video/*" class="hidden">
         <span class="hint" id="postcount">Ctrl+Enter to post</span>
       </div>
     </div>
@@ -1407,6 +1461,7 @@
   <nav id="mtabs" aria-label="Sections">
     <button data-tab="chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Chats<span class="tb hidden"></span></button>
     <button data-tab="feed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/></svg>Feed<span class="tb hidden"></span></button>
+    <button data-tab="shorts" class="hidden" id="mtabshorts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3.5"/><path d="M10.5 9.2v5.6l4.6-2.8z" fill="currentColor"/></svg>Shorts</button>
     <button data-tab="friends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Friends<span class="tb hidden"></span></button>
     <button data-tab="you"><span class="avatar" id="mtabme"></span>You</button>
   </nav>
@@ -2164,11 +2219,11 @@ addEventListener('pagehide', () => saveSnapshot(true));
 
 // ---------- what's new ----------
 // Shown once, after an update that brings new things, and only once the backend has them.
-const NEWS = { v: 21, title: 'New in Idiocy \u2728', items: [
-  ['\u{1F517}', 'Invite links', 'Get your own link (or QR code) under Friends \u2192 Invite friends. Anyone who opens it becomes your friend straight away.'],
+const NEWS = { v: 22, title: 'New in Idiocy \u2728', items: [
+  ['\u{1F3AC}', 'Idiocy Shorts', 'Swipe through short videos full-screen (the Shorts tab). Post your own with \u{1F3AC} Short: anything up to a minute.'],
 ], older: [
-  ['\u{1F4F8}', 'A new feed', 'Photos go edge to edge, with likes and comments underneath. Double-tap a photo to like it.'],
-], olderV: 20 };
+  ['\u{1F517}', 'Invite links', 'Get your own link (or QR code) under Friends \u2192 Invite friends. Anyone who opens it becomes your friend straight away.'],
+], olderV: 21 };
 function maybeShowNews() {
   if (serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
   // Missed the last update's pop-up too? Show those as well.
@@ -2245,7 +2300,7 @@ async function poll() {
     streaks = d.streaks || {};
     stories = d.stories || [];
     settings = d.settings || settings;
-    if ((d.api || 0) !== serverApi) { serverApi = d.api || 0; log.querySelectorAll('.post').forEach(paintCommentCount); }
+    if ((d.api || 0) !== serverApi) { serverApi = d.api || 0; log.querySelectorAll('.post').forEach(paintCommentCount); paintFeedSort(); }
     if (pingTop === null) pingTop = d.pingTop; // first poll: don't replay old notifications
     else if (d.pings && d.pings.length) {
       pingTop = Math.max(pingTop, ...d.pings.map(p => p.n));
@@ -2291,6 +2346,8 @@ async function poll() {
     saveSnapshot();
     maybeShowNews();
     $('invitebtn').classList.toggle('hidden', serverApi < 21);
+    $('mtabshorts').classList.toggle('hidden', serverApi < 22);
+    $('shortsrow').classList.toggle('hidden', serverApi < 22);
     if (store.get(INVITE_KEY)) redeemPendingInvite();
   } catch (e) {
     setStatus(false);
@@ -2981,8 +3038,8 @@ function igShot(m) {
   return box;
 }
 
-// One tap opens the photo; two quick taps like it, with a big heart.
-function wireDoubleTap(el, box) {
+// One tap opens the photo (or does `single`); two quick taps like it, with a big heart.
+function wireDoubleTap(el, box, single) {
   let last = 0, timer = null;
   box.onclick = () => {
     const now = Date.now();
@@ -2996,8 +3053,277 @@ function wireDoubleTap(el, box) {
       return;
     }
     last = now;
-    timer = setTimeout(() => { const img = box.querySelector('img'); if (img && img.src) openLightbox(img.src); }, 300);
+    timer = setTimeout(single || (() => { const img = box.querySelector('img'); if (img && img.src) openLightbox(img.src); }), 300);
   };
+}
+
+// ---------- Idiocy Shorts ----------
+// Videos live on the home server: /v/<id>.mp4 and /v/<id>.jpg (a poster picture).
+const MEDIA_BASE = (() => { try { return new URL(API_URL).origin; } catch (e) { return ''; } })();
+const videoUrl = id => `${MEDIA_BASE}/v/${id}.mp4`;
+const posterUrl = id => `${MEDIA_BASE}/v/${id}.jpg`;
+let shortsSound = (() => { try { return JSON.parse(localStorage.getItem('chat_prefs') || '{}').shortsSound !== false; } catch (e) { return true; } })();
+
+// A Short in the feed: plays silently while it's on screen; tap to open it in Shorts.
+const feedVideos = new IntersectionObserver(entries => entries.forEach(e => {
+  const v = e.target.querySelector('video');
+  if (!v) return;
+  if (e.isIntersecting && e.intersectionRatio >= 0.6) {
+    if (!v.src) v.src = v.dataset.src;
+    v.play().catch(() => {});
+  } else v.pause();
+}), { root: log, threshold: [0, 0.6] });
+function videoBlock(m) {
+  const v = h('video', { muted: '', playsinline: '', loop: '', preload: 'none', poster: posterUrl(m.vd.id), 'aria-label': 'Short by ' + m.name });
+  v.muted = true;
+  v.dataset.src = videoUrl(m.vd.id);
+  const sound = h('button', { class: 'vsound', title: 'Sound on/off', 'aria-label': 'Sound on or off', onclick: e => {
+    e.stopPropagation();
+    v.muted = !v.muted;
+    sound.textContent = v.muted ? '\u{1F507}' : '\u{1F50A}';
+    if (!v.muted) v.play().catch(() => {});
+  } }, '\u{1F507}');
+  const box = h('div', { class: 'shot vshot' }, v, h('span', { class: 'vbadge' }, '\u{1F3AC} ' + fmtDur(m.vd.s)), sound);
+  box.style.aspectRatio = String(Math.min(1.91, Math.max(0.8, (m.vd.w || 9) / (m.vd.h || 16))));
+  feedVideos.observe(box);
+  return box;
+}
+
+// Posting a Short: pick or record a video, add a caption, upload (it's converted on the server).
+function uploadVideo(file, onProgress) {
+  return new Promise((ok, bad) => {
+    const x = new XMLHttpRequest();
+    x.open('POST', MEDIA_BASE + '/upload/video');
+    x.setRequestHeader('x-idiocy-token', token || '');
+    x.upload.onprogress = e => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    x.upload.onload = () => onProgress(1);
+    x.onload = () => { try { ok(JSON.parse(x.responseText)); } catch (e) { bad(new Error('The upload didn\u2019t work')); } };
+    x.onerror = () => bad(new Error('Could not reach the server'));
+    x.send(file);
+  });
+}
+function openShortMaker(file) {
+  if (!file) return;
+  if (!/^video\//.test(file.type) && !/\.(mp4|mov|m4v|webm|3gp)$/i.test(file.name)) return toast('That isn\u2019t a video', true);
+  if (file.size > 150 * 1024 * 1024) return toast('That video is too big (150 MB at most). Try a shorter one.', true);
+  const url = URL.createObjectURL(file);
+  const preview = h('video', { src: url, muted: '', playsinline: '', loop: '', autoplay: '', controls: '' });
+  preview.muted = true;
+  const cap = h('textarea', { placeholder: 'Add a caption\u2026', maxlength: 300 });
+  attachMentions(cap);
+  const bar = h('i'), note = h('div', { class: 'upnote' });
+  preview.onloadedmetadata = () => { if (preview.duration > 60.5) note.textContent = `It\u2019s ${fmtDur(Math.round(preview.duration))} long, so only the first minute will be posted.`; };
+  const post = h('button', { class: 'primary' }, 'Post Short');
+  const cancel = h('button', { class: 'ghost', onclick: () => close() }, 'Cancel');
+  const md = modal('shortmake', h('h2', null, '\u{1F3AC} New Short'), preview, cap, h('div', { class: 'upbar' }, bar), note,
+    h('div', { class: 'btns' }, cancel, post));
+  const close = () => { md.close(); URL.revokeObjectURL(url); };
+  post.onclick = async () => {
+    post.disabled = cancel.disabled = cap.disabled = true;
+    note.textContent = 'Uploading\u2026';
+    try {
+      const up = await uploadVideo(file, f => {
+        bar.style.width = Math.round(f * 100) + '%';
+        note.textContent = f < 1 ? `Uploading\u2026 ${Math.round(f * 100)}%` : 'Getting it ready\u2026 (this can take up to a minute)';
+      });
+      if (!up.ok) throw Object.assign(new Error(up.error || 'The upload didn\u2019t work'), { verify: verifyError(up.error) });
+      note.textContent = 'Posting\u2026';
+      const d = await act('send', { convo: 'global', text: cap.value.trim(), video: up.vid });
+      if (!d) throw new Error('');
+      close();
+      toast('\u{1F3AC} Your Short is up!');
+      if (openId !== 'global') switchTo('global');
+      pollNow();
+    } catch (e) {
+      post.disabled = cancel.disabled = cap.disabled = false;
+      bar.style.width = '0';
+      note.textContent = e.message || '';
+      if (e.verify) openVerify();
+    }
+  };
+}
+
+// The full-screen player. Opens on `startId` if given; otherwise a For you mix, liked ones first more often.
+let shortsOpen = null;
+async function openShorts(startId) {
+  if (shortsOpen || serverApi < 22) return;
+  const track = h('div', { class: 'strack' });
+  const soundBtn = h('button', { title: 'Sound on/off', 'aria-label': 'Sound on or off' });
+  const paintSound = () => { soundBtn.textContent = shortsSound ? '\u{1F50A}' : '\u{1F507}'; };
+  paintSound();
+  const view = h('div', { id: 'shorts', role: 'dialog', 'aria-label': 'Idiocy Shorts' }, track,
+    h('div', { class: 'stop' },
+      h('button', { title: 'Close', 'aria-label': 'Close', onclick: () => close() }, '\u2715'),
+      h('b', null, '\u{1F3AC} Shorts'),
+      soundBtn,
+      h('button', { title: 'Post a Short', 'aria-label': 'Post a Short', onclick: () => { close(); pickShort(); } }, '+')));
+  track.append(h('div', { class: 'sload' }, h('span', { class: 'spinner' })));
+  document.body.append(view);
+  document.body.classList.add('shorts-open');
+  const state = { list: [], last: null, current: null };
+  shortsOpen = state;
+  const onKey = e => {
+    if (e.key === 'Escape') close();
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); track.scrollBy({ top: (e.key === 'ArrowDown' ? 1 : -1) * track.clientHeight, behavior: 'smooth' }); }
+    else if (e.key === 'm') soundBtn.click();
+  };
+  document.addEventListener('keydown', onKey);
+  function close() {
+    if (shortsOpen !== state) return;
+    shortsOpen = null;
+    document.removeEventListener('keydown', onKey);
+    seen.disconnect();
+    track.querySelectorAll('video').forEach(v => { v.pause(); v.removeAttribute('src'); v.load(); });
+    view.remove();
+    document.body.classList.remove('shorts-open');
+  }
+  soundBtn.onclick = () => {
+    shortsSound = !shortsSound;
+    prefs.shortsSound = shortsSound; savePrefs(); paintSound();
+    track.querySelectorAll('video').forEach(v => { v.muted = !shortsSound; });
+    if (state.current) state.current.play().catch(() => {});
+  };
+  // The one on screen plays; the next one starts loading.
+  const seen = new IntersectionObserver(entries => entries.forEach(e => {
+    const v = e.target.querySelector('video');
+    if (e.isIntersecting && e.intersectionRatio >= 0.7) {
+      state.current = v;
+      if (!v.src) v.src = v.dataset.src;
+      v.muted = !shortsSound;
+      v.play().catch(() => { v.muted = true; shortsSound = false; paintSound(); v.play().catch(() => {}); });
+      const next = e.target.nextElementSibling && e.target.nextElementSibling.querySelector('video');
+      if (next && !next.src) { next.preload = 'auto'; next.src = next.dataset.src; }
+      if (!e.target.nextElementSibling || !e.target.nextElementSibling.nextElementSibling) more(); // keep going
+    } else if (!e.isIntersecting || e.intersectionRatio < 0.7) { v.pause(); }
+  }), { root: track, threshold: [0, 0.7] });
+
+  let d;
+  try { d = await api('shorts', {}); } catch (e) { d = { ok: false, error: 'Could not reach the server' }; }
+  if (shortsOpen !== state) return;
+  track.replaceChildren();
+  if (!d.ok) { track.append(h('div', { class: 'sempty' }, h('div', null, d.error || 'Couldn\u2019t load Shorts'))); return; }
+  state.list = d.shorts;
+  if (!state.list.length) {
+    track.append(h('div', { class: 'sempty' }, h('div', { class: 'big' }, '\u{1F3AC}'), h('b', null, 'No Shorts yet'),
+      h('div', null, 'Be the first! Post a video up to a minute long.'),
+      h('div', null, h('button', { class: 'primary', onclick: () => { close(); pickShort(); } }, 'Post a Short'))));
+    return;
+  }
+  // First: the one you tapped (if any), then a mix where liked Shorts come up more.
+  const start = startId && state.list.find(m => m.id === startId);
+  const order = weightedOrder(state.list.filter(m => m !== start), postScore);
+  [start, ...order].filter(Boolean).forEach(addSlide);
+  function more(n = 5) {
+    if (track.children.length > 300) return;
+    for (let i = 0; i < n; i++) {
+      const pool = state.list.length > 1 ? state.list.filter(m => m.id !== state.last) : state.list; // never the same one twice in a row
+      addSlide(weightedOrder(pool, againWeight)[0]);
+    }
+  }
+  function addSlide(m) {
+    state.last = m.id;
+    const v = h('video', { playsinline: '', loop: '', preload: 'metadata', poster: posterUrl(m.vd.id) });
+    v.dataset.src = videoUrl(m.vd.id);
+    const paused = h('div', { class: 'spaused hidden' }, '\u25B6');
+    const likeBtn = h('button', { title: 'Like' }), cBtn = h('button', { title: 'Comments' });
+    const slide = h('div', { class: 'slide' + ((m.vd.w || 0) > (m.vd.h || 0) ? ' wide' : '') });
+    slide._m = m;
+    const paint = () => {
+      const r = slide._m.r || {}, names = r[HEART] || [], mine = !!me && names.some(n => key(n) === key(me.name));
+      likeBtn.className = mine ? 'on' : '';
+      likeBtn.replaceChildren(icon(ICON_HEART), String(names.length || ''), h('span', { class: 'vh' }, mine ? 'Unlike' : 'Like'));
+      cBtn.replaceChildren(icon(ICON_COMMENT), String(slide._m.cc || ''), h('span', { class: 'vh' }, 'Comments'));
+    };
+    const like = async (onlyAdd) => {
+      const names = (slide._m.r || {})[HEART] || [];
+      if (onlyAdd && me && names.some(n => key(n) === key(me.name))) return;
+      const d2 = await act('react', { convo: 'global', id: slide._m.id, emoji: HEART });
+      if (d2 && d2.message) { slide._m = d2.message; paint(); updateMessage(d2.message); }
+    };
+    likeBtn.onclick = () => like(false);
+    cBtn.onclick = () => openShortComments(slide, paint);
+    const frame = h('div', { class: 'sframe' }, v, paused,
+      h('div', { class: 'sicons' }, likeBtn, cBtn,
+        h('button', { title: 'Share', onclick: () => sharePost(slide._m) }, icon(ICON_SHARE), h('span', { class: 'vh' }, 'Share')),
+        h('button', { title: 'More', onclick: () => shortMenu(slide, close) }, h('span', { style: 'font-size:26px;line-height:1' }, '\u22EF'))),
+      h('div', { class: 'scap' },
+        h('div', { class: 'sname', onclick: () => openProfile(m.name) }, avatar(m.name, { click: false }), m.name, h('span', { class: 'when' }, '\u2022 ' + ago(m.time))),
+        m.text && h('div', { class: 'stext', onclick: e => e.currentTarget.classList.toggle('open') }, m.text)));
+    // One tap: pause or play. Two: like, with a big heart.
+    let lastTap = 0, tapTimer = null;
+    v.onclick = () => {
+      const now = Date.now();
+      if (now - lastTap < 300) {
+        clearTimeout(tapTimer); lastTap = 0;
+        like(true);
+        const b2 = icon(ICON_HEART, { class: 'burst', stroke: 'none' });
+        frame.append(b2); setTimeout(() => b2.remove(), 950);
+        return;
+      }
+      lastTap = now;
+      tapTimer = setTimeout(() => {
+        if (v.paused) { v.play().catch(() => {}); paused.classList.add('hidden'); } else { v.pause(); paused.classList.remove('hidden'); }
+      }, 300);
+    };
+    slide.append(frame);
+    paint();
+    track.append(slide);
+    seen.observe(slide);
+  }
+}
+function pickShort() { if (serverApi >= 22) $('shortfile').click(); }
+$('postshort').onclick = pickShort;
+$('shortfile').onchange = () => { const f = $('shortfile').files[0]; $('shortfile').value = ''; openShortMaker(f); };
+$('shortsrow').onclick = () => openShorts();
+
+// Comments on a Short, in a pop-up over the player.
+async function openShortComments(slide, repaint) {
+  const m = slide._m;
+  const list = h('div', { class: 'clist' }, h('div', { class: 'shimmer', style: 'height:34px;border-radius:12px' }));
+  const input = h('input', { placeholder: 'Add a comment\u2026', maxlength: 300 });
+  attachMentions(input);
+  const row = c => h('div', { class: 'crow' }, avatar(c.name),
+    h('div', { class: 'ct' }, h('b', null, c.name), ' ', c.text, h('span', { class: 'when' }, ago(c.time))));
+  const form = h('form', { onsubmit: async e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    const d = await act('send', { convo: 'p:' + m.id, text });
+    if (!d) { input.value = text; return; }
+    if (list.querySelector('.none')) list.replaceChildren();
+    list.append(row(d.message));
+    list.scrollTop = list.scrollHeight;
+    slide._m = Object.assign({}, slide._m, { cc: (slide._m.cc || 0) + 1 });
+    repaint();
+    updateMessage(slide._m);
+  } }, input, h('button', { class: 'primary', type: 'submit' }, 'Post'));
+  const md = modal('shortcmts', h('h2', null, 'Comments'), list, form,
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Close')));
+  const d = await api('comments', { post: m.id }).catch(() => null);
+  if (!d || !d.ok) { list.replaceChildren(h('div', { class: 'none', style: 'color:var(--muted)' }, (d && d.error) || 'Couldn\u2019t load comments')); return; }
+  list.replaceChildren(...(d.comments.length ? d.comments.map(row) : [h('div', { class: 'none', style: 'color:var(--muted)' }, 'No comments yet. Say something!')]));
+}
+
+// ⋯ on a Short: report it, or delete it if it's yours.
+function shortMenu(slide, closePlayer) {
+  const m = slide._m;
+  const md = modal('memmenu', h('h2', null, 'Short'),
+    h('div', { class: 'btns' },
+      canDelete(m) && h('button', { class: 'ghost danger', onclick: async () => {
+        if (!confirm('Delete this Short?')) return;
+        md.close();
+        if (await act('deleteMessage', { convo: 'global', id: m.id })) {
+          toast('Short deleted');
+          const next = slide.nextElementSibling;
+          slide.remove();
+          if (next) next.scrollIntoView();
+          else closePlayer();
+          pollNow();
+        }
+      } }, '\u{1F5D1} Delete'),
+      !isMine(m) && h('button', { class: 'ghost', onclick: () => { md.close(); openReport(m); } }, '\u2691 Report'),
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Close')));
 }
 
 async function sharePost(m) {
@@ -3022,11 +3348,11 @@ function buildPost(m, pending) {
   const cbtn = h('button', { class: 'pact', title: 'Comment', onclick: () => toggleComments(el) });
   const like = h('button', { class: 'pact like', title: 'Like', onclick: () => toggleReaction(el, HEART) });
   const body = h('div', { class: 'body' },
-    m.img && h('b', { class: 'capname', onclick: () => openProfile(m.name) }, m.name),
+    (m.img || m.vd) && h('b', { class: 'capname', onclick: () => openProfile(m.name) }, m.name),
     !m.img && m.pl && h('div', { class: 'plabel' }, '\u{1F4CA} POLL'),
     h('span', { class: 'txt' }), h('div', { class: 'pollbox' }));
-  const shot = m.img && igShot(m);
-  const el = h('div', { class: 'msg post ig' + (m.img ? ' hasimg' : '') + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
+  const shot = m.vd ? videoBlock(m) : m.img && igShot(m);
+  const el = h('div', { class: 'msg post ig' + (m.img || m.vd ? ' hasimg' : '') + (m.vd ? ' hasvid' : '') + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
     h('div', { class: 'phead' },
       storyRing(m.name),
       h('div', { class: 'who2' },
@@ -3034,7 +3360,7 @@ function buildPost(m, pending) {
           h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), onclick: () => openProfile(m.name) }, m.name),
           m.admin && h('span', { class: 'badge' }, 'ADMIN'),
           h('span', { class: 'sep' }, '\u2022'), time, h('span', { class: 'edtag' })))),
-    !m.img && body,
+    !(m.img || m.vd) && body,
     shot,
     !pending && h('div', { class: 'pfoot' },
       like, cbtn,
@@ -3042,7 +3368,7 @@ function buildPost(m, pending) {
       h('span', { class: 'grow' }),
       h('button', { class: 'pact react', title: 'React', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642}', h('span', { class: 'vh' }, ' React'))),
     !pending && h('div', { class: 'likes' }),
-    m.img && body,
+    (m.img || m.vd) && body,
     h('div', { class: 'reacts' }),
     !pending && h('button', { class: 'viewc hidden', onclick: () => toggleComments(el) }),
     !pending && h('div', { class: 'acts' },
@@ -3053,14 +3379,15 @@ function buildPost(m, pending) {
   el._cbtn = cbtn;
   el._like = like;
   el.dataset.id = m.id || '';
-  if (shot && !pending) wireDoubleTap(el, shot);
+  if (shot && !pending) wireDoubleTap(el, shot, m.vd ? () => openShorts(el._m.id) : null); // a video opens Shorts
+  if (m.vd && !pending) el.classList.remove('txtcard');
   // Polls are their own colourful card.
   if (!m.img && m.pl) {
     el.classList.add('pollcard');
     el.style.setProperty('--card', CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length]);
   }
   // Text posts become colourful cards on phones; the shorter the text, the bigger it is.
-  if (!m.img && !m.pl) {
+  if (!m.img && !m.pl && !m.vd) {
     const n = (m.text || '').length;
     el.classList.add('txtcard', n <= 40 ? 't-xl' : n <= 110 ? 't-l' : n <= 260 ? 't-m' : 't-s');
     el.style.setProperty('--card', CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length]);
@@ -3265,6 +3592,7 @@ function setView(v) {
 }
 matchMedia('(max-width: 720px)').addEventListener('change', () => setView(mview));
 function mtab(t) {
+  if (t === 'shorts') { openShorts(); return; } // a full-screen player, not a screen of its own
   setView(t);
   if (openId !== 'global') switchTo('global'); // nothing sits open (and gets marked read) behind the list
   if (t === 'chats' || t === 'friends' || t === 'you') $('app').querySelector('aside').scrollTop = 0;
@@ -4340,7 +4668,7 @@ function paintFeedSort() {
     h('button', { class: feedSort() === v ? 'primary' : 'ghost', role: 'tab', 'aria-selected': String(feedSort() === v), onclick: () => {
       if (feedSort() === v) return;
       prefs.feedSort = v; savePrefs(); paintFeedSort(); rankFeed(); log.scrollTo({ top: 0 });
-    } }, label)));
+    } }, label)), ...(serverApi >= 22 ? [h('button', { class: 'ghost', onclick: () => openShorts() }, '\u{1F3AC} Shorts')] : []));
 }
 // Puts the loaded posts in order. Only when the feed opens or you switch order, never while
 // you're reading, so nothing jumps.
@@ -4463,6 +4791,8 @@ function updateComposer() {
   $('mic').disabled = !!muted || waiting || locked;
   $('mic').classList.toggle('hidden', serverApi < 11);
   $('postpoll').classList.toggle('hidden', serverApi < 11);
+  $('postshort').classList.toggle('hidden', serverApi < 22);
+  $('postshort').disabled = !!muted || locked;
   $('postpoll').disabled = !!muted || locked;
   note.onclick = null;
   document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
