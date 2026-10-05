@@ -714,41 +714,51 @@
       scrollbar-width: none; flex: none;
     }
     #log.feed #feedstories::-webkit-scrollbar { display: none; }
-    /* One post per screen: each swipe moves exactly one post. */
-    #log.feed { scroll-snap-type: y mandatory; gap: 0; }
-    #log.feed.nosnap { scroll-snap-type: none; } /* while comments are open */
-    #log.feed > #feedstories, #log.feed > .msg.post.ig, #log.feed > .feedend { scroll-snap-align: start; scroll-snap-stop: always; }
-    #log.feed > .msg.post.ig { height: var(--feedh, 600px); display: flex; flex-direction: column; border-top: 0; }
-    #log.feed > .msg.post.ig.cmtopen { height: auto; min-height: var(--feedh, 600px); }
-    #log.feed > .msg.post.ig > * { flex: none; }
-    #log.feed > .feedend { height: var(--feedh, 600px); display: flex; flex-direction: column; justify-content: center; background: var(--panel); }
-    #log.feed > .post.ig .comments { max-height: 40vh; overflow-y: auto; }
-    /* Photos fill the space between the name and the buttons, shown whole. */
-    #log.feed > .post.ig.hasimg > .shot { flex: 1 1 0; min-height: 0; max-height: none; aspect-ratio: auto !important; background: #0b0b0f; }
-    #log.feed > .post.ig.hasvid > .shot video { object-fit: contain; }
-    #log.feed > .post.ig.hasimg > .body { max-height: 6em; overflow-y: auto; }
-    /* Text posts: a colourful card with big text (shorter post, bigger text). */
-    #log.feed > .post.ig:not(.hasimg) > .body {
-      flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; margin: 0 12px 4px; padding: 22px; border-radius: 20px;
-    }
-    #log.feed > .post.ig:not(.hasimg) > .body > .txt { margin: auto 0; }
-    #log.feed > .post.ig.pollcard > .body { justify-content: center; }
-    #log.feed > .post.ig.pollcard > .body > .txt { margin: 0 0 16px; font-size: 25px; }
-    #log.feed > .post.ig.pollcard .popt { min-height: 56px; font-size: 17px; }
-    #log.feed > .post.ig.txtcard > .body { background: var(--card); color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
-    #log.feed > .post.ig.txtcard > .body .ment { color: #fff; background: rgba(255, 255, 255, .22); }
-    #log.feed > .post.ig.t-xl > .body { font-size: 32px; line-height: 1.2; text-align: center; }
-    #log.feed > .post.ig.t-l > .body { font-size: 25px; line-height: 1.3; text-align: center; }
-    #log.feed > .post.ig.t-m > .body { font-size: 20px; line-height: 1.4; }
-    #log.feed > .post.ig.t-s > .body { font-size: 16.5px; line-height: 1.5; }
+    /* One post per screen: edge to edge, no gaps. */
+    #log.feed { gap: 0; padding: 0 0 16px; scroll-padding-top: 0; }
+    #log.feed > .msg.post.ig { height: var(--feedh, 600px); }
+    #log.feed > .msg.post.ig.cmtopen { min-height: var(--feedh, 600px); }
+    #log.feed > .feedend { height: var(--feedh, 600px); }
     /* The post box stays one slim row until you tap it. */
     #feedbox:not(.open) { padding-top: 8px; padding-bottom: 8px; }
     #feedbox:not(.open) .fbact, #feedbox:not(.open) #postbtn { display: none; }
     #feedbox:not(.open) #postcammini { display: inline-flex; }
   }
-  /* Photos are capped so a whole post (name, photo, buttons, caption) fits on the screen. */
-  #log.feed > .post.ig.hasimg .shot { max-height: max(220px, calc(var(--feedh, 640px) - 190px)); }
-  #log.feed > .post.ig.hasimg .shot img { object-fit: contain; }
+  /* One post per screen, on phones and computers: each swipe or scroll moves exactly one post. */
+  #log.feed { scroll-snap-type: y mandatory; gap: 0; }
+  #log.feed.nosnap { scroll-snap-type: none; } /* while comments are open */
+  #log.feed > #feedstories, #log.feed > .msg.post.ig, #log.feed > .feedend { scroll-snap-align: start; scroll-snap-stop: always; }
+  #log.feed > .msg.post.ig { height: var(--feedh, 600px); display: flex; flex-direction: column; border-top: 0; }
+  #log.feed > .msg.post.ig.cmtopen { height: auto; min-height: var(--feedh, 600px); }
+  #log.feed > .msg.post.ig > * { flex: none; }
+  #log.feed > .feedend { height: var(--feedh, 600px); display: flex; flex-direction: column; justify-content: center; background: var(--panel); }
+  #log.feed > .post.ig .comments { max-height: 40vh; overflow-y: auto; }
+  /* Photos fill the space between the name and the buttons, shown whole. */
+  #log.feed > .post.ig.hasimg > .shot { flex: 1 1 0; min-height: 0; max-height: none; aspect-ratio: auto !important; background: #0b0b0f; }
+  #log.feed > .post.ig.hasvid > .shot video { object-fit: contain; }
+  #log.feed > .post.ig.hasimg > .body { max-height: 6em; overflow-y: auto; }
+  /* Text posts: a colourful card with big text (shorter post, bigger text). */
+  #log.feed > .post.ig:not(.hasimg) > .body {
+    flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; margin: 0 12px 4px; padding: 22px; border-radius: 20px;
+  }
+  #log.feed > .post.ig:not(.hasimg) > .body > .txt { margin: auto 0; }
+  #log.feed > .post.ig.pollcard > .body { justify-content: center; }
+  #log.feed > .post.ig.pollcard > .body > .txt { margin: 0 0 16px; font-size: 25px; }
+  #log.feed > .post.ig.pollcard .popt { min-height: 56px; font-size: 17px; }
+  #log.feed > .post.ig.txtcard > .body { background: var(--card); color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+  #log.feed > .post.ig.txtcard > .body .ment { color: #fff; background: rgba(255, 255, 255, .22); }
+  #log.feed > .post.ig.t-xl > .body { font-size: 32px; line-height: 1.2; text-align: center; }
+  #log.feed > .post.ig.t-l > .body { font-size: 25px; line-height: 1.3; text-align: center; }
+  #log.feed > .post.ig.t-m > .body { font-size: 20px; line-height: 1.4; }
+  #log.feed > .post.ig.t-s > .body { font-size: 16.5px; line-height: 1.5; }
+  #log.feed > .post.ig.hasimg > .shot img { object-fit: contain; }
+  /* Computers: the same, as a phone-shaped column in the middle with a little space around each post. */
+  @media (min-width: 721px) {
+    #log.feed { gap: 16px; padding: 16px 16px 24px; scroll-padding-top: 16px; }
+    #log.feed > .msg.post.ig { height: calc(var(--feedh, 640px) - 32px); border-top: 1px solid var(--border); }
+    #log.feed > .msg.post.ig.cmtopen { height: auto; min-height: calc(var(--feedh, 640px) - 32px); }
+    #log.feed > .feedend { height: calc(var(--feedh, 640px) - 32px); border: 1px solid var(--border); border-radius: 14px; }
+  }
   #postcammini {
     display: none; flex: none; align-items: center; justify-content: center; width: 42px; height: 42px; margin-top: 0;
     border-radius: 50%; border: 0; background: var(--accent); color: #fff; cursor: pointer;
@@ -1138,6 +1148,16 @@
   /* The full-screen player: swipe up for the next one. */
   #shorts { position: fixed; inset: 0; z-index: 900; background: #000; color: #fff; }
   body.shorts-open .overlay { z-index: 950; } /* pop-ups (comments, menus) go over the player */
+  /* Phones: Shorts sits above the tab bar, which stays (dark, like TikTok's) so you can hop to another tab. */
+  @media (max-width: 720px) {
+    body.shorts-open #shorts { bottom: var(--mtabh, 64px); }
+    body.shorts-open #mtabs { position: relative; z-index: 901; background: #000; border-top-color: #222; }
+    body.shorts-open #mtabs button { color: #9a9aa6; }
+    body.shorts-open #mtabs button.on { color: #9a9aa6; }
+    body.shorts-open #mtabs #mtabshorts { color: #fff; }
+    body.shorts-open #shorts .scap { bottom: 16px; }
+    body.shorts-open #shorts .sicons { bottom: 84px; }
+  }
   body.shorts-open #toast { z-index: 960; }
   #shorts .strack { position: absolute; inset: 0; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none; }
   #shorts .strack::-webkit-scrollbar { display: none; }
@@ -2510,7 +2530,8 @@ function renderHeader() {
   const c = st && st.convos.find(c => c.id === openId);
   const isGroup = c && c.type === 'group';
   $('title').classList.toggle('link', !!c && (c.type === 'dm' || isGroup));
-  $('title').onclick = c && c.type === 'dm' ? () => openProfile(convoLabel(c)) : isGroup ? () => openGroupInfo(c.id) : null;
+  $('title').onclick = c && c.type === 'dm' ? () => openProfile(convoLabel(c)) : isGroup ? () => openGroupInfo(c.id)
+    : isFeed() ? feedToTop : null;
   $('title').title = isGroup ? 'Group info' : '';
   const hsig = c ? c.id + (c.pv || '') + picVer + (c.type === 'dm' ? profileVer : '') : '';
   if ($('hicon').dataset.sig !== hsig) {
@@ -3163,7 +3184,8 @@ async function openShorts(startId) {
   track.append(h('div', { class: 'sload' }, h('span', { class: 'spinner' })));
   document.body.append(view);
   document.body.classList.add('shorts-open');
-  const state = { list: [], last: null, current: null };
+  document.documentElement.style.setProperty('--mtabh', ($('mtabs').offsetHeight || 64) + 'px');
+  const state = { list: [], last: null, current: null, close: () => close() };
   shortsOpen = state;
   const onKey = e => {
     if (e.key === 'Escape') close();
@@ -3606,6 +3628,8 @@ function setView(v) {
 matchMedia('(max-width: 720px)').addEventListener('change', () => setView(mview));
 function mtab(t) {
   if (t === 'shorts') { openShorts(); return; } // a full-screen player, not a screen of its own
+  if (shortsOpen) { shortsOpen.close(); if (t === mview) return; } // another tab: leave Shorts and go there
+  if (t === 'feed' && mview === 'feed') { feedToTop(); return; } // tapping Feed again: back to the top
   setView(t);
   if (openId !== 'global') switchTo('global'); // nothing sits open (and gets marked read) behind the list
   if (t === 'chats' || t === 'friends' || t === 'you') $('app').querySelector('aside').scrollTop = 0;
@@ -4045,6 +4069,7 @@ function openPicker(btn, el) {
   pickerEl.style.top = Math.max(8, rect.top - pickerEl.offsetHeight - 6) + 'px';
   el.classList.add('picking');
   pickerEl._msg = el;
+  pickerEl._top = log.scrollTop;
 }
 
 function closePicker() {
@@ -4056,7 +4081,8 @@ function closePicker() {
 document.addEventListener('mousedown', e => {
   if (pickerEl && !pickerEl.contains(e.target) && !e.target.closest('.acts')) closePicker();
 });
-log.addEventListener('scroll', closePicker);
+// Scrolling away closes it; the feed settling by a few pixels (snapping) doesn't.
+log.addEventListener('scroll', () => { if (pickerEl && Math.abs(log.scrollTop - pickerEl._top) > 40) closePicker(); });
 
 // ---------- media (pictures, voice) by id, cached ----------
 const mediaLoading = new Map(); // id -> the download already on its way, so it's never fetched twice
@@ -4717,11 +4743,42 @@ function paintFeedEnd() {
   feedEndEl.querySelector('.fe-sub').textContent = endless ? 'Here\u2019s more from earlier \u2193' : 'You\u2019ve seen every post. Come back later for more!';
   feedEndEl.querySelector('.fe-top').classList.toggle('hidden', endless);
   if (!feedEndEl.isConnected) {
-    const firstAgain = log.querySelector('.msg.post.again');
+    const firstAgain = log.querySelector('.msg.post.again:not(.up)');
     log.insertBefore(feedEndEl, firstAgain || null);
   }
   if (endless) topUpFeed();
 }
+// For you goes on forever upwards too: scrolling up near the top slips more posts in above,
+// holding your place. Tapping Feed again (or the title) jumps to the real top instead.
+let upPause = 0, lastFeedScroll = 0;
+function topUpAbove(n = 4) {
+  if (!isFeed() || feedSort() !== 'foryou' || log.querySelectorAll('.msg.post.again').length >= MAX_AGAIN) return;
+  const pool = [...log.querySelectorAll('.msg.post:not(.pending):not(.again)')].map(e => e._m).filter(m => m && m.id);
+  const first = log.querySelector('.msg.post:not(.pending)');
+  if (pool.length < 2 || !first) return;
+  keepPlace(() => {
+    let ref = first, prev = first._m && first._m.id;
+    for (let i = 0; i < n; i++) {
+      const pick = weightedOrder(pool.filter(m => m.id !== prev), againWeight)[0]; // never the same post twice in a row
+      const el = buildMessage(pick);
+      el.classList.add('again', 'up');
+      log.insertBefore(el, ref);
+      ref = el; prev = pick.id;
+    }
+  });
+}
+function feedToTop() {
+  upPause = Date.now() + 1500;
+  log.scrollTo({ top: 0, behavior: 'smooth' });
+}
+log.addEventListener('scroll', () => {
+  const top = log.scrollTop, dy = top - lastFeedScroll;
+  lastFeedScroll = top;
+  if (dy > -4 || !isFeed() || feedSort() !== 'foryou' || Date.now() < upPause) return; // a real scroll up, not snapping settling
+  const first = log.querySelector('.msg.post:not(.pending)');
+  if (first && first.getBoundingClientRect().top - log.getBoundingClientRect().top > -log.clientHeight * 1.2) topUpAbove();
+}, { passive: true });
+
 // How likely a post is to come round again: likes count most.
 function againWeight(m) {
   const r = m.r || {};
@@ -4733,6 +4790,7 @@ function topUpFeed(n = 6) {
   if (log.querySelectorAll('.msg.post.again').length >= MAX_AGAIN) return;
   const pool = [...log.querySelectorAll('.msg.post:not(.pending):not(.again)')].map(e => e._m).filter(m => m && m.id);
   if (!pool.length) return;
+  if (againLast === null) againLast = pool[pool.length - 1].id; // not the same post as the one just above "caught up"
   for (let i = 0; i < n; i++) {
     const choices = pool.length > 1 ? pool.filter(m => m.id !== againLast) : pool; // never the same post twice in a row
     const pick = weightedOrder(choices, againWeight)[0];
