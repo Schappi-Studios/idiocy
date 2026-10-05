@@ -2220,7 +2220,7 @@ addEventListener('pagehide', () => saveSnapshot(true));
 // ---------- what's new ----------
 // Shown once, after an update that brings new things, and only once the backend has them.
 const NEWS = { v: 22, title: 'New in Idiocy \u2728', items: [
-  ['\u{1F3AC}', 'Idiocy Shorts', 'Swipe through short videos full-screen (the Shorts tab). Post your own with \u{1F3AC} Short: anything up to a minute.'],
+  ['\u{1F3AC}', 'Idiocy Shorts', 'Swipe through short videos full-screen (the Shorts tab). Post your own with \u{1F3AC} Short: up to a minute long, 5 a day.'],
 ], older: [
   ['\u{1F517}', 'Invite links', 'Get your own link (or QR code) under Friends \u2192 Invite friends. Anyone who opens it becomes your friend straight away.'],
 ], olderV: 21 };
@@ -3115,7 +3115,9 @@ function openShortMaker(file) {
   preview.onloadedmetadata = () => { if (preview.duration > 60.5) note.textContent = `It\u2019s ${fmtDur(Math.round(preview.duration))} long, so only the first minute will be posted.`; };
   const post = h('button', { class: 'primary' }, 'Post Short');
   const cancel = h('button', { class: 'ghost', onclick: () => close() }, 'Cancel');
+  const left = shortsLeft();
   const md = modal('shortmake', h('h2', null, '\u{1F3AC} New Short'), preview, cap, h('div', { class: 'upbar' }, bar), note,
+    left !== Infinity && h('div', { class: 'upnote' }, `${left} of ${me.shorts.limit} Shorts left today`),
     h('div', { class: 'btns' }, cancel, post));
   const close = () => { md.close(); URL.revokeObjectURL(url); };
   post.onclick = async () => {
@@ -3127,6 +3129,7 @@ function openShortMaker(file) {
         note.textContent = f < 1 ? `Uploading\u2026 ${Math.round(f * 100)}%` : 'Getting it ready\u2026 (this can take up to a minute)';
       });
       if (!up.ok) throw Object.assign(new Error(up.error || 'The upload didn\u2019t work'), { verify: verifyError(up.error) });
+      if (me.shorts) me.shorts.used++; // until the next check-in says otherwise
       note.textContent = 'Posting\u2026';
       const d = await act('send', { convo: 'global', text: cap.value.trim(), video: up.vid });
       if (!d) throw new Error('');
@@ -3271,7 +3274,17 @@ async function openShorts(startId) {
     seen.observe(slide);
   }
 }
-function pickShort() { if (serverApi >= 22) $('shortfile').click(); }
+function shortsLeft() {
+  const q = me && me.shorts;
+  return !q || q.limit == null ? Infinity : Math.max(0, q.limit - q.used);
+}
+function pickShort() {
+  if (serverApi < 22) return;
+  if (shortsLeft() <= 0) {
+    return toast(me.shorts.limit === 0 ? 'You can\u2019t post Shorts right now.' : `That\u2019s your ${me.shorts.limit} Shorts for today. More tomorrow!`, true);
+  }
+  $('shortfile').click();
+}
 $('postshort').onclick = pickShort;
 $('shortfile').onchange = () => { const f = $('shortfile').files[0]; $('shortfile').value = ''; openShortMaker(f); };
 $('shortsrow').onclick = () => openShorts();
@@ -6107,6 +6120,19 @@ function openAdmin() {
           serverApi >= 15 && (u.verified ? h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713') : h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
           u.role !== 'admin' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' },
             serverApi >= 15 && h('button', { class: 'ghost', onclick: () => adminSetEmail(u.username, load) }, '\u2709\uFE0F Set email'),
+            serverApi >= 23 && u.shorts && h('button', {
+              class: 'ghost', title: 'How many Shorts they can post a day. Click to change it.',
+              onclick: async () => {
+                const v = prompt(`How many Shorts can ${u.username} post a day?\n0 = none, up to 100. Leave it empty for the normal 5.`, u.shorts.custom ? String(u.shorts.limit) : '');
+                if (v === null) return;
+                const d = await act('adminShortsLimit', { username: u.username, limit: v.trim() === '' ? null : v.trim() });
+                if (d) { toast(`${u.username} can now post ${d.limit} Short${d.limit === 1 ? '' : 's'} a day`); load(); }
+              },
+            }, `\u{1F3AC} ${u.shorts.used}/${u.shorts.limit} today${u.shorts.custom ? ' \u2731' : ''}`),
+            serverApi >= 23 && u.shorts && u.shorts.used > 0 && h('button', {
+              class: 'ghost', title: 'Give them a fresh day of Shorts',
+              onclick: async () => { if (await act('adminShortsReset', { username: u.username })) { toast(`${u.username} has a fresh day of Shorts`); load(); } },
+            }, 'Reset Shorts'),
             u.muted > Date.now()
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('timeout', { username: u.username, minutes: 0 })) load(); } }, 'End timeout')
               : timeoutButtons(u.username, load)[1],
