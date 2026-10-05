@@ -138,6 +138,10 @@
 
   /* ---------- app layout ---------- */
   #app { display: flex; height: 100%; height: 100dvh; } /* dvh follows phone browser bars */
+  /* Once you're in, only the inside scrolls, never the page itself, so the bar at the top
+     (with search) can't get dragged off the screen on phones. */
+  html:has(#app:not(.hidden)), body:has(#app:not(.hidden)) { overflow: hidden; overscroll-behavior: none; }
+  #log { overscroll-behavior-y: contain; }
   aside {
     width: 280px; flex-shrink: 0;
     background: var(--panel);
@@ -695,14 +699,10 @@
   @media (prefers-reduced-motion: reduce) { .burst { animation-duration: .01s; } .post.ig .pfoot .pact.like.pop svg { animation: none; } }
   /* Stories at the top of the feed (phones) */
   #feedstories { display: none; }
-  /* For you | Latest, and the end of the feed */
-  #feedsort { display: flex; gap: 8px; padding: 10px 14px 4px; flex: none; }
-  #feedsort.hidden { display: none; }
-  #feedsort button { padding: 6px 14px; font-size: 13px; border-radius: 999px; }
+  /* the end of the feed */
   .feedend { flex: none; text-align: center; padding: 36px 20px 44px; color: var(--muted); }
   .feedend .big { font-size: 42px; line-height: 1; }
   .feedend b { display: block; color: var(--text); font-size: 17px; margin: 10px 0 4px; }
-  .feedend button { margin-top: 14px; }
   /* Phones: posts go edge to edge, like Instagram */
   @media (max-width: 720px) {
     #log.feed { padding: 0 0 16px; gap: 10px; background: var(--bg); }
@@ -725,7 +725,8 @@
     #feedbox:not(.open) #postcammini { display: inline-flex; }
   }
   /* One post per screen, on phones and computers: each swipe or scroll moves exactly one post. */
-  #log.feed { scroll-snap-type: y mandatory; gap: 0; }
+  #log.feed { scroll-snap-type: y mandatory; gap: 0; scrollbar-width: none; } /* no scroll bar: it goes on forever both ways */
+  #log.feed::-webkit-scrollbar { display: none; }
   #log.feed.nosnap { scroll-snap-type: none; } /* while comments are open */
   #log.feed > #feedstories, #log.feed > .msg.post.ig, #log.feed > .feedend { scroll-snap-align: start; scroll-snap-stop: always; }
   #log.feed > .msg.post.ig { height: var(--feedh, 600px); display: flex; flex-direction: column; border-top: 0; }
@@ -745,7 +746,7 @@
   #log.feed > .post.ig.pollcard > .body { justify-content: center; }
   #log.feed > .post.ig.pollcard > .body > .txt { margin: 0 0 16px; font-size: 25px; }
   #log.feed > .post.ig.pollcard .popt { min-height: 56px; font-size: 17px; }
-  #log.feed > .post.ig.txtcard > .body { background: var(--card); color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .25); }
+  #log.feed > .post.ig.txtcard > .body { background: linear-gradient(rgba(0, 0, 0, .12), rgba(0, 0, 0, .12)), var(--card); color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
   #log.feed > .post.ig.txtcard > .body .ment { color: #fff; background: rgba(255, 255, 255, .22); }
   #log.feed > .post.ig.t-xl > .body { font-size: 32px; line-height: 1.2; text-align: center; }
   #log.feed > .post.ig.t-l > .body { font-size: 25px; line-height: 1.3; text-align: center; }
@@ -765,7 +766,7 @@
   }
   /* Feed polls: a colourful card, choices as bubbles that fill up once you've voted. */
   .post.ig.pollcard > .body {
-    background: var(--card); color: #fff; border-radius: 20px; padding: 18px 18px 14px; margin: 0 12px 8px;
+    background: linear-gradient(rgba(0, 0, 0, .12), rgba(0, 0, 0, .12)), var(--card); color: #fff; border-radius: 20px; padding: 18px 18px 14px; margin: 0 12px 8px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, .2);
   }
   .post.ig.pollcard .plabel { font-size: 12px; font-weight: 800; letter-spacing: .09em; opacity: .85; margin-bottom: 6px; }
@@ -1506,11 +1507,8 @@ const POLL_HIDDEN = 10000;
 const $ = id => document.getElementById(id);
 const log = $('log'), textEl = $('text');
 const feedStories = $('feedstories'); // kept by reference: it moves in and out of the feed
-// "For you" (popular posts first) or "Latest", at the top of the feed.
-const feedSortEl = h('div', { id: 'feedsort', class: 'hidden', role: 'tablist', 'aria-label': 'Feed order' });
 const feedEndEl = h('div', { class: 'feedend' },
-  h('div', { class: 'big' }, '\u2728'), h('b', null, 'You\u2019re all caught up'), h('span', { class: 'fe-sub' }),
-  h('div', { class: 'fe-top' }, h('button', { class: 'ghost', onclick: () => { log.scrollTo({ top: 0, behavior: 'smooth' }); } }, '\u2191 Back to the top')));
+  h('div', { class: 'big' }, '\u2728'), h('b', null, 'You\u2019re all caught up'), h('span', { class: 'fe-sub' }, 'Here\u2019s more from earlier \u2193'));
 
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -1596,6 +1594,7 @@ function storeProfiles(map) {
   for (const [k, p] of Object.entries(map)) profiles.set(k, { data: p, at: Date.now() });
   profileVer++;
   document.querySelectorAll('.avatar[data-user]').forEach(paintAvatar);
+  document.querySelectorAll('.msg.post.txtcard, .msg.post.pollcard').forEach(paintCard); // banners may have arrived or changed
   renderSide();
 }
 
@@ -2320,7 +2319,7 @@ async function poll() {
     streaks = d.streaks || {};
     stories = d.stories || [];
     settings = d.settings || settings;
-    if ((d.api || 0) !== serverApi) { serverApi = d.api || 0; log.querySelectorAll('.post').forEach(paintCommentCount); paintFeedSort(); }
+    if ((d.api || 0) !== serverApi) { serverApi = d.api || 0; log.querySelectorAll('.post').forEach(paintCommentCount); }
     if (pingTop === null) pingTop = d.pingTop; // first poll: don't replay old notifications
     else if (d.pings && d.pings.length) {
       pingTop = Math.max(pingTop, ...d.pings.map(p => p.n));
@@ -2336,7 +2335,12 @@ async function poll() {
         switchTo('global');
         return;
       }
-      if (d.reset) {
+      // The feed is brought up to date where it stands (nothing reshuffles or jumps to the top).
+      const gentle = d.reset && isFeed() && d.messages.length && !!log.querySelector('.msg.post:not(.pending)');
+      if (gentle) {
+        openRev = d.rev;
+        refreshFeed(d.messages);
+      } else if (d.reset) {
         const sending = [...log.querySelectorAll('.pending')];
         clearLog();
         openRev = d.rev;
@@ -2344,7 +2348,7 @@ async function poll() {
         if (!d.messages.length && !sending.length) sys(emptyText()).classList.add('empty');
         log.append(...sending);
       }
-      if (d.messages) renderBatch(d.messages, !d.reset);
+      if (d.messages && !gentle) renderBatch(d.messages, !d.reset);
       if (d.messages && d.messages.length && !d.reset) lastActivity = Date.now();
       if (d.edited) {
         // Likes and comment counts changing on posts above you mustn't nudge the feed.
@@ -2355,7 +2359,7 @@ async function poll() {
       seenNow = d.seen || null;
       paintSeen();
       openGcall = d.gcall || null;
-      if (d.reset) { hideLoading(); scrollDown(); }
+      if (d.reset) { hideLoading(); if (!gentle) scrollDown(); }
       markRead();
     }
     renderSide();
@@ -2605,7 +2609,6 @@ const isFeed = () => openId === 'global';
 // the composer's attachment bar and notes move up there while it's open.
 function setFeedMode(on) {
   document.body.classList.toggle('feedmode', on);
-  paintFeedSort();
   if (on) requestAnimationFrame(sizeFeed);
   log.classList.toggle('feed', on);
   $('newmsgs').textContent = on ? 'New posts \u2191' : 'New messages \u2193';
@@ -2942,6 +2945,7 @@ function nearBottom() {
 }
 
 function scrollDown() {
+  if (isFeed()) upPause = Date.now() + 1500; // to the real top: nothing slips in above
   log.scrollTop = isFeed() ? 0 : log.scrollHeight;
   $('newmsgs').style.display = 'none';
 }
@@ -2964,9 +2968,10 @@ function placeInFeed(el, where) {
 function clearLog() {
   clearInterval(chatLoadTimer);
   log.classList.remove('nosnap');
-  log.replaceChildren(...(isFeed() ? [feedStories, feedSortEl] : [])); // the feed starts with stories and For you | Latest
+  log.replaceChildren(...(isFeed() ? [feedStories] : [])); // the feed starts with the stories row
   shown.clear();
   lastId = 0;
+  restOn = null;
 }
 
 function canDelete(m) {
@@ -3376,6 +3381,15 @@ const CARD_COLOURS = [
   'linear-gradient(135deg, #8e2de2, #e94bb5)', 'linear-gradient(135deg, #232526, #5b5f73)',
 ];
 
+// Text and poll cards wear the poster's profile banner; no banner = a colour picked from the post.
+function cardBg(m) {
+  const p = profileOf(m.name);
+  return (p && p.banner && BANNERS[p.banner]) || CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length];
+}
+function paintCard(el) {
+  if (el._m && (el.classList.contains('txtcard') || el.classList.contains('pollcard'))) el.style.setProperty('--card', cardBg(el._m));
+}
+
 function buildPost(m, pending) {
   const time = h('span', { class: 'time', title: m.time ? new Date(m.time).toLocaleString() : '' });
   if (pending) time.append(h('span', { class: 'spinner' }), 'posting');
@@ -3417,16 +3431,13 @@ function buildPost(m, pending) {
   if (shot && !pending) wireDoubleTap(el, shot, m.vd ? () => openShorts(el._m.id) : null); // a video opens Shorts
   if (m.vd && !pending) el.classList.remove('txtcard');
   // Polls are their own colourful card.
-  if (!m.img && m.pl) {
-    el.classList.add('pollcard');
-    el.style.setProperty('--card', CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length]);
-  }
+  if (!m.img && m.pl) el.classList.add('pollcard');
   // Text posts become colourful cards on phones; the shorter the text, the bigger it is.
   if (!m.img && !m.pl && !m.vd) {
     const n = (m.text || '').length;
     el.classList.add('txtcard', n <= 40 ? 't-xl' : n <= 110 ? 't-l' : n <= 260 ? 't-m' : 't-s');
-    el.style.setProperty('--card', CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length]);
   }
+  paintCard(el);
   if (m.text && mentionsMe(m.text) && !isMine(m)) el.classList.add('mentioned');
   paintText(el);
   paintReactions(el);
@@ -3955,7 +3966,7 @@ async function loadOlder() {
     const fresh = d.messages.filter(m => !shown.has(m.id));
     fresh.forEach(m => shown.add(m.id));
     if (isFeed()) {
-      fresh.forEach(m => placeInFeed(buildMessage(m), feedSort() === 'foryou' ? 'end' : undefined));
+      fresh.forEach(m => placeInFeed(buildMessage(m), 'end'));
     } else {
       // Add above, keeping what you're looking at in the same place.
       const before = log.scrollHeight;
@@ -3974,7 +3985,7 @@ async function loadOlder() {
 }
 log.addEventListener('scroll', () => {
   if (isFeed() ? log.scrollHeight - log.scrollTop - log.clientHeight < 200 : log.scrollTop < 60) {
-    if (isFeed() && !olderMore && !olderLoading) topUpFeed(); // For you never runs out
+    if (isFeed() && !olderMore && !olderLoading) topUpFeed(); // the feed never runs out
     else loadOlder();
   }
 });
@@ -4023,7 +4034,7 @@ function paintLikes(el, pop) {
 // Messages whose reactions changed (from a poll): repaint in place.
 function updateMessage(m) {
   if (m.e) eMax = Math.max(eMax, m.e);
-  // The feed can show a post more than once (For you keeps going), so update every copy.
+  // The feed can show a post more than once (it keeps going), so update every copy.
   log.querySelectorAll(`.msg[data-id="${m.id}"]`).forEach(el => {
     if (el._busy) return;
     const countChanged = (el._m.cc || 0) !== (m.cc || 0);
@@ -4652,8 +4663,14 @@ async function deleteMessage(m, el) {
   const d = await act('deleteMessage', { convo: openId, id: m.id }, d => {
     openRev = d.rev; // we already applied our own delete, no need to reload
   });
-  if (d) { el.remove(); groupMessages(); }
-  else el.classList.remove('removing');
+  if (d) {
+    // Every copy goes (the feed can show a post more than once), without moving what you're on.
+    const gone = () => log.querySelectorAll(`.msg[data-id="${m.id}"]`).forEach(x => { x.querySelectorAll('.vshot').forEach(v => feedVideos.unobserve(v)); x.remove(); });
+    el.remove();
+    if (isFeed()) keepPlace(gone); else gone();
+    shown.delete(m.id);
+    groupMessages();
+  } else el.classList.remove('removing');
 }
 
 function addMessage(m, where) {
@@ -4684,15 +4701,14 @@ function sys(text, isErr) {
   return el;
 }
 
-// Where new things go at the top of the feed: just under the stories row and For you | Latest.
+// Where new things go at the top of the feed: just under the stories row.
 function feedTop() {
   let n = log.firstChild;
-  while (n && (n === feedStories || n === feedSortEl)) n = n.nextSibling;
+  while (n && n === feedStories) n = n.nextSibling;
   return n;
 }
 
 // ---------- feed order ----------
-const feedSort = () => (prefs.feedSort === 'latest' ? 'latest' : 'foryou');
 // Likes and comments push a post up; age slowly pulls it down.
 function postScore(m) {
   const r = m.r || {};
@@ -4701,16 +4717,8 @@ function postScore(m) {
   const hours = Math.max(0, (Date.now() - (m.time || Date.now())) / 36e5);
   return (1 + likes * 3 + (m.cc || 0) * 4 + others) / Math.pow(hours + 2, 1.2);
 }
-function paintFeedSort() {
-  feedSortEl.classList.toggle('hidden', !isFeed());
-  feedSortEl.replaceChildren(...[['foryou', '\u{1F525} For you'], ['latest', '\u{1F552} Latest']].map(([v, label]) =>
-    h('button', { class: feedSort() === v ? 'primary' : 'ghost', role: 'tab', 'aria-selected': String(feedSort() === v), onclick: () => {
-      if (feedSort() === v) return;
-      prefs.feedSort = v; savePrefs(); paintFeedSort(); rankFeed(); log.scrollTo({ top: 0 });
-    } }, label)), ...(serverApi >= 22 ? [h('button', { class: 'ghost', onclick: () => openShorts() }, '\u{1F3AC} Shorts')] : []));
-}
-// Puts the loaded posts in order. Only when the feed opens or you switch order, never while
-// you're reading, so nothing jumps.
+// Puts the loaded posts in order, somewhat random with liked posts usually first. Only when
+// the feed opens, never while you're reading, so nothing jumps.
 // Shuffles so that higher weights tend to come first, but anything can.
 function weightedOrder(items, weight) {
   return items.map(x => ({ x, k: Math.pow(Math.random(), 1 / Math.max(1e-6, weight(x))) }))
@@ -4721,9 +4729,9 @@ function rankFeed() {
   log.querySelectorAll('.msg.post.again').forEach(e => e.remove()); // start the endless part afresh
   feedEndEl.remove();
   againLast = null;
+  restOn = null;
   const posts = [...log.children].filter(c => c.classList.contains('post') && !c.classList.contains('pending') && c._m);
-  if (feedSort() === 'latest') posts.sort((a, b) => Number(b.dataset.id) - Number(a.dataset.id));
-  else posts.splice(0, posts.length, ...weightedOrder(posts, p => postScore(p._m))); // somewhat random; liked posts usually first
+  posts.splice(0, posts.length, ...weightedOrder(posts, p => postScore(p._m)));
   const frag = document.createDocumentFragment();
   posts.forEach(p => frag.append(p));
   let at = feedTop();
@@ -4731,28 +4739,43 @@ function rankFeed() {
   log.insertBefore(frag, at || null);
   paintFeedEnd();
 }
-// Once every post has loaded: "You're all caught up". In For you the feed then keeps going,
-// mixing earlier posts back in (liked ones more often); Latest just ends there.
+// Once every post has loaded: "You're all caught up". Then the feed keeps going, mixing
+// earlier posts back in (liked ones more often).
 let againLast = null;
-const MAX_AGAIN = 300;
 function paintFeedEnd() {
   const done = isFeed() && !olderMore && !olderLoading && !!log.querySelector('.msg.post:not(.again)');
   if (!done) { feedEndEl.remove(); return; }
-  const endless = feedSort() === 'foryou';
-  feedEndEl.querySelector('b').textContent = 'You\u2019re all caught up';
-  feedEndEl.querySelector('.fe-sub').textContent = endless ? 'Here\u2019s more from earlier \u2193' : 'You\u2019ve seen every post. Come back later for more!';
-  feedEndEl.querySelector('.fe-top').classList.toggle('hidden', endless);
   if (!feedEndEl.isConnected) {
     const firstAgain = log.querySelector('.msg.post.again:not(.up)');
     log.insertBefore(feedEndEl, firstAgain || null);
   }
-  if (endless) topUpFeed();
+  topUpFeed();
 }
-// For you goes on forever upwards too: scrolling up near the top slips more posts in above,
-// holding your place. Tapping Feed again (or the title) jumps to the real top instead.
-let upPause = 0, lastFeedScroll = 0;
-function topUpAbove(n = 4) {
-  if (!isFeed() || feedSort() !== 'foryou' || log.querySelectorAll('.msg.post.again').length >= MAX_AGAIN) return;
+// How likely a post is to come round again: likes count most.
+function againWeight(m) {
+  const r = m.r || {};
+  const others = Object.keys(r).reduce((n, e) => n + (e === HEART ? 0 : (r[e] || []).length), 0);
+  return 1 + ((r[HEART] || []).length) * 3 + (m.cc || 0) * 2 + others;
+}
+// More earlier posts at the end of the feed, never the same post twice in a row.
+function topUpFeed(n = AHEAD * 2) {
+  if (!isFeed() || !feedEndEl.isConnected) return;
+  const pool = [...log.querySelectorAll('.msg.post:not(.pending):not(.again)')].map(e => e._m).filter(m => m && m.id);
+  if (!pool.length) return;
+  if (againLast === null) againLast = pool[pool.length - 1].id; // not the same post as the one just above "caught up"
+  for (let i = 0; i < n; i++) {
+    const choices = pool.length > 1 ? pool.filter(m => m.id !== againLast) : pool;
+    const pick = weightedOrder(choices, againWeight)[0];
+    againLast = pick.id;
+    const el = buildMessage(pick);
+    el.classList.add('again');
+    log.append(el);
+  }
+}
+// The feed goes on forever upwards too: more posts are slipped in above the top one, out of
+// sight, holding your place. Tapping Feed again (or the title) jumps to the real top instead.
+function topUpAbove(n = AHEAD * 2) {
+  if (!isFeed()) return;
   const pool = [...log.querySelectorAll('.msg.post:not(.pending):not(.again)')].map(e => e._m).filter(m => m && m.id);
   const first = log.querySelector('.msg.post:not(.pending)');
   if (pool.length < 2 || !first) return;
@@ -4767,38 +4790,101 @@ function topUpAbove(n = 4) {
     }
   });
 }
+let upPause = 0;
 function feedToTop() {
   upPause = Date.now() + 1500;
   log.scrollTo({ top: 0, behavior: 'smooth' });
 }
-log.addEventListener('scroll', () => {
-  const top = log.scrollTop, dy = top - lastFeedScroll;
-  lastFeedScroll = top;
-  if (dy > -4 || !isFeed() || feedSort() !== 'foryou' || Date.now() < upPause) return; // a real scroll up, not snapping settling
-  const first = log.querySelector('.msg.post:not(.pending)');
-  if (first && first.getBoundingClientRect().top - log.getBoundingClientRect().top > -log.clientHeight * 1.2) topUpAbove();
-}, { passive: true });
 
-// How likely a post is to come round again: likes count most.
-function againWeight(m) {
-  const r = m.r || {};
-  const others = Object.keys(r).reduce((n, e) => n + (e === HEART ? 0 : (r[e] || []).length), 0);
-  return 1 + ((r[HEART] || []).length) * 3 + (m.cc || 0) * 2 + others;
-}
-function topUpFeed(n = 6) {
-  if (!isFeed() || feedSort() !== 'foryou' || !feedEndEl.isConnected) return;
-  if (log.querySelectorAll('.msg.post.again').length >= MAX_AGAIN) return;
-  const pool = [...log.querySelectorAll('.msg.post:not(.pending):not(.again)')].map(e => e._m).filter(m => m && m.id);
-  if (!pool.length) return;
-  if (againLast === null) againLast = pool[pool.length - 1].id; // not the same post as the one just above "caught up"
-  for (let i = 0; i < n; i++) {
-    const choices = pool.length > 1 ? pool.filter(m => m.id !== againLast) : pool; // never the same post twice in a row
-    const pick = weightedOrder(choices, againWeight)[0];
-    againLast = pick.id;
-    const el = buildMessage(pick);
-    el.classList.add('again');
-    log.append(el);
+// The feed only changes when it has come to rest on a post, never while it's moving, so the
+// post you're scrolling onto never swaps for another one. Then it makes sure there are always
+// a few more posts ready past it, both ways, and lets go of repeats far away so it stays quick.
+const AHEAD = 5;       // posts kept ready past the one you're on
+const KEEP_AWAY = 40;  // repeats further away than this are let go
+let restOn = null, settleTimer = 0;
+const feedPosts = () => [...log.children].filter(c => c.classList.contains('post') && !c.classList.contains('pending') && c._m);
+// The post the feed is resting on: lined up with the top. None while it's between posts.
+function restingPost(posts) {
+  const top = log.getBoundingClientRect().top + (parseFloat(getComputedStyle(log).scrollPaddingTop) || 0);
+  let best = null, off = 6;
+  for (const p of posts) {
+    const d = Math.abs(p.getBoundingClientRect().top - top);
+    if (d < off) { off = d; best = p; }
   }
+  return best;
+}
+function feedSettled() {
+  clearTimeout(settleTimer);
+  stepTo = null;
+  if (!isFeed() || log.classList.contains('nosnap') || document.hidden) return;
+  const posts = feedPosts();
+  const cur = restingPost(posts), was = restOn;
+  restOn = cur;
+  if (!cur) return;
+  const at = posts.indexOf(cur), below = posts.length - 1 - at;
+  if (below < AHEAD && olderMore && !olderLoading) loadOlder(); // load older posts before you get there
+  if (below < AHEAD) topUpFeed();
+  // Just moved up and nearly at the top: more above. (Not when you've only just opened the
+  // feed, so the stories row stays up there until you head that way.)
+  const wasAt = was ? posts.indexOf(was) : -1;
+  if (wasAt > at && at < AHEAD && Date.now() >= upPause) topUpAbove();
+  const far = feedPosts().filter((p, i, all) => p.classList.contains('again') && Math.abs(i - all.indexOf(cur)) > KEEP_AWAY);
+  if (far.length) keepPlace(() => far.forEach(p => { p.querySelectorAll('.vshot').forEach(b => feedVideos.unobserve(b)); p.remove(); }));
+}
+log.addEventListener('scroll', () => {
+  if (!isFeed()) return;
+  clearTimeout(settleTimer);
+  settleTimer = setTimeout(feedSettled, 150);
+}, { passive: true });
+log.addEventListener('scrollend', () => { if (isFeed()) feedSettled(); });
+
+// Laptops: each scroll or trackpad swipe moves exactly one post. A trackpad keeps sending
+// scrolls for a second after a swipe; those are ignored, so it never flies past several posts.
+let wheelLock = 0, wheelLast = -1e9, stepTo = null;
+log.addEventListener('wheel', e => {
+  if (!isFeed() || log.classList.contains('nosnap') || e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  // Something inside a post that scrolls (a long caption, say) scrolls first.
+  for (let n = e.target; n && n !== log; n = n.parentElement) {
+    if (n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY) &&
+        (e.deltaY < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1)) return;
+  }
+  e.preventDefault();
+  // A new swipe starts after a pause. Timed by when the scroll actually happened, so a busy
+  // moment can't look like a pause.
+  const now = e.timeStamp, fresh = now - wheelLast > 150;
+  wheelLast = now;
+  if (!fresh || now < wheelLock || !e.deltaY) return;
+  wheelLock = now + 350;
+  stepFeed(Math.sign(e.deltaY));
+}, { passive: false });
+// Slides to the next (1) or previous (-1) post.
+function stepFeed(dir) {
+  const stops = [...log.children].filter(c => c.matches('.msg.post.ig, .feedend') || (c === feedStories && c.offsetHeight));
+  const top = log.getBoundingClientRect().top + (parseFloat(getComputedStyle(log).scrollPaddingTop) || 0);
+  let i = stepTo && stepTo.isConnected ? stops.indexOf(stepTo) : -1; // still sliding: carry on from where it's going
+  if (i < 0) stops.forEach((el, k) => { if (el.getBoundingClientRect().top <= top + 2) i = k; });
+  if (i + dir < 0) { stepTo = null; log.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const to = stops[Math.min(stops.length - 1, i + dir)];
+  if (!to) return;
+  stepTo = to;
+  log.scrollTo({ top: log.scrollTop + to.getBoundingClientRect().top - top, behavior: 'smooth' });
+}
+
+// Told to reload the feed (a post was deleted, or the server restarted): take out what's
+// gone, update the rest and add anything new, all without moving the post you're on.
+function refreshFeed(msgs) {
+  const ids = new Set(msgs.map(m => m.id));
+  const from = msgs.length >= 100 ? Math.min(...ids) : -Infinity; // posts older than these weren't sent
+  keepPlace(() => {
+    log.querySelectorAll('.msg.post:not(.pending)').forEach(el => {
+      const id = Number(el.dataset.id);
+      if (id >= from && !ids.has(id)) { el.querySelectorAll('.vshot').forEach(b => feedVideos.unobserve(b)); el.remove(); shown.delete(id); }
+    });
+    msgs.forEach(m => shown.has(m.id) ? updateMessage(m) : addMessage(m, 'top'));
+  });
+  lastId = Math.max(lastId, ...msgs.map(m => m.id));
+  if (msgs.length < 100) olderMore = false;
+  paintFeedEnd();
 }
 // Each post fills the feed on phones; keep that size up to date (not while typing, when the keyboard is up).
 const sizeFeed = () => {
@@ -4826,7 +4912,7 @@ function renderBatch(msgs, animate) {
   const stick = nearBottom();
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
   const before = new Set(log.children);
-  const where = isFeed() && animate && feedSort() === 'foryou' ? 'top' : undefined; // just arrived: on top
+  const where = isFeed() && animate ? 'top' : undefined; // just arrived: on top
   if (isFeed() && !stick) keepPlace(() => msgs.forEach(m => addMessage(m, where))); // new posts arrive above you
   else msgs.forEach(m => addMessage(m, where));
   if (isFeed() && !animate) rankFeed(); // a fresh load: put it in order
@@ -4900,7 +4986,7 @@ async function send(text, att, extra = {}) {
   }, true);
   if (rp) setReply(null);
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
-  if (isFeed()) log.insertBefore(pending, feedTop()); else log.appendChild(pending); // under stories and For you | Latest
+  if (isFeed()) log.insertBefore(pending, feedTop()); else log.appendChild(pending); // under the stories row
   scrollDown();
   try {
     const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
