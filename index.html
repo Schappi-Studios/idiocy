@@ -643,6 +643,73 @@
   }
   .post .pfoot button:hover { background: var(--hover); color: var(--text); }
   .post .pfoot button.on { color: var(--accent); }
+  /* ---------- Instagram-style posts ---------- */
+  #log.feed { padding: 16px 16px 24px; }
+  #log.feed > * { max-width: 470px; }
+  .msg.post.ig { padding: 0; overflow: hidden; flex: none; } /* never squeezed to fit */
+  .post.ig .phead { padding: 10px 12px; margin: 0; }
+  .post.ig .phead > .avatar, .post.ig .phead .pring .avatar { width: 34px; height: 34px; font-size: 14px; }
+  .post.ig .pring { border-radius: 50%; padding: 2px; background: linear-gradient(45deg, #ffb300, #ff3d6e, #8b5cff); cursor: pointer; flex: none; }
+  .post.ig .pring.seen { background: var(--border); }
+  .post.ig .pring .avatar { border: 2px solid var(--panel); }
+  .post.ig .who2 .line { flex-wrap: wrap; gap: 4px; }
+  .post.ig .who2 .name { font-weight: 700; }
+  .post.ig .who2 .time { color: var(--muted); font-size: 13px; }
+  .post.ig .who2 .sep { color: var(--muted); }
+  .post.ig .body { padding: 0 12px 6px; }
+  .post.ig:not(.hasimg) .body { font-size: 16.5px; padding: 0 14px 8px; }
+  .post.ig.hasimg .body { font-size: 14.5px; line-height: 1.45; }
+  .post.ig.hasimg .body:not(:has(.txt:not(:empty))):not(:has(.pollbox:not(:empty))) { display: none; }
+  .post.ig .capname { font-weight: 700; margin-right: 6px; cursor: pointer; }
+  .post.ig .shot {
+    margin: 0; width: 100% !important; max-width: none; border-radius: 0; background: var(--panel-2);
+    touch-action: manipulation; position: relative; cursor: pointer; user-select: none;
+  }
+  .post.ig .pfoot { border-top: 0; margin: 0; padding: 4px 6px 0; align-items: center; gap: 0; }
+  .post.ig .pfoot .grow { flex: 1; }
+  .post.ig .pfoot .pact {
+    display: inline-flex; align-items: center; gap: 5px; padding: 8px; color: var(--text); font-weight: 600; font-size: 14px; border-radius: 10px;
+  }
+  .post.ig .pfoot .pact svg { width: 25px; height: 25px; }
+  .post.ig .pfoot .pact.like.on { color: #ff3040; }
+  .post.ig .pfoot .pact.like.on svg { fill: #ff3040; }
+  .post.ig .pfoot .pact.like.pop svg { animation: likepop .35s ease; }
+  @keyframes likepop { 40% { transform: scale(1.3); } }
+  .post.ig .pfoot .pact.on:not(.like) { color: var(--text); }
+  .post.ig .pfoot .pact.react { font-size: 18px; padding: 6px 8px; }
+  .post.ig .likes { padding: 0 14px 4px; font-size: 14px; font-weight: 600; cursor: default; }
+  .post.ig .likes:empty { display: none; }
+  .post.ig .reacts { margin: 0; padding: 0 12px 4px; }
+  .post.ig .reacts:empty { display: none; }
+  .post.ig .viewc { background: none; border: 0; color: var(--muted); font-size: 14px; padding: 0 14px 10px; cursor: pointer; text-align: left; }
+  .post.ig .comments { padding: 0 12px 12px; margin-top: 0; }
+  .post.ig .acts { top: 10px; right: 6px; background: none; border: 0; box-shadow: none; }
+  .post.ig .acts button { font-size: 15px; padding: 6px 8px; }
+  .post.ig .phead { padding-right: 90px; }
+  .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* Double-tap heart */
+  .burst { position: absolute; left: 50%; top: 50%; width: 96px; height: 96px; margin: -48px 0 0 -48px; pointer-events: none;
+    fill: #fff; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, .35)); animation: burst .9s ease forwards; }
+  @keyframes burst { 0% { transform: scale(0); opacity: 0; } 15% { transform: scale(1.2); opacity: 1; } 30% { transform: scale(.95); }
+    45%, 80% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.1) translateY(-14px); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .burst { animation-duration: .01s; } .post.ig .pfoot .pact.like.pop svg { animation: none; } }
+  /* Stories at the top of the feed (phones) */
+  #feedstories { display: none; }
+  /* Phones: posts go edge to edge, like Instagram */
+  @media (max-width: 720px) {
+    #log.feed { padding: 0 0 16px; gap: 0; background: var(--panel); }
+    #log.feed > * { max-width: none; }
+    .msg.post.ig { border: 0; border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--border); }
+    body.feedmode #feedstories:not(.hidden) {
+      display: flex; gap: 14px; overflow-x: auto; padding: 10px 14px 8px; background: var(--panel); border-bottom: 1px solid var(--border);
+      scrollbar-width: none; transition: margin-top .25s ease;
+    }
+    body.feedmode #feedstories::-webkit-scrollbar { display: none; }
+    /* Scrolling down tucks the top bar and stories away; scrolling up brings them back. */
+    body.feedmode main { overflow: hidden; }
+    body.feedmode main header { transition: margin-top .25s ease; }
+    body.feedmode.feedhide main header { margin-top: calc(-1 * var(--hdrh, 70px)); }
+  }
   .comments { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
   .cmt { display: flex; gap: 8px; align-items: flex-start; }
   .cmt .avatar { width: 28px; height: 28px; font-size: 12px; flex-shrink: 0; }
@@ -1213,6 +1280,7 @@
       <button class="iconbtn hidden" id="vcallbtn" title="Video call" aria-label="Video call">&#x1F3A5;</button>
     </header>
 <div class="verifybar hidden"><span class="vbtext">📧 <b>Verify your email</b> to post, message and add friends.</span><button type="button" class="vbgo">Verify now</button></div>
+    <div id="feedstories" class="hidden" aria-label="Stories"></div>
     <div id="pinbar" class="hidden" title="Go to the pinned message"><span>📌</span><span class="pintext" id="pintext"></span><button type="button" id="pinx" title="Unpin" aria-label="Unpin">✕</button></div>
     <div id="gcallpanel" class="callpanel group hidden">
       <div class="tiles" id="gtiles"></div>
@@ -1920,11 +1988,11 @@ addEventListener('pagehide', () => saveSnapshot(true));
 
 // ---------- what's new ----------
 // Shown once, after an update that brings new things, and only once the backend has them.
-const NEWS = { v: 19, title: 'New in Idiocy \u2728', items: [
-  ['\u{1F440}', 'Seen', 'See when your DM has been read, and who\u2019s seen the latest message in a group. Don\u2019t want that? Settings \u2192 Read receipts.'],
+const NEWS = { v: 20, title: 'New in Idiocy \u2728', items: [
+  ['\u{1F4F8}', 'A new feed', 'Photos go edge to edge, with likes and comments underneath. Double-tap a photo to like it.'],
 ], older: [
-  ['\u{1F50D}', 'Search', 'Tap \u{1F50D} at the top of any chat to find old messages, in that chat or everywhere. On a computer, press Ctrl+K.'],
-], olderV: 18 };
+  ['\u{1F440}', 'Seen', 'See when your DM has been read, and who\u2019s seen the latest message in a group. Don\u2019t want that? Settings \u2192 Read receipts.'],
+], olderV: 19 };
 function maybeShowNews() {
   if (serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
   // Missed the last update's pop-up too? Show those as well.
@@ -2318,6 +2386,7 @@ function switchTo(id) {
   olderMore = false;
   olderLoading = false;
   seenNow = null;
+  document.body.classList.remove('feedhide');
   clearLog();
   setFeedMode(isFeed());
   const cached = chatCache.get(id);
@@ -2688,32 +2757,105 @@ function paintText(el) {
 
 const isMine = m => me && key(m.name) === key(me.name);
 
+// Feed posts look like Instagram: header, photo edge to edge, action bar, likes, caption, comments.
+const HEART = '\u2764\uFE0F'; // a "like" is the heart reaction
+const SVG_NS = 'http://www.w3.org/2000/svg';
+function icon(d, extra) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  if (extra) Object.entries(extra).forEach(([k, v]) => svg.setAttribute(k, v));
+  const path = document.createElementNS(SVG_NS, 'path');
+  path.setAttribute('d', d);
+  svg.append(path);
+  return svg;
+}
+const ICON_HEART = 'M12 20.5s-7.5-4.6-9.3-9.2C1.4 8 3.5 4.5 7 4.5c2 0 3.6 1.1 5 2.9 1.4-1.8 3-2.9 5-2.9 3.5 0 5.6 3.5 4.3 6.8-1.8 4.6-9.3 9.2-9.3 9.2z';
+const ICON_COMMENT = 'M20.5 11.6a8.4 8.4 0 0 1-12.4 7.4L3.5 20.5l1.5-4.4A8.4 8.4 0 1 1 20.5 11.6z';
+const ICON_SHARE = 'M21.5 3 10.2 14.3M21.5 3l-7 18.5-4.3-7.2L3 10l18.5-7z';
+
+function storyRing(name) {
+  const s = serverApi >= 11 && stories.find(x => key(x.name) === key(name));
+  const av = avatar(name, { click: !s });
+  if (!s) return av;
+  return h('span', { class: 'pring' + ((storySeen[key(s.name)] || 0) >= s.last ? ' seen' : ''), title: `${name}'s story`, onclick: () => openStoryViewer([s.name], 0) }, av);
+}
+
+// Photos keep Instagram's shapes: no taller than 4:5, no wider than 1.91:1.
+function igShot(m) {
+  const box = imageBlock(m, 1080);
+  box.style.width = '';
+  box.style.aspectRatio = String(Math.min(1.91, Math.max(0.8, (m.w || 1) / (m.h || 1))));
+  return box;
+}
+
+// One tap opens the photo; two quick taps like it, with a big heart.
+function wireDoubleTap(el, box) {
+  let last = 0, timer = null;
+  box.onclick = () => {
+    const now = Date.now();
+    if (now - last < 300) {
+      clearTimeout(timer); last = 0;
+      const r = el._m.r || {};
+      if (!(r[HEART] || []).some(n => me && key(n) === key(me.name))) toggleReaction(el, HEART);
+      const b = icon(ICON_HEART, { class: 'burst', stroke: 'none' });
+      box.append(b);
+      setTimeout(() => b.remove(), 950);
+      return;
+    }
+    last = now;
+    timer = setTimeout(() => { const img = box.querySelector('img'); if (img && img.src) openLightbox(img.src); }, 300);
+  };
+}
+
+async function sharePost(m) {
+  const text = `${m.name} on Idiocy: ${m.text || (m.img ? '[photo]' : '')}`;
+  const url = location.href.split('#')[0];
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Idiocy', text, url }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text + '\n' + url); toast('Copied to share'); } catch (e) { toast("Couldn't share that", true); }
+}
+
 function buildPost(m, pending) {
-  const time = h('span', { class: 'time' });
+  const time = h('span', { class: 'time', title: m.time ? new Date(m.time).toLocaleString() : '' });
   if (pending) time.append(h('span', { class: 'spinner' }), 'posting');
-  else time.textContent = new Date(m.time).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-  const cbtn = h('button', { onclick: () => toggleComments(el) });
-  const el = h('div', { class: 'msg post' + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
+  else time.textContent = ago(m.time) === 'now' ? 'now' : ago(m.time);
+  const cbtn = h('button', { class: 'pact', title: 'Comment', onclick: () => toggleComments(el) });
+  const like = h('button', { class: 'pact like', title: 'Like', onclick: () => toggleReaction(el, HEART) });
+  const body = h('div', { class: 'body' },
+    m.img && h('b', { class: 'capname', onclick: () => openProfile(m.name) }, m.name),
+    h('span', { class: 'txt' }), h('div', { class: 'pollbox' }));
+  const shot = m.img && igShot(m);
+  const el = h('div', { class: 'msg post ig' + (m.img ? ' hasimg' : '') + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
     h('div', { class: 'phead' },
-      avatar(m.name),
+      storyRing(m.name),
       h('div', { class: 'who2' },
         h('div', { class: 'line' },
-          h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }, m.name),
-          m.admin && h('span', { class: 'badge' }, 'ADMIN')),
-        h('span', null, time, ' ', h('span', { class: 'edtag' })))),
-    h('div', { class: 'body' }, h('span', { class: 'txt' }), h('div', { class: 'pollbox' })),
-    m.img && imageBlock(m, 520),
-    h('div', { class: 'reacts' }),
+          h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), onclick: () => openProfile(m.name) }, m.name),
+          m.admin && h('span', { class: 'badge' }, 'ADMIN'),
+          h('span', { class: 'sep' }, '\u2022'), time, h('span', { class: 'edtag' })))),
+    !m.img && body,
+    shot,
     !pending && h('div', { class: 'pfoot' },
-      h('button', { title: 'React', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642} React'),
-      cbtn),
+      like, cbtn,
+      h('button', { class: 'pact', title: 'Share', onclick: () => sharePost(el._m) }, icon(ICON_SHARE), h('span', { class: 'vh' }, 'Share')),
+      h('span', { class: 'grow' }),
+      h('button', { class: 'pact react', title: 'React', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642}', h('span', { class: 'vh' }, ' React'))),
+    !pending && h('div', { class: 'likes' }),
+    m.img && body,
+    h('div', { class: 'reacts' }),
+    !pending && h('button', { class: 'viewc hidden', onclick: () => toggleComments(el) }),
     !pending && h('div', { class: 'acts' },
       serverApi >= 9 && isMine(m) && h('button', { title: 'Edit', onclick: () => startEdit(el) }, '\u270E'),
       !isMine(m) && h('button', { title: 'Report', onclick: () => openReport(el._m) }, '\u2691'),
       canDelete(m) && h('button', { class: 'del danger', title: 'Delete', onclick: () => deleteMessage(el._m, el) }, '\u{1F5D1}')));
   el._m = m;
   el._cbtn = cbtn;
+  el._like = like;
   el.dataset.id = m.id || '';
+  if (shot && !pending) wireDoubleTap(el, shot);
   if (m.text && mentionsMe(m.text) && !isMine(m)) el.classList.add('mentioned');
   paintText(el);
   paintReactions(el);
@@ -2729,8 +2871,14 @@ function paintCommentCount(el) {
   if (!el._cbtn) return;
   el._cbtn.classList.toggle('hidden', serverApi < 3); // backend not updated yet
   const n = el._m.cc || 0;
-  el._cbtn.textContent = '\u{1F4AC} ' + (n ? `${n} comment${n === 1 ? '' : 's'}` : 'Comment');
+  // The icon and count show; the words are there for screen readers.
+  el._cbtn.replaceChildren(icon(ICON_COMMENT), ...(n ? [String(n), h('span', { class: 'vh' }, ` comment${n === 1 ? '' : 's'}`)] : [h('span', { class: 'vh' }, 'Comment')]));
   el._cbtn.classList.toggle('on', !!el._cmts);
+  const vc = el.querySelector(':scope > .viewc');
+  if (vc) {
+    vc.classList.toggle('hidden', !n || !!el._cmts || serverApi < 3);
+    vc.textContent = n === 1 ? 'View 1 comment' : `View all ${n} comments`;
+  }
 }
 
 // ---------- comments ----------
@@ -3247,6 +3395,20 @@ log.addEventListener('scroll', () => {
   if (isFeed() ? log.scrollHeight - log.scrollTop - log.clientHeight < 200 : log.scrollTop < 60) loadOlder();
 });
 
+// Phones, in the feed: scrolling down tucks the top bar and stories away, scrolling up brings them back.
+let lastFeedTop = 0;
+log.addEventListener('scroll', () => {
+  const top = log.scrollTop, dy = top - lastFeedTop;
+  if (!isFeed() || !isPhone()) { document.body.classList.remove('feedhide'); lastFeedTop = top; return; }
+  if (Math.abs(dy) < 8) return;
+  lastFeedTop = top;
+  if (dy > 0 && top > 140) {
+    const hh = document.querySelector('main header').offsetHeight + $('feedstories').offsetHeight;
+    document.documentElement.style.setProperty('--hdrh', hh + 'px');
+    document.body.classList.add('feedhide');
+  } else if (dy < 0) document.body.classList.remove('feedhide');
+}, { passive: true });
+
 // ---------- reactions ----------
 const REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F480}', '\u{1F525}'];
 
@@ -3255,7 +3417,9 @@ function paintReactions(el, popEmoji) {
   const bar = el.querySelector('.reacts');
   if (!bar) return;
   const r = m.r || {};
-  bar.replaceChildren(...REACTIONS.filter(e => r[e] && r[e].length).map(e => {
+  const ig = el.classList.contains('ig');
+  if (ig) paintLikes(el, popEmoji === HEART);
+  bar.replaceChildren(...REACTIONS.filter(e => r[e] && r[e].length && !(ig && e === HEART)).map(e => {
     const names = r[e];
     const mine = me && names.some(n => key(n) === key(me.name));
     return h('button', {
@@ -3264,6 +3428,25 @@ function paintReactions(el, popEmoji) {
       onclick: () => toggleReaction(el, e),
     }, e, h('span', null, String(names.length)));
   }));
+}
+
+// The heart button and "Liked by jordan and 2 others" on a feed post.
+function paintLikes(el, pop) {
+  const names = ((el._m.r || {})[HEART]) || [];
+  const mine = !!me && names.some(n => key(n) === key(me.name));
+  if (el._like) {
+    el._like.classList.toggle('on', mine);
+    el._like.classList.toggle('pop', !!pop && mine);
+    el._like.title = mine ? 'Unlike' : 'Like';
+    el._like.replaceChildren(icon(ICON_HEART), ...(names.length ? [String(names.length)] : []), h('span', { class: 'vh' }, mine ? ' Unlike' : ' Like'));
+  }
+  const line = el.querySelector(':scope > .likes');
+  if (!line) return;
+  if (!names.length) { line.replaceChildren(); return; }
+  const first = names.find(n => !me || key(n) !== key(me.name)) || names[0];
+  const who = me && key(first) === key(me.name) ? 'you' : first;
+  line.title = names.join(', ');
+  line.replaceChildren('Liked by ', h('b', null, who), ...(names.length > 1 ? [' and ', h('b', null, `${names.length - 1} other${names.length === 2 ? '' : 's'}`)] : []));
 }
 
 // Messages whose reactions changed (from a poll): repaint in place.
@@ -3520,7 +3703,10 @@ function markStorySeen(name, id) {
 }
 
 function renderStories() {
-  const bar = $('storybar');
+  // The chat list's story row, and the same row at the top of the feed on phones.
+  for (const bar of [$('storybar'), $('feedstories')]) fillStoryBar(bar);
+}
+function fillStoryBar(bar) {
   bar.classList.toggle('hidden', serverApi < 11 || !me);
   if (serverApi < 11 || !me) return;
   const mine = stories.find(s => key(s.name) === key(me.name));
