@@ -697,18 +697,15 @@
   #feedstories { display: none; }
   /* Phones: posts go edge to edge, like Instagram */
   @media (max-width: 720px) {
-    #log.feed { padding: 0 0 16px; gap: 0; background: var(--panel); }
+    #log.feed { padding: 0 0 16px; gap: 10px; background: var(--bg); }
     #log.feed > * { max-width: none; }
-    .msg.post.ig { border: 0; border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--border); }
-    body.feedmode #feedstories:not(.hidden) {
+    .msg.post.ig { border: 0; border-radius: 0; box-shadow: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    /* The stories row is the first thing in the feed, so it scrolls away with the posts. */
+    #log.feed #feedstories:not(.hidden) {
       display: flex; gap: 14px; overflow-x: auto; padding: 10px 14px 8px; background: var(--panel); border-bottom: 1px solid var(--border);
-      scrollbar-width: none; transition: margin-top .25s ease;
+      scrollbar-width: none; flex: none;
     }
-    body.feedmode #feedstories::-webkit-scrollbar { display: none; }
-    /* Scrolling down tucks the top bar and stories away; scrolling up brings them back. */
-    body.feedmode main { overflow: hidden; }
-    body.feedmode main header { transition: margin-top .25s ease; }
-    body.feedmode.feedhide main header { margin-top: calc(-1 * var(--hdrh, 70px)); }
+    #log.feed #feedstories::-webkit-scrollbar { display: none; }
   }
   .comments { margin-top: 8px; display: flex; flex-direction: column; gap: 8px; }
   .cmt { display: flex; gap: 8px; align-items: flex-start; }
@@ -1280,7 +1277,6 @@
       <button class="iconbtn hidden" id="vcallbtn" title="Video call" aria-label="Video call">&#x1F3A5;</button>
     </header>
 <div class="verifybar hidden"><span class="vbtext">📧 <b>Verify your email</b> to post, message and add friends.</span><button type="button" class="vbgo">Verify now</button></div>
-    <div id="feedstories" class="hidden" aria-label="Stories"></div>
     <div id="pinbar" class="hidden" title="Go to the pinned message"><span>📌</span><span class="pintext" id="pintext"></span><button type="button" id="pinx" title="Unpin" aria-label="Unpin">✕</button></div>
     <div id="gcallpanel" class="callpanel group hidden">
       <div class="tiles" id="gtiles"></div>
@@ -1293,7 +1289,7 @@
       </div>
       <div class="bar"><span id="cstatus"></span><span id="cctrls" style="display:contents"></span></div>
     </div>
-    <div id="log"></div>
+    <div id="log"><div id="feedstories" class="hidden" aria-label="Stories"></div></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
       <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What's on your mind?"></textarea><button class="primary" id="postbtn" type="button">Post</button></div>
@@ -1355,6 +1351,7 @@ const POLL_HIDDEN = 10000;
 
 const $ = id => document.getElementById(id);
 const log = $('log'), textEl = $('text');
+const feedStories = $('feedstories'); // kept by reference: it moves in and out of the feed
 
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
@@ -2095,7 +2092,11 @@ async function poll() {
       }
       if (d.messages) renderBatch(d.messages, !d.reset);
       if (d.messages && d.messages.length && !d.reset) lastActivity = Date.now();
-      if (d.edited) d.edited.forEach(updateMessage);
+      if (d.edited) {
+        // Likes and comment counts changing on posts above you mustn't nudge the feed.
+        if (isFeed() && !nearBottom()) keepPlace(() => d.edited.forEach(updateMessage));
+        else d.edited.forEach(updateMessage);
+      }
       showTyping(d.typing || []);
       seenNow = d.seen || null;
       paintSeen();
@@ -2386,7 +2387,6 @@ function switchTo(id) {
   olderMore = false;
   olderLoading = false;
   seenNow = null;
-  document.body.classList.remove('feedhide');
   clearLog();
   setFeedMode(isFeed());
   const cached = chatCache.get(id);
@@ -2689,13 +2689,13 @@ function scrollDown() {
 function placeInFeed(el) {
   const id = Number(el.dataset.id) || Infinity;
   const after = [...log.children].find(c => c.classList.contains('msg') && !c.classList.contains('pending') && Number(c.dataset.id) < id);
-  if (el.classList.contains('pending')) log.insertBefore(el, log.querySelector('.msg, .sys:not(.err)'));
+  if (el.classList.contains('pending')) log.insertBefore(el, log.querySelector('.msg, .sys:not(.err)') || null);
   else log.insertBefore(el, after || null);
 }
 
 function clearLog() {
   clearInterval(chatLoadTimer);
-  log.replaceChildren();
+  log.replaceChildren(...(isFeed() ? [feedStories] : [])); // the feed starts with the stories row
   shown.clear();
   lastId = 0;
 }
@@ -3395,19 +3395,6 @@ log.addEventListener('scroll', () => {
   if (isFeed() ? log.scrollHeight - log.scrollTop - log.clientHeight < 200 : log.scrollTop < 60) loadOlder();
 });
 
-// Phones, in the feed: scrolling down tucks the top bar and stories away, scrolling up brings them back.
-let lastFeedTop = 0;
-log.addEventListener('scroll', () => {
-  const top = log.scrollTop, dy = top - lastFeedTop;
-  if (!isFeed() || !isPhone()) { document.body.classList.remove('feedhide'); lastFeedTop = top; return; }
-  if (Math.abs(dy) < 8) return;
-  lastFeedTop = top;
-  if (dy > 0 && top > 140) {
-    const hh = document.querySelector('main header').offsetHeight + $('feedstories').offsetHeight;
-    document.documentElement.style.setProperty('--hdrh', hh + 'px');
-    document.body.classList.add('feedhide');
-  } else if (dy < 0) document.body.classList.remove('feedhide');
-}, { passive: true });
 
 // ---------- reactions ----------
 const REACTIONS = ['\u{1F44D}', '\u2764\uFE0F', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F480}', '\u{1F525}'];
@@ -3704,7 +3691,7 @@ function markStorySeen(name, id) {
 
 function renderStories() {
   // The chat list's story row, and the same row at the top of the feed on phones.
-  for (const bar of [$('storybar'), $('feedstories')]) fillStoryBar(bar);
+  for (const bar of [$('storybar'), feedStories]) fillStoryBar(bar);
 }
 function fillStoryBar(bar) {
   bar.classList.toggle('hidden', serverApi < 11 || !me);
@@ -4105,13 +4092,32 @@ function sys(text, isErr) {
   return el;
 }
 
+// Where new things go at the top of the feed: just under the stories row.
+function feedTop() {
+  return feedStories.parentNode === log ? feedStories.nextSibling : log.firstChild;
+}
+
+// Runs change() without moving what you're looking at, even if things above it grow
+// or appear. (Chrome does this by itself; iPhones don't.)
+function keepPlace(change) {
+  const top = log.getBoundingClientRect().top;
+  const anchor = [...log.children].find(c => c.getBoundingClientRect().bottom > top + 1);
+  const y0 = anchor ? anchor.getBoundingClientRect().top : 0;
+  change();
+  if (anchor && anchor.isConnected) {
+    const dy = anchor.getBoundingClientRect().top - y0;
+    if (Math.abs(dy) > 0.5) log.scrollTop += dy;
+  }
+}
+
 function renderBatch(msgs, animate) {
   if (!msgs.length) return;
   if (!isFeed()) notePreview(openId, msgs[msgs.length - 1]);
   const stick = nearBottom();
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
   const before = new Set(log.children);
-  msgs.forEach(addMessage);
+  if (isFeed() && !stick) keepPlace(() => msgs.forEach(addMessage)); // new posts arrive above you
+  else msgs.forEach(addMessage);
   if (animate) {
     // Slide in only what just arrived, not a whole chat loading at once.
     for (const el of log.children) {
@@ -4120,7 +4126,7 @@ function renderBatch(msgs, animate) {
   }
   lastId = Math.max(lastId, ...msgs.map(m => m.id));
   // Keep messages still being sent at the end new things appear.
-  log.querySelectorAll('.pending').forEach(p => isFeed() ? log.prepend(p) : log.appendChild(p));
+  log.querySelectorAll('.pending').forEach(p => isFeed() ? log.insertBefore(p, feedTop()) : log.appendChild(p));
   groupMessages();
   if (stick) scrollDown();
   else $('newmsgs').style.display = 'block';
