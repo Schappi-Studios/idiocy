@@ -11,6 +11,8 @@
      ours to paint: see body::before. -->
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Idiocy">
+<!-- The home screen icon on iPhones. A full address, so every copy of the page (here, schappistudios.com/idiocy, GitHub) finds it. -->
+<link rel="apple-touch-icon" href="https://idiocy.schappistudios.com/apple-touch-icon.png">
 <title>Idiocy</title>
 <!-- Start talking to Google straight away; the first request then skips the connection setup. -->
 <link rel="preconnect" href="https://api.schappistudios.com" crossorigin>
@@ -1954,6 +1956,12 @@ let stateGen = 0;
 
 // For button actions: shows errors as a toast, returns the response or null.
 // `optimistic(st)` updates the sidebar straight away; it's undone on failure.
+// Something on screen that the server no longer has (deleted elsewhere): reload this chat on
+// the next poll. (The feed is brought up to date where it stands.)
+function goneOnServer(error) {
+  if (/^(Message not found|That post was deleted)$/.test(error || '') && openRev) openRev = 'stale';
+}
+
 async function act(action, data, onOk, optimistic) {
   const btn = takePressed();
   const before = optimistic && st ? JSON.stringify(st) : null;
@@ -1963,6 +1971,7 @@ async function act(action, data, onOk, optimistic) {
   try {
     const d = await api(action, data);
     if (!d.ok) {
+      goneOnServer(d.error);
       if (verifyError(d.error)) openVerify();
       else if (!d.auth) toast(d.error || 'Something went wrong', true);
       if (before) { st = JSON.parse(before); renderSide(); renderHeader(); }
@@ -2229,7 +2238,9 @@ function restoreSnapshot() {
   serverApi = snap.api || 0; settings = snap.settings || settings;
   streaks = snap.streaks || {}; stories = snap.stories || [];
   uv = null; // the first poll sends the up-to-date chat list anyway
-  if (snap.feed && snap.feed.msgs) chatCache.set('global', snap.feed);
+  // Shown straight away, then checked with the server on the first poll (rev 'saved' never
+  // matches), so nothing deleted meanwhile can linger.
+  if (snap.feed && snap.feed.msgs) chatCache.set('global', Object.assign({}, snap.feed, { rev: 'saved' }));
   loadRead();
   return true;
 }
@@ -3491,7 +3502,7 @@ async function loadComments(el) {
     const d = await api('comments', { post: el._m.id });
     if (!box.isConnected) return;
     const list = box.firstElementChild;
-    if (!d.ok) { list.replaceChildren(h('div', { class: 'muted' }, d.error || "Couldn't load comments")); return; }
+    if (!d.ok) { goneOnServer(d.error); list.replaceChildren(h('div', { class: 'muted' }, d.error || "Couldn't load comments")); return; }
     const pending = [...list.querySelectorAll('.cmt.pending')];
     list.replaceChildren(...d.comments.map(c => buildComment(el, c)), ...pending);
   } catch (e) {
@@ -4838,9 +4849,10 @@ log.addEventListener('scroll', () => {
 }, { passive: true });
 log.addEventListener('scrollend', () => { if (isFeed()) feedSettled(); });
 
-// Laptops: each scroll or trackpad swipe moves exactly one post. A trackpad keeps sending
-// scrolls for a second after a swipe; those are ignored, so it never flies past several posts.
-let wheelLock = 0, wheelLast = -1e9, stepTo = null;
+// Laptops: each scroll or trackpad swipe moves exactly one post. After a swipe a trackpad
+// keeps "coasting" (sending smaller and smaller scrolls) for a second or so; that's ignored,
+// so it never flies past several posts, but a new swipe counts straight away.
+let wheelLock = 0, wheelLast = -1e9, wheelHist = [], stepTo = null;
 log.addEventListener('wheel', e => {
   if (!isFeed() || log.classList.contains('nosnap') || e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
   // Something inside a post that scrolls (a long caption, say) scrolls first.
@@ -4849,11 +4861,19 @@ log.addEventListener('wheel', e => {
         (e.deltaY < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight - 1)) return;
   }
   e.preventDefault();
-  // A new swipe starts after a pause. Timed by when the scroll actually happened, so a busy
-  // moment can't look like a pause.
-  const now = e.timeStamp, fresh = now - wheelLast > 150;
+  // Timed by when the scroll actually happened, so a busy moment can't look like a pause.
+  const now = e.timeStamp, gap = now - wheelLast, size = Math.abs(e.deltaY);
+  const prev = wheelHist.length ? wheelHist[wheelHist.length - 1] : 0;
   wheelLast = now;
-  if (!fresh || now < wheelLock || !e.deltaY) return;
+  if (gap > 200) wheelHist = [];
+  wheelHist.push(size);
+  if (wheelHist.length > 40) wheelHist.shift();
+  const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const fresh = gap > 200;                           // after a pause
+  const click = gap >= 60 && size >= Math.max(prev, 4); // a separate click of a mouse wheel (not the last dribbles of coasting)
+  const rising = wheelHist.length >= 6 &&            // a new swipe while the last one is still coasting
+    avg(wheelHist.slice(-3)) > avg(wheelHist.slice(-13, -3)) * 1.4 + 2;
+  if (!(fresh || click || rising) || now < wheelLock || !size) return;
   wheelLock = now + 350;
   stepFeed(Math.sign(e.deltaY));
 }, { passive: false });
