@@ -326,6 +326,30 @@
   aside .verifybar { border-radius: 14px; margin: 4px 12px 8px; }
   @media (min-width: 721px) { aside .verifybar { display: none; } } /* computers: the one above the chat is enough */
   .composer-note.verify { cursor: pointer; font-weight: 600; }
+  /* ---------- add to your home screen (iPhone Safari) ---------- */
+  .a2hsbar { display: flex; align-items: center; gap: 10px; padding: 8px 6px 8px 12px; background: var(--panel-2); border-bottom: 1px solid var(--border); cursor: pointer; font-size: 14px; }
+  .a2hsbar.hidden { display: none; }
+  .a2hsbar img { width: 34px; height: 34px; border-radius: 9px; flex: none; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
+  .a2hsbar .a2text { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+  .a2hsbar .a2text span { color: var(--muted); font-size: 12.5px; }
+  .a2hsbar .a2go { flex: none; color: var(--accent); font-weight: 700; }
+  .a2hsbar .a2x { flex: none; width: 34px; height: 34px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 15px; cursor: pointer; }
+  aside .a2hsbar { border: 0; border-radius: 14px; margin: 4px 12px 8px; }
+  /* The guide sits at the bottom, with an arrow down at Safari's buttons. */
+  .overlay.a2hsov { flex-direction: column; justify-content: flex-end; gap: 6px; padding-bottom: 4px; }
+  .modal.a2hs h2 { font-size: 20px; }
+  .a2hs .a2sub { margin: -6px 0 0; color: var(--muted); font-size: 14px; }
+  .a2hs ol { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .a2hs li { display: flex; gap: 12px; align-items: flex-start; font-size: 15px; line-height: 1.45; }
+  .a2hs li > b:first-child { flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+  .a2hs .a2chip { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 8px; background: var(--panel-2); font-weight: 700; white-space: nowrap; }
+  .a2hs .a2chip svg { width: 18px; height: 18px; color: #0a84ff; } /* iOS blue, like the real buttons */
+  .a2hs .a2small { display: block; color: var(--muted); font-size: 13px; }
+  .a2hsarrow { display: flex; flex-direction: column; align-items: center; gap: 2px; color: #fff; font-size: 13px; font-weight: 700; }
+  .a2hsarrow span { padding: 5px 12px; border-radius: 999px; background: rgba(0, 0, 0, .72); }
+  .a2hsarrow div { font-size: 28px; line-height: 1; text-shadow: 0 1px 4px rgba(0, 0, 0, .6); animation: a2bob 1s ease-in-out infinite; }
+  @keyframes a2bob { 50% { transform: translateY(7px); } }
+  @media (prefers-reduced-motion: reduce) { .a2hsarrow div { animation: none; } }
   /* ---------- pinned message ---------- */
   #pinbar {
     display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
@@ -1384,6 +1408,7 @@
     <div class="brand"><img class="logo" alt=""><span class="bname" role="img" aria-label="Idiocy"><span>I</span><span>d</span><span>i</span><span>o</span><span>c</span><span>y</span></span><button id="sideclose" title="Close menu" aria-label="Close menu">✕</button></div>
     <div id="mhead"><h1 id="mtitle">Chats</h1><button id="mnew" title="New group" aria-label="New group">+</button></div>
     <div class="verifybar hidden"><span class="vbtext">📧 <b>Verify your email</b> to post, message and add friends.</span><button type="button" class="vbgo">Verify now</button></div>
+<div class="a2hsbar hidden" role="button" tabindex="0"><img class="logo" alt=""><span class="a2text"><b>Get Idiocy on your home screen</b><span>It opens full screen, like an app</span></span><span class="a2go">How?</span><button type="button" class="a2x" title="Not now" aria-label="Not now">✕</button></div>
     <div class="me">
       <button class="who" id="mename" title="Your profile"></button>
       <button class="iconbtn hidden" id="adminbtn" title="Admin panel" aria-label="Admin panel">
@@ -1433,6 +1458,7 @@
       <button class="iconbtn hidden" id="vcallbtn" title="Video call" aria-label="Video call">&#x1F3A5;</button>
     </header>
 <div class="verifybar hidden"><span class="vbtext">📧 <b>Verify your email</b> to post, message and add friends.</span><button type="button" class="vbgo">Verify now</button></div>
+<div class="a2hsbar hidden" role="button" tabindex="0"><img class="logo" alt=""><span class="a2text"><b>Get Idiocy on your home screen</b><span>It opens full screen, like an app</span></span><span class="a2go">How?</span><button type="button" class="a2x" title="Not now" aria-label="Not now">✕</button></div>
     <div id="pinbar" class="hidden" title="Go to the pinned message"><span>📌</span><span class="pintext" id="pintext"></span><button type="button" id="pinx" title="Unpin" aria-label="Unpin">✕</button></div>
     <div id="gcallpanel" class="callpanel group hidden">
       <div class="tiles" id="gtiles"></div>
@@ -2011,6 +2037,42 @@ const INVITE_BASE = 'https://idiocy.schappistudios.com/';
 })();
 
 // Signed out with an invite waiting: "Lucas invited you", and start on Sign up.
+// ---------- add to your home screen ----------
+// iPhones can't be asked to add a website to the home screen; people do it from Safari's Share
+// menu. So Safari on iPhones gets a small banner, and tapping it shows how.
+function canAddToHome() {
+  const ua = navigator.userAgent;
+  return /iPhone|iPod/.test(ua) && /Safari\//.test(ua) && !navigator.standalone && window.top === window.self &&
+    !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|FBAN|FBAV|Instagram|Snapchat|musical_ly|Bytedance|TikTok|Discord|Line\//.test(ua); // other apps' built-in browsers can't
+}
+function paintA2hs() {
+  const show = canAddToHome() && !!me && !mustVerify() && Date.now() > (prefs.a2hsLater || 0);
+  document.querySelectorAll('.a2hsbar').forEach(b => b.classList.toggle('hidden', !show));
+}
+function openA2hs() {
+  const share = '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/>';
+  const add = '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>';
+  const chip = (icon, label) => { const c = h('span', { class: 'a2chip' }); c.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`; c.append(label); return c; };
+  const m = modal('a2hs',
+    h('h2', null, '\u{1F4F2} Add Idiocy to your home screen'),
+    h('p', { class: 'a2sub' }, 'Then it opens full screen, like a real app.'),
+    h('ol', null,
+      h('li', null, h('b', null, '1'), h('span', null, 'Tap ', chip(share, 'Share'), ' in Safari\u2019s buttons at the bottom.', h('span', { class: 'a2small' }, 'Can\u2019t see it? Tap \u2022\u2022\u2022 first.'))),
+      h('li', null, h('b', null, '2'), h('span', null, 'Scroll down and tap ', chip(add, 'Add to Home Screen'))),
+      h('li', null, h('b', null, '3'), h('span', null, 'Tap ', h('b', null, 'Add'), ' at the top.', h('span', { class: 'a2small' }, 'If you see \u201cOpen as Web App\u201d, leave it on.'))),
+      h('li', null, h('b', null, '4'), h('span', null, 'Open Idiocy from your home screen.', h('span', { class: 'a2small' }, 'You might need to log in again there.')))),
+    h('div', { class: 'btns' }, h('button', { class: 'primary', onclick: () => m.close() }, 'Got it')));
+  m.overlay.classList.add('a2hsov');
+  m.overlay.append(h('div', { class: 'a2hsarrow', 'aria-hidden': 'true' }, h('span', null, 'Safari\u2019s buttons are down here'), h('div', null, '\u2193')));
+}
+document.querySelectorAll('.a2hsbar').forEach(b => {
+  b.onclick = e => {
+    if (e.target.closest('.a2x')) { prefs.a2hsLater = Date.now() + 14 * 864e5; savePrefs(); paintA2hs(); return; } // not now: ask again in two weeks
+    openA2hs();
+  };
+  b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openA2hs(); } };
+});
+
 async function showInviteBanner() {
   const code = store.get(INVITE_KEY);
   if (!code || token) return;
@@ -4975,6 +5037,7 @@ function updateComposer() {
   $('postpoll').disabled = !!muted || locked;
   note.onclick = null;
   document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
+  paintA2hs();
   if (locked) {
     note.textContent = '\u{1F4E7} Verify your email to post and send messages. Tap here.';
     note.className = 'composer-note warn verify';
