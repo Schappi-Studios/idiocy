@@ -3864,7 +3864,10 @@ function setView(v) {
   document.querySelector('main').inert = phone && list;
   document.querySelector('aside').inert = phone && !list;
 }
-matchMedia('(max-width: 720px)').addEventListener('change', () => setView(mview));
+// The feed's post box asks a shorter version on phones, where it's narrower.
+const paintPostPrompt = () => { $('posttext').placeholder = isPhone() ? 'What idiotic idea have you had?' : 'What idiotic idea have you thought of?'; };
+paintPostPrompt();
+matchMedia('(max-width: 720px)').addEventListener('change', () => { setView(mview); paintPostPrompt(); });
 function mtab(t) {
   if (t === 'shorts') { openShorts(); return; } // a full-screen player, not a screen of its own
   if (shortsOpen) { shortsOpen.close(); if (t === mview) return; } // another tab: leave Shorts and go there
@@ -6605,12 +6608,7 @@ $('postcount').textContent = POST_HINT;
 const postEl = $('posttext');
 function growPost() {
   postEl.style.height = 'auto';
-  // Empty, it's as tall as its prompt, which wraps onto a second line on phones.
-  const empty = !postEl.value;
-  if (empty) postEl.value = postEl.placeholder;
-  const tall = postEl.scrollHeight;
-  if (empty) postEl.value = '';
-  postEl.style.height = Math.min(180, tall + 2) + 'px';
+  postEl.style.height = Math.min(180, postEl.scrollHeight + 2) + 'px'; // empty, that's the prompt's height (it can wrap)
   const left = 1000 - postEl.value.length;
   $('postcount').textContent = left <= 100 ? `${left} left` : POST_HINT;
 }
