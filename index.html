@@ -1533,7 +1533,7 @@
     <div id="log"><div id="feedstories" class="hidden" aria-label="Stories"></div></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
-      <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What's on your mind?"></textarea><button class="primary" id="postbtn" type="button">Post</button><button type="button" id="postcammini" title="Take photo" aria-label="Take photo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button></div>
+      <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What idiotic idea have you thought of?"></textarea><button class="primary" id="postbtn" type="button">Post</button><button type="button" id="postcammini" title="Take photo" aria-label="Take photo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button></div>
       <div class="fbact">
         <button type="button" class="iconbtn" id="postimg" title="Add a picture" aria-label="Add a picture">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -2699,8 +2699,9 @@ function renderSide() {
     const unread = isUnread(c.id);
     return fresh(h('button', {
       class: 'row' + (c.id === openId ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
+      'data-at': c.type === 'dm' ? label : null, title: c.type === 'dm' ? '@' + label : null,
       onclick: () => switchTo(c.id),
-    }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, label, streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
+    }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, c.type === 'dm' ? displayName(label) : label, streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
       isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
       notifyLevel(c.id) === 'mentions' && h('span', { class: 'muteicon', title: 'Mentions only' }, '@'),
       h('span', { class: 'when' }, ago(latest[c.id])),
@@ -3863,10 +3864,7 @@ function setView(v) {
   document.querySelector('main').inert = phone && list;
   document.querySelector('aside').inert = phone && !list;
 }
-// The feed's post box asks something sillier on computers, where there's room for it.
-const paintPostPrompt = () => { $('posttext').placeholder = isPhone() ? 'What\u2019s on your mind?' : 'What idiotic idea have you thought of?'; };
-paintPostPrompt();
-matchMedia('(max-width: 720px)').addEventListener('change', () => { setView(mview); paintPostPrompt(); });
+matchMedia('(max-width: 720px)').addEventListener('change', () => setView(mview));
 function mtab(t) {
   if (t === 'shorts') { openShorts(); return; } // a full-screen player, not a screen of its own
   if (shortsOpen) { shortsOpen.close(); if (t === mview) return; } // another tab: leave Shorts and go there
@@ -3886,8 +3884,10 @@ function filterChats() {
   const ms = $('msgsearch');
   ms.classList.toggle('hidden', serverApi < 18 || q.replace(/\s/g, '').length < 2);
   ms.textContent = `\u{1F50D} Search messages for \u201C${q.slice(0, 30)}\u201D`;
+  // DMs match their name or their @ (with or without the @).
   $('convos').querySelectorAll('.row').forEach(r => {
-    r.style.display = q && !r.querySelector('.nm').textContent.toLowerCase().includes(q) ? 'none' : '';
+    const hit = r.querySelector('.nm').textContent.toLowerCase().includes(q) || (r.dataset.at || '').toLowerCase().includes(q.replace(/^@/, ''));
+    r.style.display = q && !hit ? 'none' : '';
   });
 }
 
@@ -6605,11 +6605,19 @@ $('postcount').textContent = POST_HINT;
 const postEl = $('posttext');
 function growPost() {
   postEl.style.height = 'auto';
-  postEl.style.height = Math.min(180, postEl.scrollHeight + 2) + 'px';
+  // Empty, it's as tall as its prompt, which wraps onto a second line on phones.
+  const empty = !postEl.value;
+  if (empty) postEl.value = postEl.placeholder;
+  const tall = postEl.scrollHeight;
+  if (empty) postEl.value = '';
+  postEl.style.height = Math.min(180, tall + 2) + 'px';
   const left = 1000 - postEl.value.length;
   $('postcount').textContent = left <= 100 ? `${left} left` : POST_HINT;
 }
 postEl.addEventListener('input', growPost);
+// The prompt wraps differently at different widths: refit whenever the box gets wider or narrower.
+let postW = 0;
+new ResizeObserver(() => { if (postEl.clientWidth !== postW) { postW = postEl.clientWidth; if (postW && !postEl.value) growPost(); } }).observe(postEl);
 postEl.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submitPost(); } });
 postEl.addEventListener('paste', e => {
   const item = [...(e.clipboardData ? e.clipboardData.items : [])].find(i => i.kind === 'file' && i.type.startsWith('image/'));
