@@ -3711,7 +3711,10 @@ function setView(v) {
   document.querySelector('main').inert = phone && list;
   document.querySelector('aside').inert = phone && !list;
 }
-matchMedia('(max-width: 720px)').addEventListener('change', () => setView(mview));
+// The feed's post box asks something sillier on computers, where there's room for it.
+const paintPostPrompt = () => { $('posttext').placeholder = isPhone() ? 'What\u2019s on your mind?' : 'What idiotic idea have you thought of?'; };
+paintPostPrompt();
+matchMedia('(max-width: 720px)').addEventListener('change', () => { setView(mview); paintPostPrompt(); });
 function mtab(t) {
   if (t === 'shorts') { openShorts(); return; } // a full-screen player, not a screen of its own
   if (shortsOpen) { shortsOpen.close(); if (t === mview) return; } // another tab: leave Shorts and go there
