@@ -1727,6 +1727,8 @@ function modal(cls, ...kids) {
 
 // Someone's name, e.g. "Lucas Schappi" (accounts from before names came along don't have one).
 const fullName = p => p ? [p.first, p.last].filter(Boolean).join(' ') : '';
+// What to call someone in lists: their name, or their @username if they haven't got one (or it hasn't loaded yet).
+const displayName = n => fullName(profileOf(n)) || n;
 
 async function openProfile(name) {
   const m = modal('profile');
@@ -2706,24 +2708,25 @@ function renderSide() {
   }));
 
   const reqs = [];
-  st.incoming.forEach(n => reqs.push(fresh(h('div', { class: 'req' },
-    h('b', null, n), ' wants to be friends',
+  wantProfiles(st.incoming); // for their names
+  st.incoming.forEach(n => reqs.push(fresh(h('div', { class: 'req', title: '@' + n },
+    h('b', null, displayName(n)), ' wants to be friends',
     h('div', { class: 'actions' },
       h('button', { class: 'primary', style: 'padding:4px 12px', onclick: () => respond(n, true) }, 'Accept'),
       h('button', { class: 'ghost', onclick: () => respond(n, false) }, 'Decline'))), 'i:' + key(n))));
   st.outgoing.forEach(n => reqs.push(fresh(h('div', { class: 'row' },
-    avatar(n), h('span', { class: 'label' }, n, h('span', { class: 'muted' }, 'pending')),
+    avatar(n), h('span', { class: 'label', title: '@' + n }, displayName(n), h('span', { class: 'muted' }, 'pending')),
     h('button', { class: 'x', title: 'Cancel request', onclick: () => unfriend(n) }, '✕')), 'o:' + key(n))));
   $('requests').replaceChildren(...reqs);
 
   $('friends').replaceChildren(...(st.friends.length
-    ? st.friends.slice().sort((a, b) => a.localeCompare(b)).map(n => fresh(h('div', { class: 'row', onclick: () => openDm(n) },
+    ? st.friends.slice().sort((a, b) => displayName(a).localeCompare(displayName(b))).map(n => fresh(h('div', { class: 'row', onclick: () => openDm(n) },
         avatar(n, { dot: true }),
-        h('span', { class: 'label two' }, h('b', { style: 'font-weight:500', class: profileOf(n) && profileOf(n).role === 'admin' ? 'admin-name' : null }, n),
-          profileOf(n) && (profileOf(n).status || profileOf(n).game) && h('span', { class: 'st' }, profileOf(n).status || '\u{1F3AE} ' + profileOf(n).game)),
+        h('span', { class: 'label two', title: '@' + n }, h('b', { style: 'font-weight:500', class: profileOf(n) && profileOf(n).role === 'admin' ? 'admin-name' : null }, displayName(n)),
+          h('span', { class: 'st' }, (profileOf(n) && (profileOf(n).status || (profileOf(n).game && '\u{1F3AE} ' + profileOf(n).game))) || (displayName(n) !== n ? '@' + n : ''))),
         h('button', {
           class: 'x', title: 'Remove friend',
-          onclick: e => { e.stopPropagation(); if (confirm(`Remove ${n} from your friends?`)) unfriend(n); },
+          onclick: e => { e.stopPropagation(); if (confirm(`Remove ${displayName(n)} from your friends?`)) unfriend(n); },
         }, '✕')), 'f:' + key(n)))
     : [h('div', { class: 'muted' }, 'No friends yet. Add someone by username!')]));
   seenRows = seen;
