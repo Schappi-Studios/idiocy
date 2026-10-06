@@ -23,6 +23,8 @@
     try { t = JSON.parse(localStorage.getItem('chat_prefs') || '{}').theme || 'auto'; } catch (e) {}
     var dark = t === 'dark' || (t === 'auto' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
     document.documentElement.dataset.theme = t === 'retro' ? 'retro' : dark ? 'dark' : 'light';
+    // Opened from the home screen icon, not a browser tab.
+    if (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) document.documentElement.classList.add('standalone');
     if (t === 'retro') {
       // The retro fonts load only for people who picked Retro.
       var l = document.createElement('link');
@@ -140,6 +142,10 @@
 
   /* ---------- app layout ---------- */
   #app { display: flex; height: 100%; height: 100dvh; } /* dvh follows phone browser bars */
+  /* Home screen app on iPhones: 100dvh comes up short by the status bar's height (an iOS bug
+     with the see-through status bar), leaving a white strip at the bottom. There are no
+     browser bars to follow there, so simply fill the screen. */
+  html.standalone #app { height: 100%; }
   /* Once you're in, only the inside scrolls, never the page itself, so the bar at the top
      (with search) can't get dragged off the screen on phones. */
   html:has(#app:not(.hidden)), body:has(#app:not(.hidden)) { overflow: hidden; overscroll-behavior: none; }
