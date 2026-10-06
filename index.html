@@ -310,8 +310,33 @@
   .emailbox .row2 { display: flex; gap: 8px; }
   .emailbox .row2 input { flex: 1; min-width: 0; }
   .emailbox .hint { color: var(--muted); font-size: 12px; }
-  #acodebox { display: flex; flex-direction: column; gap: 8px; }
-  #acodebox.hidden { display: none; }
+  /* ---------- signing up, one question at a time ---------- */
+  #signup { display: flex; flex-direction: column; gap: 12px; }
+  #signup.hidden, #signup section.hidden { display: none; }
+  #signup section { display: flex; flex-direction: column; gap: 10px; }
+  #signup h2 { margin: 2px 0 4px; font-size: 24px; line-height: 1.2; letter-spacing: -.3px; }
+  #signup input { font-size: 17px; padding: 12px 14px; }
+  #signup .primary { padding: 13px; font-size: 16px; border-radius: 999px; margin-top: 4px; }
+  #signup .primary:disabled { opacity: .45; }
+  .sutop { display: flex; align-items: center; gap: 12px; }
+  #suback { width: 34px; height: 34px; border: 0; border-radius: 50%; background: var(--panel-2); color: var(--text); font-size: 24px; line-height: 1; cursor: pointer; padding: 0 0 3px; }
+  #suback.invisible { visibility: hidden; }
+  .sudots { display: flex; gap: 6px; flex: 1; }
+  .sudots i { flex: 1; height: 4px; border-radius: 4px; background: var(--border); transition: background .2s; }
+  .sudots i.on { background: var(--accent); }
+  .sutwo { display: flex; gap: 10px; }
+  .sutwo label { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .sutwo input { width: 100%; }
+  .suat { display: flex; align-items: center; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); padding-left: 14px; }
+  .suat:focus-within { border-color: var(--accent); }
+  .suat span { font-size: 19px; font-weight: 800; color: var(--muted); }
+  #signup .suat input { flex: 1; min-width: 0; border: 0; background: none; padding-left: 4px; outline: none; }
+  .sustatus { min-height: 20px; font-size: 14px; font-weight: 600; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .sustatus.good { color: var(--ok); }
+  .sustatus.bad { color: var(--danger); }
+  .sustatus button { border: 1px solid var(--border); background: var(--panel); color: var(--accent); border-radius: 999px; padding: 4px 10px; font: inherit; font-size: 13px; cursor: pointer; }
+  .suhint { margin: 0; color: var(--muted); font-size: 14px; }
+  #suerr { color: var(--danger); font-size: 13px; min-height: 18px; }
   .authhint { color: var(--muted); font-size: 13px; display: flex; flex-direction: column; gap: 8px; }
   /* ---------- verify your email ---------- */
   .verifybar {
@@ -1008,6 +1033,8 @@
   }
   .profile .big .presence { width: 18px; height: 18px; border-width: 3px; right: 0; bottom: 0; }
   .profile .pname { font-size: 20px; font-weight: 800; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .profile .pfull { font-size: 22px; font-weight: 800; line-height: 1.2; margin-bottom: -4px; }
+  .profile .pfull + .pname { font-size: 15px; font-weight: 600; color: var(--muted); } /* the @ under the name */
   .profile .pname .badge { margin: 0; }
   .profile .pstatus { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 14px; }
   .profile .pstatus .dotsm { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
@@ -1380,15 +1407,47 @@
     <form id="authform">
       <input id="auser" placeholder="Username" autocomplete="username" maxlength="20">
       <input id="apass" type="password" placeholder="Password" autocomplete="current-password">
-      <input id="aemail" type="email" placeholder="Email" autocomplete="email" maxlength="100" class="hidden">
-      <div id="acodebox" class="hidden">
-        <div id="acodehint" class="authhint"></div>
-        <input id="acode" inputmode="numeric" placeholder="6-digit code" maxlength="7" autocomplete="one-time-code">
-        <button type="button" class="linkbtn" id="aresend">Send a new code</button>
-      </div>
       <div id="autherr"></div>
       <button type="button" class="linkbtn" id="forgotbtn" style="align-self:flex-start">Forgot password?</button>
       <button class="primary" type="submit">Log in</button>
+    </form>
+    <!-- Signing up: one question at a time. -->
+    <form id="signup" class="hidden" novalidate>
+      <div class="sutop">
+        <button type="button" id="suback" aria-label="Back">‹</button>
+        <div class="sudots" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+      <section data-step="name">
+        <h2>What should people call you?</h2>
+        <div class="sutwo">
+          <label>First name<input id="sufirst" autocomplete="given-name" maxlength="20"></label>
+          <label>Last name (optional)<input id="sulast" autocomplete="family-name" maxlength="20"></label>
+        </div>
+      </section>
+      <section data-step="handle" class="hidden">
+        <h2>Pick your @</h2>
+        <label class="suat"><span>@</span><input id="suuser" autocomplete="username" maxlength="20" autocapitalize="none" autocorrect="off" spellcheck="false" aria-label="Your @username"></label>
+        <div id="suhandle" class="sustatus" aria-live="polite"></div>
+        <p class="suhint">This is how people can find you.</p>
+      </section>
+      <section data-step="password" class="hidden">
+        <h2>Set a password</h2>
+        <input id="supass" type="password" autocomplete="new-password" aria-label="Password">
+        <p class="suhint">At least 6 characters.</p>
+      </section>
+      <section data-step="email" class="hidden">
+        <h2>What’s your email?</h2>
+        <input id="suemail" type="email" autocomplete="email" maxlength="100" aria-label="Email">
+        <p class="suhint">We’ll send you a code to check it’s yours. You’ll need it if you ever forget your password.</p>
+      </section>
+      <section data-step="code" class="hidden">
+        <h2>Enter the code</h2>
+        <div id="sucodehint" class="authhint"></div>
+        <input id="sucode" inputmode="numeric" placeholder="6-digit code" maxlength="7" autocomplete="one-time-code" aria-label="Code from your email">
+        <button type="button" class="linkbtn" id="suresend" style="align-self:flex-start">Send a new code</button>
+      </section>
+      <div id="suerr" role="alert"></div>
+      <button class="primary" type="submit" id="sugo">Continue</button>
     </form>
   </div>
 </div>
@@ -1666,6 +1725,9 @@ function modal(cls, ...kids) {
   return { overlay, box, close: () => overlay.remove() };
 }
 
+// Someone's name, e.g. "Lucas Schappi" (accounts from before names came along don't have one).
+const fullName = p => p ? [p.first, p.last].filter(Boolean).join(' ') : '';
+
 async function openProfile(name) {
   const m = modal('profile');
   const render = () => {
@@ -1707,7 +1769,8 @@ async function openProfile(name) {
       h('div', { class: 'banner', style: `background:${BANNERS[p.banner] || colorFor(name, 80)}` }),
       h('div', { class: 'inner' },
         big,
-        h('div', { class: 'pname' + (p.role === 'admin' ? ' admin-name' : '') }, p.username || name, p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
+        fullName(p) && h('div', { class: 'pfull' }, fullName(p)),
+        h('div', { class: 'pname' + (p.role === 'admin' ? ' admin-name' : '') }, fullName(p) ? '@' + (p.username || name) : p.username || name, p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           p.verified && h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713 Verified'),
@@ -1855,6 +1918,9 @@ function openEditProfile() {
   paintSwatches();
   const game = h('input', { maxlength: 30, placeholder: 'e.g. Slope, Minecraft, Retro Bowl' });
   game.value = p.game || '';
+  const first = h('input', { maxlength: 20, autocomplete: 'given-name' }), last = h('input', { maxlength: 20, autocomplete: 'family-name' });
+  first.value = p.first || '';
+  last.value = p.last || '';
 
   const save = h('button', { class: 'primary', type: 'submit' }, 'Save');
   const cur = h('input', { type: 'password', placeholder: 'Current password', autocomplete: 'current-password' });
@@ -1863,7 +1929,7 @@ function openEditProfile() {
   const m = modal('scroll',
     h('h2', null, 'Edit profile'),
     serverApi >= 7 && h('div', { class: 'toggle' },
-      h('span', null, 'Username', h('div', { class: 'hint', style: 'color:var(--muted);font-size:13px' }, me.name)),
+      h('span', null, 'Your @', h('div', { class: 'hint', style: 'color:var(--muted);font-size:13px' }, '@' + me.name)),
       h('button', { class: 'ghost', type: 'button', onclick: () => renameUser(me.name, false, () => m.close()) }, 'Change')),
     h('form', {
       style: 'display:flex;flex-direction:column;gap:12px',
@@ -1871,11 +1937,13 @@ function openEditProfile() {
         e.preventDefault();
         save.disabled = true;
         const d = await act('updateProfile', { avatar: pic, status: status.value, bio: bio.value,
-          ...(serverApi >= 12 && { banner, game: game.value }) });
+          ...(serverApi >= 12 && { banner, game: game.value }), ...(serverApi >= 24 && { first: first.value, last: last.value }) });
         save.disabled = false;
         if (d) { storeProfiles(d.profiles); toast('Profile saved'); m.close(); }
       },
     },
+      serverApi >= 24 && h('div', { class: 'sutwo' },
+        h('label', null, 'First name', first), h('label', null, 'Last name (optional)', last)),
       h('div', { class: 'avrow' }, preview, file,
         h('button', { class: 'ghost', type: 'button', onclick: () => file.click() }, 'Upload picture'),
         h('button', { class: 'ghost', type: 'button', onclick: () => { pic = ''; paintPreview(); } }, 'Remove')),
@@ -2160,39 +2228,12 @@ document.querySelectorAll('.tabs button').forEach(b => {
   b.onclick = () => {
     authMode = b.dataset.mode;
     document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
-    $('apass').autocomplete = authMode === 'login' ? 'current-password' : 'new-password';
-    $('aemail').classList.toggle('hidden', authMode !== 'register');
-    $('forgotbtn').classList.toggle('hidden', authMode === 'register');
+    $('authform').classList.toggle('hidden', authMode !== 'login');
+    $('signup').classList.toggle('hidden', authMode !== 'register');
     $('autherr').textContent = '';
-    resetSignupCode();
+    if (authMode === 'register') showSignupStep(suStep);
   };
 });
-
-// Signing up is two steps: send a code to your email, then type it in to make the account.
-let signupSentTo = null; // the email/username the code went to
-function resetSignupCode() {
-  signupSentTo = null;
-  $('acodebox').classList.add('hidden');
-  $('acode').value = '';
-  document.querySelector('#authform .primary').textContent = authMode === 'login' ? 'Log in' : 'Send code';
-}
-// Changing the email or username after the code went out means a new code.
-['aemail', 'auser'].forEach(id => $(id).addEventListener('input', () => { if (signupSentTo) resetSignupCode(); }));
-async function sendSignupCode() {
-  const d = await api('signupStart', { username: $('auser').value, password: $('apass').value, email: $('aemail').value });
-  if (!d.ok && d.error === 'Unknown action') return 'old'; // backend not updated yet: sign up the old way
-  if (!d.ok) { $('autherr').textContent = d.error; return false; }
-  signupSentTo = { email: $('aemail').value.trim(), user: $('auser').value };
-  $('acodehint').replaceChildren(`We sent a 6-digit code to ${signupSentTo.email}. It expires in 10 minutes.`, spamNote());
-  $('acodebox').classList.remove('hidden');
-  document.querySelector('#authform .primary').textContent = 'Create account';
-  $('acode').focus();
-  return true;
-}
-$('aresend').onclick = async () => {
-  $('autherr').textContent = '';
-  if (await sendSignupCode() === true) toast('New code sent');
-};
 
 $('authform').addEventListener('submit', async e => {
   e.preventDefault();
@@ -2201,30 +2242,138 @@ $('authform').addEventListener('submit', async e => {
   btn.classList.add('busy');
   $('autherr').textContent = '';
   try {
-    let data = { username: $('auser').value, password: $('apass').value };
-    if (authMode === 'register') {
-      if (!signupSentTo) {
-        if (!$('aemail').value.trim()) { $('autherr').textContent = 'Enter your email. You\u2019ll need it if you forget your password.'; return; }
-        const sent = await sendSignupCode();
-        if (sent !== 'old') return; // now waiting for the code (or showing an error)
-      } else {
-        if (!$('acode').value.trim()) { $('autherr').textContent = 'Enter the code from your email'; return; }
-        data = Object.assign(data, { email: signupSentTo.email, code: $('acode').value });
-      }
-    }
-    const d = await api(authMode, data);
+    const d = await api('login', { username: $('auser').value, password: $('apass').value });
     if (!d.ok) { $('autherr').textContent = d.error; return; }
-    resetSignupCode();
-    token = d.token;
-    store.set('chat_token', token);
+    signedIn(d.token);
     $('apass').value = '';
-    if (authMode === 'register') { prefs.news = NEWS.v; savePrefs(); } // new accounts: it's all new anyway
-    start();
   } catch (err) {
     $('autherr').textContent = 'Could not reach the server';
   } finally {
     btn.disabled = false;
     btn.classList.remove('busy');
+  }
+});
+function signedIn(t) {
+  token = t;
+  store.set('chat_token', token);
+  start();
+}
+
+// ---------- signing up ----------
+// One question at a time, like Snapchat: your name, your @, a password, your email, then the
+// 6-digit code we email you. The account is only made once the code is in.
+const SIGNUP_STEPS = ['name', 'handle', 'password', 'email', 'code'];
+let suStep = 'name';
+let suSentTo = null;   // the email the code went to
+let handleOk = null;   // the @: true (free), false (taken or not allowed), null (checking), 'unknown' (couldn't check)
+let handleTimer = 0, handleSeq = 0;
+
+function showSignupStep(step) {
+  suStep = step;
+  const i = SIGNUP_STEPS.indexOf(step);
+  $('signup').querySelectorAll('section').forEach(sec => sec.classList.toggle('hidden', sec.dataset.step !== step));
+  $('signup').querySelectorAll('.sudots i').forEach((d, k) => d.classList.toggle('on', k <= i));
+  $('suback').classList.toggle('invisible', i === 0);
+  $('suerr').textContent = '';
+  $('sugo').textContent = step === 'email' ? 'Send code' : step === 'code' ? 'Create account' : 'Continue';
+  if (step === 'handle' && !$('suuser').value) suggestHandle();
+  paintSignupGo();
+  const first = $('signup').querySelector(`section[data-step="${step}"] input`);
+  if (first && !first.value) first.focus();
+}
+const paintSignupGo = () => { $('sugo').disabled = suStep === 'handle' && handleOk !== true && handleOk !== 'unknown'; };
+const signupData = () => ({ first: $('sufirst').value, last: $('sulast').value, username: $('suuser').value, password: $('supass').value });
+
+// Your @ starts as your name run together, e.g. "Lucas Schappi" -> @lucasschappi.
+function suggestHandle() {
+  const base = ($('sufirst').value + $('sulast').value).toLowerCase().normalize('NFD').replace(/[^a-z0-9_-]/g, '').slice(0, 20);
+  if (base.length >= 3) { $('suuser').value = base; checkHandle(); }
+}
+function handleStatus(cls, ...kids) {
+  $('suhandle').className = 'sustatus' + (cls ? ' ' + cls : '');
+  $('suhandle').replaceChildren(...kids);
+}
+// Checks the @ as you type: free, taken (with a few that aren't), or not allowed.
+function checkHandle() {
+  clearTimeout(handleTimer);
+  const v = $('suuser').value, seq = ++handleSeq;
+  handleOk = null;
+  paintSignupGo();
+  if (!v) return handleStatus('');
+  if (v.length < 3) return handleStatus('bad', 'At least 3 letters or numbers');
+  handleStatus('', 'Checking…');
+  handleTimer = setTimeout(async () => {
+    let d = null;
+    try { d = await api('usernameFree', { username: v }); } catch (e) {}
+    if (seq !== handleSeq) return; // typed more since
+    if (!d || !d.ok) { handleOk = 'unknown'; handleStatus(''); } // can't check now: it's checked again when the code is sent
+    else if (d.free) { handleOk = true; handleStatus('good', `✓ @${v} is free`); }
+    else if (d.error) { handleOk = false; handleStatus('bad', d.error); }
+    else {
+      handleOk = false;
+      handleStatus('bad', `✗ @${v} is taken.`, ...(d.suggest || []).map(sg => h('button', { type: 'button', onclick: () => { $('suuser').value = sg.toLowerCase(); checkHandle(); } }, '@' + sg.toLowerCase())));
+    }
+    paintSignupGo();
+  }, 300);
+}
+// Usernames are lowercase with no spaces, like @schappi.
+$('suuser').addEventListener('input', () => {
+  const v = $('suuser').value.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  if (v !== $('suuser').value) $('suuser').value = v;
+  checkHandle();
+});
+$('suemail').addEventListener('input', () => { suSentTo = null; });
+$('suback').onclick = () => {
+  const i = SIGNUP_STEPS.indexOf(suStep);
+  if (i > 0) showSignupStep(SIGNUP_STEPS[i - 1]);
+};
+
+async function sendSignupCode() {
+  const email = $('suemail').value.trim();
+  const d = await api('signupStart', Object.assign(signupData(), { email }));
+  if (!d.ok) {
+    // Back to whichever answer needs fixing.
+    const back = /first name/i.test(d.error) ? 'name' : /username|your @/i.test(d.error) ? 'handle' : /password/i.test(d.error) ? 'password' : null;
+    if (back) showSignupStep(back);
+    $('suerr').textContent = d.error;
+    return false;
+  }
+  suSentTo = email;
+  $('sucodehint').replaceChildren(`We sent a 6-digit code to ${email}. It expires in 10 minutes.`, spamNote());
+  $('sucode').value = '';
+  showSignupStep('code');
+  return true;
+}
+$('suresend').onclick = async () => {
+  $('suerr').textContent = '';
+  try { if (await sendSignupCode()) toast('New code sent'); } catch (e) { $('suerr').textContent = 'Could not reach the server'; }
+};
+
+$('signup').addEventListener('submit', async e => {
+  e.preventDefault();
+  const err = t => { $('suerr').textContent = t; };
+  if (suStep === 'name') return $('sufirst').value.trim() ? showSignupStep('handle') : err('Enter your first name');
+  if (suStep === 'handle') return $('sugo').disabled ? null : showSignupStep('password');
+  if (suStep === 'password') return $('supass').value.length >= 6 ? showSignupStep('email') : err('Your password needs at least 6 characters');
+  if (suStep === 'email' && !$('suemail').value.trim()) return err('Enter your email');
+  if (suStep === 'code' && !$('sucode').value.trim()) return err('Enter the code from your email');
+  const btn = $('sugo');
+  btn.disabled = true;
+  btn.classList.add('busy');
+  err('');
+  try {
+    if (suStep === 'email') { await sendSignupCode(); return; }
+    const d = await api('register', Object.assign(signupData(), { email: suSentTo, code: $('sucode').value }));
+    if (!d.ok) return err(d.error);
+    prefs.news = NEWS.v; savePrefs(); // new accounts: it's all new anyway
+    $('supass').value = '';
+    signedIn(d.token);
+  } catch (ex) {
+    err('Could not reach the server');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('busy');
+    paintSignupGo();
   }
 });
 
@@ -2313,11 +2462,11 @@ addEventListener('pagehide', () => saveSnapshot(true));
 
 // ---------- what's new ----------
 // Shown once, after an update that brings new things, and only once the backend has them.
-const NEWS = { v: 22, title: 'New in Idiocy \u2728', items: [
-  ['\u{1F3AC}', 'Idiocy Shorts', 'Swipe through short videos full-screen (the Shorts tab). Post your own with \u{1F3AC} Short: up to a minute long, 5 a day.'],
+const NEWS = { v: 24, title: 'New in Idiocy \u2728', items: [
+  ['\u{1FAAA}', 'Your name', 'Add your first and last name in Edit profile. It shows big on your profile, with your @ under it.'],
 ], older: [
-  ['\u{1F517}', 'Invite links', 'Get your own link (or QR code) under Friends \u2192 Invite friends. Anyone who opens it becomes your friend straight away.'],
-], olderV: 21 };
+  ['\u{1F3AC}', 'Idiocy Shorts', 'Swipe through short videos full-screen (the Shorts tab). Post your own with \u{1F3AC} Short: up to a minute long, 5 a day.'],
+], olderV: 22 };
 function maybeShowNews() {
   if (serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
   // Missed the last update's pop-up too? Show those as well.
@@ -4806,7 +4955,6 @@ function rankFeed() {
   if (!isFeed()) return;
   log.querySelectorAll('.msg.post.again').forEach(e => e.remove()); // start the endless part afresh
   feedEndEl.remove();
-  againLast = null;
   restOn = null;
   const posts = [...log.children].filter(c => c.classList.contains('post') && !c.classList.contains('pending') && c._m);
   posts.splice(0, posts.length, ...weightedOrder(posts, p => postScore(p._m)));
@@ -4819,7 +4967,6 @@ function rankFeed() {
 }
 // Once every post has loaded: "You're all caught up". Then the feed keeps going, mixing
 // earlier posts back in (liked ones more often).
-let againLast = null;
 function paintFeedEnd() {
   const done = isFeed() && !olderMore && !olderLoading && !!log.querySelector('.msg.post:not(.again)');
   if (!done) { feedEndEl.remove(); return; }
@@ -4840,11 +4987,12 @@ function topUpFeed(n = AHEAD * 2) {
   if (!isFeed() || !feedEndEl.isConnected) return;
   const pool = [...log.querySelectorAll('.msg.post:not(.pending):not(.again)')].map(e => e._m).filter(m => m && m.id);
   if (!pool.length) return;
-  if (againLast === null) againLast = pool[pool.length - 1].id; // not the same post as the one just above "caught up"
+  const last = [...log.querySelectorAll('.msg.post:not(.pending)')].pop(); // the post they'd follow, even across "caught up"
+  let prev = last && last._m && last._m.id;
   for (let i = 0; i < n; i++) {
-    const choices = pool.length > 1 ? pool.filter(m => m.id !== againLast) : pool;
+    const choices = pool.length > 1 ? pool.filter(m => m.id !== prev) : pool;
     const pick = weightedOrder(choices, againWeight)[0];
-    againLast = pick.id;
+    prev = pick.id;
     const el = buildMessage(pick);
     el.classList.add('again');
     log.append(el);
@@ -4906,8 +5054,15 @@ function feedSettled() {
   // feed, so the stories row stays up there until you head that way.)
   const wasAt = was ? posts.indexOf(was) : -1;
   if (wasAt > at && at < AHEAD && Date.now() >= upPause) topUpAbove();
-  const far = feedPosts().filter((p, i, all) => p.classList.contains('again') && Math.abs(i - all.indexOf(cur)) > KEEP_AWAY);
-  if (far.length) keepPlace(() => far.forEach(p => { p.querySelectorAll('.vshot').forEach(b => feedVideos.unobserve(b)); p.remove(); }));
+  // Repeats far away are let go, and so is one that would then sit next to its twin.
+  const all = feedPosts(), here = all.indexOf(cur), gone = [];
+  let prevId = null;
+  all.forEach((p, i) => {
+    const away = Math.abs(i - here);
+    if (p.classList.contains('again') && (away > KEEP_AWAY || (away > AHEAD && p._m.id === prevId))) gone.push(p);
+    else prevId = p._m.id;
+  });
+  if (gone.length) keepPlace(() => gone.forEach(p => { p.querySelectorAll('.vshot').forEach(b => feedVideos.unobserve(b)); p.remove(); }));
 }
 log.addEventListener('scroll', () => {
   if (!isFeed()) return;
@@ -6166,15 +6321,15 @@ async function adminSetEmail(name, done) {
 async function renameUser(name, asAdmin, done) {
   const self = me && key(name) === key(me.name) && !asAdmin;
   const typed = prompt(self
-    ? 'Your new username (3-20 letters, numbers, spaces, _ or -).\nYour messages, friends and chats all move over. You can change it once an hour.'
-    : `New username for ${name}:`, self ? '' : name);
+    ? 'Your new @ (3-20 letters, numbers, _ or -, no spaces).\nYour messages, friends and chats all move over. You can change it once an hour.'
+    : `New @ for ${name}:`, self ? '' : name.replace(/\s+/g, ''));
   if (typed == null || !typed.trim() || typed.trim() === name) return;
   const d = self ? await act('renameMe', { username: typed.trim() }) : await act('adminRename', { username: name, newName: typed.trim() });
   if (!d) return;
   if (self || key(name) === key(me.name)) me.name = d.username;
   profiles.delete(key(name));
   uv = null; // fetch friends/chats with the new name straight away
-  toast(self ? `You're now ${d.username}` : `${name} is now ${d.username}`);
+  toast(self ? `You're now @${d.username}` : `${name} is now @${d.username}`);
   sideSig = '';
   renderSide();
   renderHeader();
