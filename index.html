@@ -1802,11 +1802,11 @@ async function openProfile(name) {
           !p.verified && p.username && me && me.role === 'admin' && serverApi >= 15 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: 'No verified email' }, 'NO EMAIL')),
         h('div', { class: 'pstatus' },
           h('span', { class: 'dotsm' + (p.online ? ' on' : '') }),
-          p.status || (p.online ? 'Online' : 'Offline')),
+          tame(p.status) || (p.online ? 'Online' : 'Offline')),
         p.game && h('div', { class: 'pgame' }, '\u{1F3AE} Playing ', h('b', null, p.game)),
         isBlocked(name) && h('div', { class: 'pmeta' }, '\u{1F6AB} You\u2019ve blocked them. They can\u2019t add or message you.'),
         badgeRow(p, m._badges),
-        p.bio && h('div', { class: 'pbio' }, p.bio),
+        p.bio && h('div', { class: 'pbio' }, tame(p.bio)),
         p.created && h('div', { class: 'pmeta' }, 'Joined ' + new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })),
         h('div', { class: 'btns' }, btns)));
   };
@@ -2717,7 +2717,7 @@ function renderSide() {
   $('mename').replaceChildren(avatar(me.name, { dot: true, click: false }),
     h('span', { class: 'two' },
       h('b', { class: me.role === 'admin' ? 'admin-name' : null }, me.role === 'admin' ? h('span', { class: 'badge' }, 'ADMIN') : '', displayName(me.name)),
-      h('span', { class: 'st' }, (mine && mine.status) || 'Set a status')));
+      h('span', { class: 'st' }, (mine && tame(mine.status)) || 'Set a status')));
 
   const convos = st.convos.slice().sort((a, b) =>
     a.type === 'global' ? -1 : b.type === 'global' ? 1 : (latest[b.id] || 0) - (latest[a.id] || 0));
@@ -2752,7 +2752,7 @@ function renderSide() {
     ? st.friends.slice().sort((a, b) => displayName(a).localeCompare(displayName(b))).map(n => fresh(h('div', { class: 'row', onclick: () => openDm(n) },
         avatar(n, { dot: true }),
         h('span', { class: 'label two' }, h('b', { style: 'font-weight:500', class: profileOf(n) && profileOf(n).role === 'admin' ? 'admin-name' : null }, displayName(n)),
-          profileOf(n) && (profileOf(n).status || profileOf(n).game) && h('span', { class: 'st' }, profileOf(n).status || '\u{1F3AE} ' + profileOf(n).game)),
+          profileOf(n) && (profileOf(n).status || profileOf(n).game) && h('span', { class: 'st' }, tame(profileOf(n).status) || '\u{1F3AE} ' + tame(profileOf(n).game))),
         h('button', {
           class: 'x', title: 'Remove friend',
           onclick: e => { e.stopPropagation(); if (confirm(`Remove ${displayName(n)} from your friends?`)) unfriend(n); },
@@ -2832,7 +2832,7 @@ function paintPin(c) {
   const p = c && (c.type === 'dm' || c.type === 'group') && c.pin;
   $('pinbar').classList.toggle('hidden', !p);
   if (!p) return;
-  $('pintext').replaceChildren(nameEl(p.name, 'b'), ': ', p.text || '[image]');
+  $('pintext').replaceChildren(nameEl(p.name, 'b'), ': ', tame(p.text) || '[image]');
   $('pinx').classList.toggle('hidden', !canPin(c));
 }
 $('pinbar').onclick = e => {
@@ -3088,6 +3088,10 @@ function setMuted(id, on) {
   renderSide();
 }
 
+// A group's swear filter (the server applies it; DMs are never filtered).
+const FILTER_LEVELS = ['Off', 'No slurs', 'Clean'];
+const FILTER_HINT = 'No slurs: messages with slurs aren\u2019t sent. Clean: no slurs, and swears show as ****.';
+
 function openGroupInfo(id) {
   const md = modal('ginfo scroll');
   const draw = () => {
@@ -3108,6 +3112,11 @@ function openGroupInfo(id) {
     const mute = h('input', { type: 'checkbox' });
     mute.checked = isMuted(id);
     mute.onchange = () => setMuted(id, mute.checked);
+    const filterChips = h('div', { class: 'notifychips' }, ...FILTER_LEVELS.map((label, lv) =>
+      h('button', { class: (c.flt || 0) === lv ? 'primary' : 'ghost', onclick: async () => {
+        if ((c.flt || 0) === lv) return;
+        if (await act('setGroupFilter', { convo: id, level: lv }, null, s => { const x = s.convos.find(x => x.id === id); if (x) x.flt = lv; })) draw();
+      } }, label)));
     const notify = h('div', { class: 'notifychips' }, ...[['all', 'All messages'], ['mentions', '@ Mentions only'], ['off', '\u{1F515} Off']].map(([v, label]) =>
       h('button', { class: notifyLevel(id) === v ? 'primary' : 'ghost', onclick: () => { setNotify(id, v); draw(); } }, label)));
     const iOwn = owner || me.role === 'admin';
@@ -3149,7 +3158,7 @@ function openGroupInfo(id) {
       h('div', { class: 'gtop' },
         groupIcon(c, 'gpic'), file,
         h('div', { class: 'gname' }, c.name),
-        h('div', { class: 'gsub' }, `${c.members.length} member${c.members.length === 1 ? '' : 's'} \u00b7 owned by ${c.owner || 'nobody'}`),
+        h('div', { class: 'gsub' }, `${c.members.length} member${c.members.length === 1 ? '' : 's'} \u00b7 owned by ${c.owner ? displayName(c.owner) : 'nobody'}`),
         canManage && h('div', { class: 'btns', style: 'justify-content:center' },
           h('button', {
             class: 'ghost', onclick: async () => {
@@ -3176,9 +3185,12 @@ function openGroupInfo(id) {
                 const x = s.convos.find(x => x.id === id);
                 if (x) x.members = x.members.filter(m => key(m) !== key(n));
               });
-              if (d) { toast(`${n} was removed`); draw(); }
+              if (d) { toast(`${displayName(n)} was removed`); draw(); }
             },
           }, 'Remove'))))),
+      serverApi >= 26 && h('div', { class: 'toggle' }, h('span', null, 'Swear filter',
+          h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, canManage ? FILTER_HINT : FILTER_HINT + ' The owner and admins choose it.')),
+        canManage ? filterChips : h('b', null, FILTER_LEVELS[c.flt || 0])),
       serverApi >= 16
         ? h('div', { class: 'toggle' }, h('span', null, 'Notifications',
             h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Mentions only: just when someone @mentions or replies to you.')), notify)
@@ -3254,7 +3266,7 @@ function buildMessage(m, pending) {
       m.admin && h('span', { class: 'badge' }, 'ADMIN'),
       time, h('span', { class: 'edtag' })),
     h('div', { class: 'body' },
-      m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, nameEl(m.rp.name, 'b'), m.rp.text || '[image]'),
+      m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, nameEl(m.rp.name, 'b'), tame(m.rp.text) || '[image]'),
       h('span', { class: 'txt' }), m.img && (m.vo ? voiceBlock(m) : imageBlock(m)), h('div', { class: 'pollbox' })),
     h('div', { class: 'reacts' }),
     !pending && h('div', { class: 'acts' },
@@ -3534,7 +3546,7 @@ async function openShorts(startId) {
         h('button', { title: 'More', onclick: () => shortMenu(slide, close) }, h('span', { style: 'font-size:26px;line-height:1' }, '\u22EF'))),
       h('div', { class: 'scap' },
         h('div', { class: 'sname', onclick: () => openProfile(m.name) }, avatar(m.name, { click: false }), nameEl(m.name), h('span', { class: 'when' }, '\u2022 ' + ago(m.time))),
-        m.text && h('div', { class: 'stext', onclick: e => e.currentTarget.classList.toggle('open') }, m.text)));
+        m.text && h('div', { class: 'stext', onclick: e => e.currentTarget.classList.toggle('open') }, tame(m.text))));
     // One tap: pause or play. Two: like, with a big heart.
     let lastTap = 0, tapTimer = null;
     v.onclick = () => {
@@ -3579,7 +3591,7 @@ async function openShortComments(slide, repaint) {
   const input = h('input', { placeholder: 'Add a comment\u2026', maxlength: 300 });
   attachMentions(input);
   const row = c => h('div', { class: 'crow' }, avatar(c.name),
-    h('div', { class: 'ct' }, nameEl(c.name, 'b'), ' ', c.text, h('span', { class: 'when' }, ago(c.time))));
+    h('div', { class: 'ct' }, nameEl(c.name, 'b'), ' ', tame(c.text), h('span', { class: 'when' }, ago(c.time))));
   const form = h('form', { onsubmit: async e => {
     e.preventDefault();
     const text = input.value.trim();
@@ -3827,6 +3839,43 @@ function mentionsMe(text) {
   return !!re && re.test(text);
 }
 
+// ---------- hiding swear words (Settings: Hide swear words) ----------
+// Only changes what you see: swears show as ****. The same words as the server (Code.gs);
+// the first list is caught even inside other words, the second only on its own.
+const RUDE_INSIDE = ['fuck', 'shit', 'cunt', 'bitch', 'bastard', 'whore', 'slut', 'wank', 'twat', 'pussy', 'dildo', 'porn',
+  'asshole', 'arsehole', 'bollock', 'jizz', 'nigger', 'nigga', 'faggot', 'tranny', 'kike', 'spastic', 'wetback', 'raghead',
+  'towelhead', 'shemale'];
+const RUDE_ALONE = ['ass', 'asses', 'arse', 'dick', 'dicks', 'dickhead', 'cock', 'cocks', 'cum', 'tit', 'tits', 'titties',
+  'boob', 'boobs', 'piss', 'pissed', 'prick', 'pricks', 'rape', 'raped', 'rapist', 'stfu', 'fag', 'fags', 'dyke', 'dykes',
+  'spic', 'spics', 'coon', 'coons', 'gook', 'gooks', 'paki', 'pakis', 'beaner', 'beaners', 'chink', 'chinks', 'retard',
+  'retards', 'retarded', 'spaz', 'kys'];
+const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', '@': 'a', $: 's', '!': 'i', '|': 'i' };
+const plainWord = w => w.toLowerCase().replace(/[013457@$!|]/g, c => LEET[c]).replace(/[^a-z]/g, '');
+const squash = w => w.replace(/(.)\1+/g, '$1');
+const RUDE_SQ = RUDE_INSIDE.map(squash);
+function isRude(t) {
+  if (!/[A-Za-z]/.test(t)) return false; // plain numbers like 455
+  const p = squash(plainWord(t));
+  if (RUDE_SQ.some(w => p.includes(w))) return true;
+  return t.split(/[_.\-]+/).some(part => {
+    const q = plainWord(part);
+    return !!q && RUDE_ALONE.some(w => q === w || (!/(.)\1/.test(w) && squash(q) === w));
+  });
+}
+const starRude = text => text.replace(/\S+/g, tok => {
+  const m = /^([^A-Za-z0-9@$]*)(.*?)([^A-Za-z0-9]*)$/.exec(tok);
+  return m[2] && isRude(m[2]) ? m[1] + '*'.repeat(m[2].length) + m[3] : tok;
+});
+const tame = text => (text && prefs.hideSwears ? starRude(String(text)) : text);
+// After switching it on or off: redraw what's showing.
+function repaintTexts() {
+  log.querySelectorAll('.msg').forEach(el => { if (el._m && !el._m.sys) { paintText(el); if (el._m.pl) paintPoll(el); } });
+  log.querySelectorAll('.msg.post').forEach(el => { if (el._cmts) loadComments(el); });
+  sideSig = '';
+  renderSide();
+  renderHeader();
+}
+
 // Message text with @mentions highlighted (built from text nodes, never HTML).
 function richText(text) {
   const mine = myMentionRe();
@@ -3835,7 +3884,7 @@ function richText(text) {
   const out = [];
   let last = 0, m;
   while ((m = re.exec(text))) {
-    out.push(text.slice(last, m.index));
+    out.push(tame(text.slice(last, m.index)));
     if (m[3]) {
       // Links: only http(s), opened in a new tab. Trailing punctuation stays as text.
       const url = m[3].replace(/[.,!?;:)\]'"]+$/, '');
@@ -3847,7 +3896,7 @@ function richText(text) {
     out.push(h('span', { class: 'ment' + (m[1] ? ' you' : '') }, m[0]));
     last = m.index + m[0].length;
   }
-  out.push(text.slice(last));
+  out.push(tame(text.slice(last)));
   return h('span', null, out.filter(x => x !== ''));
 }
 
@@ -3967,7 +4016,7 @@ function previewText(c) {
   const p = previews[c.id];
   if (p && p.text) {
     const who = !p.name ? '' : me && key(p.name) === key(me.name) ? 'You: ' : c.type === 'group' ? displayName(p.name) + ': ' : '';
-    return who + p.text;
+    return who + tame(p.text);
   }
   return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : '';
 }
@@ -3988,7 +4037,7 @@ function setReply(m) {
   replying = m;
   $('replybar').classList.toggle('hidden', !m);
   if (m) {
-    $('replytext').replaceChildren('Replying to ', nameEl(m.name, 'b'), ': ', m.text || '[image]');
+    $('replytext').replaceChildren('Replying to ', nameEl(m.name, 'b'), ': ', tame(m.text) || '[image]');
     textEl.focus();
   }
 }
@@ -4056,7 +4105,7 @@ function openSearch(convoId, q0) {
       avatar(r.name, { click: false }),
       h('div', { class: 'sbody' },
         h('div', { class: 'stop' }, nameEl(r.name, 'b'), !scope && where && h('span', { class: 'swhere' }, where), h('span', { class: 'swhen' }, ago(r.time))),
-        h('div', { class: 'stext' }, highlightWords(r.text, words))));
+        h('div', { class: 'stext' }, highlightWords(tame(r.text), words))));
   };
   input.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 300); };
   input.onkeydown = e => { if (e.key === 'Enter') { clearTimeout(timer); run(); } };
@@ -4391,7 +4440,7 @@ function paintPoll(el) {
       return h('button', {
         type: 'button', class: 'popt' + (String(i) === mine ? ' mine' : ''), disabled: live ? null : '',
         title: reveal ? (who.length ? who.map(displayName).join(', ') : 'No votes yet') : 'Vote to see the results', onclick: () => castVote(el, i),
-      }, h('span', { class: 'bar', style: `width:${reveal ? pct : 0}%` }), h('span', { class: 'ol' }, String(i) === mine ? '\u2713 ' : '', o),
+      }, h('span', { class: 'bar', style: `width:${reveal ? pct : 0}%` }), h('span', { class: 'ol' }, String(i) === mine ? '\u2713 ' : '', tame(o)),
         h('span', { class: 'pc' }, reveal && total ? pct + '%' : ''));
     }),
     h('div', { class: 'ptotal' }, `${total} vote${total === 1 ? '' : 's'}` +
@@ -6233,7 +6282,7 @@ function handlePings(pings) {
     : p.kind === 'friendreq' ? `${from} sent you a friend request`
     : p.kind === 'friendaccept' ? `${from} accepted your friend request! Click to say hi.`
     : p.kind === 'invitejoin' ? `\u{1F389} ${from} joined you with your invite link! Click to say hi.`
-    : `${from} ${where}: ${p.text}`;
+    : `${from} ${where}: ${tame(p.text)}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
@@ -6243,7 +6292,7 @@ function handlePings(pings) {
     try {
       const plain = p.kind.startsWith('friend') || p.kind === 'removed' || p.kind === 'invitejoin';
       const n = new Notification(plain ? text : `${from} ${where}`,
-        { body: plain ? '' : p.text, icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
+        { body: plain ? '' : tame(p.text), icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
     } catch (e) {}
   }
@@ -6301,6 +6350,9 @@ function updateTitle() {
 }
 
 function openSettings() {
+  const hideSw = h('input', { type: 'checkbox' });
+  hideSw.checked = !!prefs.hideSwears;
+  hideSw.onchange = () => { prefs.hideSwears = hideSw.checked; savePrefs(); repaintTexts(); };
   const sound = h('input', { type: 'checkbox' });
   sound.checked = prefs.sound;
   sound.onchange = () => { prefs.sound = sound.checked; savePrefs(); if (sound.checked) ding(); };
@@ -6344,6 +6396,7 @@ function openSettings() {
     serverApi >= 13 && emailSection(() => { md.close(); openSettings(); }),
     serverApi >= 12 && st && st.blocked && st.blocked.length > 0 && h('div', null,
       h('div', { style: 'font-weight:600;margin:4px 0' }, '\u{1F6AB} Blocked accounts'), blockedList),
+    h('label', { class: 'toggle' }, h('span', null, 'Hide swear words', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Shows them as **** instead. Just for you.')), hideSw),
     h('label', { class: 'toggle' }, h('span', null, 'Desktop notifications', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'When this tab is in the background')), desk),
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
