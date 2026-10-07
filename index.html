@@ -362,6 +362,7 @@
   .a2hsbar .a2go { flex: none; color: var(--accent); font-weight: 700; }
   .a2hsbar .a2x { flex: none; width: 34px; height: 34px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 15px; cursor: pointer; }
   aside .a2hsbar { border: 0; border-radius: 14px; margin: 4px 12px 8px; }
+  @media (min-width: 721px) { aside .a2hsbar { display: none; } } /* computers: the one above the chat is enough */
   /* The guide sits at the bottom, with an arrow down at Safari's buttons. */
   .overlay.a2hsov { flex-direction: column; justify-content: flex-end; gap: 6px; padding-bottom: 4px; }
   .modal.a2hs h2 { font-size: 20px; }
@@ -820,6 +821,25 @@
     display: none; flex: none; align-items: center; justify-content: center; width: 42px; height: 42px; margin-top: 0;
     border-radius: 50%; border: 0; background: var(--accent); color: #fff; cursor: pointer;
   }
+  /* Embeds: a cover until tapped, then a sealed-off frame with a bar saying whose it is. */
+  .msg .shot.emshot { position: relative; display: flex; flex-direction: column; min-height: 260px; background: #0b0b0f; overflow: hidden; cursor: default; }
+  .emcover { flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; border: 0; cursor: pointer;
+    background: radial-gradient(circle at 30% 20%, #3b2a7a, #12121a 70%); color: #fff; font: inherit; text-align: center; }
+  .emcover .emicon { font-size: 40px; font-weight: 800; font-family: ui-monospace, Menlo, Consolas, monospace; }
+  .emcover b { font-size: 18px; word-break: break-word; }
+  .emcover .emgo { margin-top: 6px; padding: 9px 20px; border-radius: 999px; background: var(--accent); font-weight: 800; }
+  .emcover .emnote { font-size: 12px; opacity: .7; }
+  .emload { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .emframe { flex: 1; width: 100%; min-height: 240px; border: 0; background: #fff; }
+  .embar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #111; color: #ccc; font-size: 12px; }
+  .embar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .embar a, .embar button { padding: 3px 9px; border: 0; border-radius: 6px; background: rgba(255, 255, 255, .14); color: #fff; font: inherit; text-decoration: none; cursor: pointer; }
+  .embedmaker .empart { display: flex; flex-direction: column; gap: 6px; }
+  .embedmaker .empart.hidden { display: none; }
+  .embedmaker .emcode { font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; resize: vertical; min-height: 160px; }
+  .embedmaker .hint { color: var(--muted); font-size: 12px; }
+  .embedmaker .empreview:empty { display: none; }
+  .embedmaker .empreview .emframe { height: 260px; border-radius: 10px; border: 1px solid var(--border); }
   /* Feed polls: a colourful card, choices as bubbles that fill up once you've voted. */
   .post.ig.pollcard > .body {
     background: linear-gradient(rgba(0, 0, 0, .12), rgba(0, 0, 0, .12)), var(--card); color: #fff; border-radius: 20px; padding: 18px 18px 14px; margin: 0 12px 8px;
@@ -1546,6 +1566,7 @@
         <button type="button" class="camerabtn" id="postcam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Take photo</button>
         <button type="button" class="pollbtn hidden" id="postpoll" title="Make a poll">📊 Poll</button>
         <button type="button" class="pollbtn hidden" id="postshort" title="Post a Short (a video up to 60 seconds)">🎬 Short</button>
+        <button type="button" class="pollbtn hidden" id="postembed" title="Embed a website or run some HTML">&lt;/&gt; Embed</button>
         <input type="file" id="shortfile" accept="video/*" class="hidden">
         <span class="hint" id="postcount">Ctrl+Enter to post</span>
       </div>
@@ -3812,11 +3833,12 @@ function buildPost(m, pending) {
   const cbtn = h('button', { class: 'pact', title: 'Comment', onclick: () => toggleComments(el) });
   const like = h('button', { class: 'pact like', title: 'Like', onclick: () => toggleReaction(el, HEART) });
   const body = h('div', { class: 'body' },
-    (m.img || m.vd) && nameEl(m.name, 'b', { class: 'capname', onclick: () => openProfile(m.name) }),
+    (m.img || m.vd || m.em) && nameEl(m.name, 'b', { class: 'capname', onclick: () => openProfile(m.name) }),
     !m.img && m.pl && h('div', { class: 'plabel' }, '\u{1F4CA} POLL'),
     h('span', { class: 'txt' }), h('div', { class: 'pollbox' }));
-  const shot = m.vd ? videoBlock(m) : m.img && igShot(m);
-  const el = h('div', { class: 'msg post ig' + (m.img || m.vd ? ' hasimg' : '') + (m.vd ? ' hasvid' : '') + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
+  const media = m.img || m.vd || m.em;
+  const shot = m.vd ? videoBlock(m) : m.img ? igShot(m) : m.em ? embedBlock(m) : null;
+  const el = h('div', { class: 'msg post ig' + (media ? ' hasimg' : '') + (m.vd ? ' hasvid' : '') + (m.em ? ' hasemb' : '') + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
     h('div', { class: 'phead' },
       storyRing(m.name),
       h('div', { class: 'who2' },
@@ -3824,7 +3846,7 @@ function buildPost(m, pending) {
           nameEl(m.name, 'span', { class: 'name' + (m.admin ? ' admin-name' : ''), onclick: () => openProfile(m.name) }),
           m.admin && h('span', { class: 'badge' }, 'ADMIN'),
           h('span', { class: 'sep' }, '\u2022'), time, h('span', { class: 'edtag' })))),
-    !(m.img || m.vd) && body,
+    !media && body,
     shot,
     !pending && h('div', { class: 'pfoot' },
       like, cbtn,
@@ -3832,7 +3854,7 @@ function buildPost(m, pending) {
       h('span', { class: 'grow' }),
       h('button', { class: 'pact react', title: 'React', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642}', h('span', { class: 'vh' }, ' React'))),
     !pending && h('div', { class: 'likes' }),
-    (m.img || m.vd) && body,
+    media && body,
     h('div', { class: 'reacts' }),
     !pending && h('button', { class: 'viewc hidden', onclick: () => toggleComments(el) }),
     !pending && h('div', { class: 'acts' },
@@ -3843,12 +3865,12 @@ function buildPost(m, pending) {
   el._cbtn = cbtn;
   el._like = like;
   el.dataset.id = m.id || '';
-  if (shot && !pending) wireDoubleTap(el, shot, m.vd ? () => openShorts(el._m.id) : null); // a video opens Shorts
+  if (shot && !pending && !m.em) wireDoubleTap(el, shot, m.vd ? () => openShorts(el._m.id) : null); // a video opens Shorts; taps on an embed are its own
   if (m.vd && !pending) el.classList.remove('txtcard');
   // Polls are their own colourful card.
   if (!m.img && m.pl) el.classList.add('pollcard');
   // Text posts become colourful cards on phones; the shorter the text, the bigger it is.
-  if (!m.img && !m.pl && !m.vd) {
+  if (!m.img && !m.pl && !m.vd && !m.em) {
     const n = (m.text || '').length;
     el.classList.add('txtcard', n <= 40 ? 't-xl' : n <= 110 ? 't-l' : n <= 260 ? 't-m' : 't-s');
   }
@@ -4643,6 +4665,109 @@ function openPollMaker() {
 }
 $('postpoll').onclick = openPollMaker;
 
+// ---------- embeds ----------
+// A post can embed a website or run some HTML. It's a cover until someone taps it, then a
+// sealed-off frame: code gets no same-origin access (so it can't see Idiocy, anyone's login or
+// the page around it) and nothing in it can steer Idiocy. One runs at a time, and it stops when
+// it scrolls away, so a heavy one can't slow the feed down.
+const EMBED_CODE_SANDBOX = 'allow-scripts allow-forms allow-pointer-lock allow-modals';
+const EMBED_SITE_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups'; // the site's own origin, never Idiocy's
+const hostOf = url => { try { return new URL(url).host.replace(/^www\./, ''); } catch (e) { return 'Website'; } };
+function embedFrame(em, code) {
+  const frame = h('iframe', { class: 'emframe', referrerpolicy: 'no-referrer', allow: 'fullscreen; autoplay; gamepad', allowfullscreen: '',
+    title: em.u ? 'Embedded website: ' + hostOf(em.u) : 'Embedded HTML' });
+  frame.setAttribute('sandbox', em.u ? EMBED_SITE_SANDBOX : EMBED_CODE_SANDBOX);
+  if (em.u) frame.src = em.u; else frame.srcdoc = code;
+  return frame;
+}
+let runningEmbed = null;
+const feedEmbeds = new IntersectionObserver(entries => entries.forEach(e => { if (!e.isIntersecting && e.target._stop) e.target._stop(); }), { root: log, threshold: 0 });
+function embedBlock(m) {
+  const box = h('div', { class: 'shot emshot' });
+  const cover = () => box.replaceChildren(h('button', { class: 'emcover', type: 'button', onclick: run },
+    h('span', { class: 'emicon' }, m.em.u ? '\u{1F310}' : '</>'),
+    h('b', null, m.em.u ? hostOf(m.em.u) : 'HTML code'),
+    h('span', { class: 'emgo' }, '\u25B6 Tap to run'),
+    h('span', { class: 'emnote' }, 'Runs in a sealed box: it can\u2019t see Idiocy or your account')));
+  async function run(e) {
+    if (e) e.stopPropagation();
+    if (runningEmbed && runningEmbed !== box) runningEmbed._stop();
+    runningEmbed = box;
+    let code = m.em.local;
+    if (!m.em.u && code == null) {
+      box.replaceChildren(h('div', { class: 'emload' }, h('span', { class: 'spinner' })));
+      try {
+        const d = await api('embedCode', { id: m.id });
+        if (!d.ok) throw new Error(d.error);
+        code = d.code;
+      } catch (err) { toast(err.message || 'Couldn\u2019t load it', true); stop(); return; }
+      if (runningEmbed !== box) return; // something else started meanwhile
+    }
+    const frame = embedFrame(m.em, code);
+    box.replaceChildren(frame, h('div', { class: 'embar' },
+      h('span', null, `Embedded by ${displayName(m.name)} \u00b7 not part of Idiocy`),
+      m.em.u && h('a', { href: m.em.u, target: '_blank', rel: 'noopener noreferrer nofollow' }, 'Open \u2197'),
+      h('button', { type: 'button', title: 'Full screen', onclick: () => (frame.requestFullscreen ? frame.requestFullscreen() : frame.webkitRequestFullscreen && frame.webkitRequestFullscreen()) }, '\u26F6'),
+      h('button', { type: 'button', onclick: stop }, '\u25A0 Stop')));
+    feedEmbeds.observe(box);
+  }
+  function stop() {
+    if (runningEmbed === box) runningEmbed = null;
+    feedEmbeds.unobserve(box);
+    cover();
+  }
+  box._stop = stop;
+  cover();
+  return box;
+}
+function openEmbedMaker() {
+  let kind = 'url';
+  const url = h('input', { type: 'url', placeholder: 'https://\u2026', maxlength: 500, inputmode: 'url', autocapitalize: 'none', spellcheck: 'false' });
+  const code = h('textarea', { class: 'emcode', placeholder: '<h1>Hello!</h1>\n<script>\n  // HTML, CSS and JavaScript\n<\/script>', spellcheck: 'false', rows: 9 });
+  const count = h('span', { class: 'hint' });
+  const countCode = () => { count.textContent = code.value.length > 1000 ? `${Math.round(code.value.length / 1000)} KB of 100` : ''; };
+  code.oninput = countCode;
+  const caption = h('input', { placeholder: 'Say something about it (optional)', maxlength: 1000 });
+  caption.value = $('posttext').value;
+  const preview = h('div', { class: 'empreview' });
+  const urlPart = h('div', { class: 'empart' }, url, h('div', { class: 'hint' }, 'YouTube links work. Some sites (like Google or Instagram) don\u2019t allow being embedded.'));
+  const codePart = h('div', { class: 'empart hidden' }, code, h('div', { class: 'hint' }, 'HTML, CSS and JavaScript, like a little web page or game. ', count));
+  const tabs = h('div', { class: 'notifychips' }, ...[['url', '\u{1F310} Website'], ['code', '</> Code']].map(([v, label]) =>
+    h('button', { type: 'button', class: v === kind ? 'primary' : 'ghost', onclick: e => {
+      kind = v;
+      tabs.querySelectorAll('button').forEach(b => { b.className = b === e.currentTarget ? 'primary' : 'ghost'; });
+      urlPart.classList.toggle('hidden', v !== 'url');
+      codePart.classList.toggle('hidden', v !== 'code');
+      preview.replaceChildren();
+      (v === 'url' ? url : code).focus();
+    } }, label)));
+  const embed = () => {
+    if (kind === 'url') {
+      let u = url.value.trim();
+      if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+      if (!/^https?:\/\/[^\s<>"]{3,}$/i.test(u)) { toast('Type a website address', true); url.focus(); return null; }
+      return { url: u };
+    }
+    if (!code.value.trim()) { toast('Paste some HTML first', true); code.focus(); return null; }
+    if (code.value.length > 100000) { toast('That code is too long (100 KB at most)', true); return null; }
+    return { code: code.value };
+  };
+  const md = modal('embedmaker scroll', h('h2', null, '</> Embed'), tabs, urlPart, codePart, preview, caption,
+    h('div', { class: 'hint' }, 'It runs in a sealed box, only when someone taps it. It can\u2019t see Idiocy or anyone\u2019s account.'),
+    h('div', { class: 'btns' },
+      h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'),
+      h('button', { class: 'ghost', onclick: () => { const e = embed(); if (e) preview.replaceChildren(embedFrame(e.url ? { u: e.url } : { c: 1 }, e.code)); } }, 'Preview'),
+      h('button', { class: 'primary', onclick: () => {
+        const e = embed();
+        if (!e) return;
+        md.close();
+        if (caption.value === $('posttext').value) { $('posttext').value = ''; growPost(); }
+        send(caption.value.trim(), null, { embed: e });
+      } }, 'Post')));
+  url.focus();
+}
+$('postembed').onclick = openEmbedMaker;
+
 // ---------- voice messages ----------
 let playingVoice = null;
 function voiceBlock(m) {
@@ -5431,6 +5556,8 @@ function updateComposer() {
   $('postpoll').classList.toggle('hidden', serverApi < 11);
   $('postshort').classList.toggle('hidden', serverApi < 22);
   $('postshort').disabled = !!muted || locked;
+  $('postembed').classList.toggle('hidden', serverApi < 28);
+  $('postembed').disabled = !!muted || locked;
   $('postpoll').disabled = !!muted || locked;
   note.onclick = null;
   document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
@@ -5468,6 +5595,7 @@ async function send(text, att, extra = {}) {
     ...(rp && { rp: { id: rp.id, name: rp.name, text: (rp.text || '[image]').slice(0, 100) } }),
     ...(extra.poll && { pl: { o: extra.poll, v: {} } }),
     ...(extra.voice && { img: 'local', local: extra.voice, vo: extra.dur }),
+    ...(extra.embed && { em: extra.embed.url ? { u: extra.embed.url } : { c: extra.embed.code.length, local: extra.embed.code } }),
   }, true);
   if (rp) setReply(null);
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
@@ -5475,7 +5603,7 @@ async function send(text, att, extra = {}) {
   scrollDown();
   try {
     const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
-      ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }) });
+      ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }) });
     if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false; }
     if (sentTo !== 'global') notePreview(sentTo, d.message);
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
