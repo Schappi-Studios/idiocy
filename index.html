@@ -394,6 +394,7 @@
     padding: 6px 8px; border-radius: 8px; cursor: pointer; text-align: left;
   }
   .mentionbox button.on, .mentionbox button:hover { background: var(--hover); }
+  .mentionbox .mat { color: var(--muted); font-size: 12px; } /* the @ you're typing */
   .mentionbox .avatar { width: 24px; height: 24px; font-size: 12px; flex: none; }
   .ginfo .modbadge { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 8px; }
   .notifychips { display: flex; gap: 6px; flex-wrap: wrap; }
@@ -1680,7 +1681,11 @@ async function fetchProfiles() {
 }
 
 function storeProfiles(map) {
-  for (const [k, p] of Object.entries(map)) profiles.set(k, { data: p, at: Date.now() });
+  for (const [k, p] of Object.entries(map)) {
+    profiles.set(k, { data: p, at: Date.now() });
+    if (p && 'first' in p) { if (fullName(p)) knownNames.set(k, fullName(p)); else knownNames.delete(k); }
+  }
+  paintNamesSoon();
   profileVer++;
   document.querySelectorAll('.avatar[data-user]').forEach(paintAvatar);
   document.querySelectorAll('.msg.post.txtcard, .msg.post.pollcard').forEach(paintCard); // banners may have arrived or changed
@@ -1727,8 +1732,26 @@ function modal(cls, ...kids) {
 
 // Someone's name, e.g. "Lucas Schappi" (accounts from before names came along don't have one).
 const fullName = p => p ? [p.first, p.last].filter(Boolean).join(' ') : '';
-// What to call someone in lists: their name, or their @username if they haven't got one (or it hasn't loaded yet).
-const displayName = n => fullName(profileOf(n)) || n;
+// What to call someone everywhere except their profile: their name, or their @username if they
+// haven't got one. Names come with the server's answers (and profiles), and are kept on the device.
+const knownNames = new Map(); // key -> "First Last"
+const displayName = n => knownNames.get(key(n)) || n;
+function noteNames(map) {
+  let changed = false;
+  for (const [k, v] of Object.entries(map)) if (knownNames.get(k) !== v) { knownNames.set(k, v); changed = true; }
+  if (changed) paintNamesSoon();
+}
+// Name labels carry data-dn (their @username) so they can update when a name arrives or changes.
+let namesQueued = false;
+function paintNamesSoon() {
+  if (namesQueued) return;
+  namesQueued = true;
+  requestAnimationFrame(() => {
+    namesQueued = false;
+    document.querySelectorAll('[data-dn]').forEach(e => { const t = displayName(e.dataset.dn); if (e.textContent !== t) e.textContent = t; });
+  });
+}
+const nameEl = (n, tag = 'span', attrs = {}) => h(tag, Object.assign({ 'data-dn': n }, attrs), displayName(n));
 
 async function openProfile(name) {
   const m = modal('profile');
@@ -2020,6 +2043,7 @@ async function apiRaw(action, data) {
     return new Promise(() => {}); // the page is reloading
   }
   if (!d.ok && d.auth) signOut(d.error);
+  if (d.names) noteNames(d.names);
   return d;
 }
 
@@ -2149,7 +2173,7 @@ async function showInviteBanner() {
   try {
     const d = await api('inviteInfo', { code });
     if (!d.ok) { store.del(INVITE_KEY); return; }
-    $('invitebanner').replaceChildren('\u{1F44B} ', h('b', null, d.username), ' invited you to Idiocy! Sign up (or log in) and you\u2019ll be friends straight away.');
+    $('invitebanner').replaceChildren('\u{1F44B} ', h('b', null, displayName(d.username)), ' invited you to Idiocy! Sign up (or log in) and you\u2019ll be friends straight away.');
     $('invitebanner').classList.remove('hidden');
     if (authMode === 'login') document.querySelector('.tabs button[data-mode=register]').click();
   } catch (e) {}
@@ -2166,8 +2190,8 @@ async function redeemPendingInvite() {
       store.del(INVITE_KEY);
       $('invitebanner').classList.add('hidden');
       if (d.self) toast('That\u2019s your own invite link. Share it with your friends!');
-      else if (d.already) toast(`You and ${d.username} are already friends`);
-      else { uv = null; pollNow(); toast(`\u{1F389} You and ${d.username} are friends now! Tap to say hi.`, false, () => openDm(d.username)); }
+      else if (d.already) toast(`You and ${displayName(d.username)} are already friends`);
+      else { uv = null; pollNow(); toast(`\u{1F389} You and ${displayName(d.username)} are friends now! Tap to say hi.`, false, () => openDm(d.username)); }
     } else if (!d.auth && !verifyError(d.error)) {
       store.del(INVITE_KEY);
       toast(d.error || 'That invite link didn\u2019t work', true);
@@ -2397,6 +2421,7 @@ function signOut(msg) {
   Object.keys(previews).forEach(k => delete previews[k]);
   clearTimeout(pollTimer);
   me = st = uv = read = null;
+  knownNames.clear();
   pingTop = null;
   groupPicCache.clear();
   chatCache.clear();
@@ -2441,7 +2466,7 @@ function saveSnapshot(force) {
   const feed = openId === 'global' && openRev
     ? { msgs: [...log.querySelectorAll('.msg:not(.pending):not(.again)')].map(el => el._m).filter(m => m && m.id).slice(0, 60), rev: openRev, eMax }
     : chatCache.get('global');
-  const snap = { v: 2, tok: token.slice(-12), me, st, latest, api: serverApi, settings, streaks, stories, feed: feed || null };
+  const snap = { v: 2, tok: token.slice(-12), me, st, latest, api: serverApi, settings, streaks, stories, feed: feed || null, names: Object.fromEntries(knownNames) };
   try { store.set(SNAP_KEY, JSON.stringify(snap)); } catch (e) {}
 }
 function restoreSnapshot() {
@@ -2452,6 +2477,7 @@ function restoreSnapshot() {
   me = snap.me; st = snap.st; latest = snap.latest || {};
   serverApi = snap.api || 0; settings = snap.settings || settings;
   streaks = snap.streaks || {}; stories = snap.stories || [];
+  noteNames(snap.names || {});
   uv = null; // the first poll sends the up-to-date chat list anyway
   // Shown straight away, then checked with the server on the first poll (rev 'saved' never
   // matches), so nothing deleted meanwhile can linger.
@@ -2653,6 +2679,8 @@ function convoLabel(c) {
   if (c.type === 'group') return c.name;
   return c.members.find(n => key(n) !== key(me.name)) || 'DM';
 }
+// What a chat is called on screen: a DM goes by the other person's name.
+const convoTitle = c => c.type === 'dm' ? displayName(convoLabel(c)) : convoLabel(c);
 
 let seenRows = null; // row ids from the last render, so new rows can animate in
 
@@ -2688,7 +2716,7 @@ function renderSide() {
   const mine = profileOf(me.name);
   $('mename').replaceChildren(avatar(me.name, { dot: true, click: false }),
     h('span', { class: 'two' },
-      h('b', { class: me.role === 'admin' ? 'admin-name' : null }, me.role === 'admin' ? h('span', { class: 'badge' }, 'ADMIN') : '', me.name),
+      h('b', { class: me.role === 'admin' ? 'admin-name' : null }, me.role === 'admin' ? h('span', { class: 'badge' }, 'ADMIN') : '', displayName(me.name)),
       h('span', { class: 'st' }, (mine && mine.status) || 'Set a status')));
 
   const convos = st.convos.slice().sort((a, b) =>
@@ -2699,9 +2727,9 @@ function renderSide() {
     const unread = isUnread(c.id);
     return fresh(h('button', {
       class: 'row' + (c.id === openId ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
-      'data-at': c.type === 'dm' ? label : null, title: c.type === 'dm' ? '@' + label : null,
+      'data-at': c.type === 'dm' ? label : null,
       onclick: () => switchTo(c.id),
-    }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, c.type === 'dm' ? displayName(label) : label, streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
+    }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, convoTitle(c), streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
       isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
       notifyLevel(c.id) === 'mentions' && h('span', { class: 'muteicon', title: 'Mentions only' }, '@'),
       h('span', { class: 'when' }, ago(latest[c.id])),
@@ -2710,21 +2738,21 @@ function renderSide() {
 
   const reqs = [];
   wantProfiles(st.incoming); // for their names
-  st.incoming.forEach(n => reqs.push(fresh(h('div', { class: 'req', title: '@' + n },
+  st.incoming.forEach(n => reqs.push(fresh(h('div', { class: 'req' },
     h('b', null, displayName(n)), ' wants to be friends',
     h('div', { class: 'actions' },
       h('button', { class: 'primary', style: 'padding:4px 12px', onclick: () => respond(n, true) }, 'Accept'),
       h('button', { class: 'ghost', onclick: () => respond(n, false) }, 'Decline'))), 'i:' + key(n))));
   st.outgoing.forEach(n => reqs.push(fresh(h('div', { class: 'row' },
-    avatar(n), h('span', { class: 'label', title: '@' + n }, displayName(n), h('span', { class: 'muted' }, 'pending')),
+    avatar(n), h('span', { class: 'label' }, displayName(n), h('span', { class: 'muted' }, 'pending')),
     h('button', { class: 'x', title: 'Cancel request', onclick: () => unfriend(n) }, '✕')), 'o:' + key(n))));
   $('requests').replaceChildren(...reqs);
 
   $('friends').replaceChildren(...(st.friends.length
     ? st.friends.slice().sort((a, b) => displayName(a).localeCompare(displayName(b))).map(n => fresh(h('div', { class: 'row', onclick: () => openDm(n) },
         avatar(n, { dot: true }),
-        h('span', { class: 'label two', title: '@' + n }, h('b', { style: 'font-weight:500', class: profileOf(n) && profileOf(n).role === 'admin' ? 'admin-name' : null }, displayName(n)),
-          h('span', { class: 'st' }, (profileOf(n) && (profileOf(n).status || (profileOf(n).game && '\u{1F3AE} ' + profileOf(n).game))) || (displayName(n) !== n ? '@' + n : ''))),
+        h('span', { class: 'label two' }, h('b', { style: 'font-weight:500', class: profileOf(n) && profileOf(n).role === 'admin' ? 'admin-name' : null }, displayName(n)),
+          profileOf(n) && (profileOf(n).status || profileOf(n).game) && h('span', { class: 'st' }, profileOf(n).status || '\u{1F3AE} ' + profileOf(n).game)),
         h('button', {
           class: 'x', title: 'Remove friend',
           onclick: e => { e.stopPropagation(); if (confirm(`Remove ${displayName(n)} from your friends?`)) unfriend(n); },
@@ -2771,11 +2799,11 @@ function renderHeader() {
     $('hicon').replaceChildren(...(!c || c.type === 'global' ? [] : c.type === 'dm' ? [avatar(convoLabel(c), { dot: true })] : [groupIcon(c)]));
   }
   if (c) pendingTitle = null;
-  $('title').textContent = c ? convoLabel(c) : pendingTitle || (openId === 'global' ? 'Global' : 'Loading\u2026');
+  $('title').textContent = c ? convoTitle(c) : pendingTitle ? displayName(pendingTitle) : openId === 'global' ? 'Global' : 'Loading\u2026';
   $('sub').textContent = !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
     : c.type === 'global' ? 'Posts from everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
     : c.type === 'dm' ? streakText(c.id) || 'Direct message'
-    : `${c.members.length} members: ${c.members.join(', ')}`;
+    : `${c.members.length} members: ${c.members.map(displayName).join(', ')}`;
   $('searchbtn').classList.toggle('hidden', !(serverApi >= 18 && c && c.type !== 'story'));
   $('gadd').classList.toggle('hidden', !isGroup);
   $('ginfo').classList.toggle('hidden', !isGroup);
@@ -2787,7 +2815,7 @@ function renderHeader() {
   $('vcallbtn').classList.toggle('hidden', !canCall);
   $('joincall').classList.toggle('hidden', !groupCallOn);
   if (groupCallOn) $('joincall').replaceChildren('\u{1F4DE} ', h('span', { class: 'jlabel' }, 'Join call \u00b7 '), String(openGcall.people.length));
-  textEl.placeholder = c ? `Message ${c.type === 'global' ? 'everyone' : convoLabel(c)}…` : 'Say something…';
+  textEl.placeholder = c ? `Message ${c.type === 'global' ? 'everyone' : convoTitle(c)}…` : 'Say something…';
   paintPin(c);
 }
 
@@ -2804,7 +2832,7 @@ function paintPin(c) {
   const p = c && (c.type === 'dm' || c.type === 'group') && c.pin;
   $('pinbar').classList.toggle('hidden', !p);
   if (!p) return;
-  $('pintext').replaceChildren(h('b', null, p.name + ': '), p.text || '[image]');
+  $('pintext').replaceChildren(nameEl(p.name, 'b'), ': ', p.text || '[image]');
   $('pinx').classList.toggle('hidden', !canPin(c));
 }
 $('pinbar').onclick = e => {
@@ -2955,7 +2983,7 @@ $('addfriend').addEventListener('submit', async e => {
   if (!d && !input.value) input.value = name;
   if (!d) return;
   input.value = '';
-  toast(d.status === 'friends' ? `You're now friends with ${d.username}!` : `Friend request sent to ${d.username}`);
+  toast(d.status === 'friends' ? `You're now friends with ${displayName(d.username)}!` : `Friend request sent to ${displayName(d.username)}`);
 });
 
 // ---------- groups ----------
@@ -2980,7 +3008,7 @@ function picker({ title, withName, exclude = [], button, onSubmit }) {
       h('h2', null, title),
       nameInput,
       friends.length
-        ? h('div', { class: 'picks' }, friends.map((n, i) => h('label', null, boxes[i], avatar(n), n)))
+        ? h('div', { class: 'picks' }, friends.map((n, i) => h('label', null, boxes[i], avatar(n), displayName(n))))
         : h('div', { class: 'muted' }, exclude.length > 1 ? 'All your friends are already here.' : 'Add some friends first.'),
       h('div', { class: 'btns' },
         h('button', { class: 'ghost', type: 'button', onclick: close }, 'Cancel'),
@@ -3097,7 +3125,7 @@ function openGroupInfo(id) {
             if (d) { toast(isMod ? `${n} is no longer a group admin` : `${n} is a group admin now`); draw(); }
           } }, isMod ? 'Remove as group admin' : '\u2B50 Make group admin'),
           serverApi >= 16 && iOwn && !isOwn && h('button', { class: 'ghost', onclick: async () => {
-            if (!confirm(`Make ${n} the owner of ${c.name}? You'll become a group admin.`)) return;
+            if (!confirm(`Make ${displayName(n)} the owner of ${c.name}? You'll become a group admin.`)) return;
             mm.close();
             const d = await act('makeOwner', { convo: id, username: n }, null, s => {
               const x = s.convos.find(x => x.id === id);
@@ -3106,7 +3134,7 @@ function openGroupInfo(id) {
             if (d) { toast(`${n} owns the group now`); draw(); }
           } }, '\u{1F451} Make owner'),
           (iOwn || (!isOwn && !isMod)) && h('button', { class: 'ghost danger', onclick: async () => {
-            if (!confirm(`Remove ${n} from ${c.name}?`)) return;
+            if (!confirm(`Remove ${displayName(n)} from ${c.name}?`)) return;
             mm.close();
             const d = await act('removeFromGroup', { convo: id, username: n }, null, s => {
               const x = s.convos.find(x => x.id === id);
@@ -3136,14 +3164,14 @@ function openGroupInfo(id) {
       h('h3', null, 'Members'),
       h('div', { class: 'members' }, members.map(n => h('div', { class: 'mrow' },
         avatar(n, { dot: true }),
-        h('span', { class: 'nm' + (profileOf(n) && profileOf(n).role === 'admin' ? ' admin-name' : ''), onclick: () => openProfile(n) }, n + (key(n) === key(me.name) ? ' (you)' : '')),
+        h('span', { class: 'nm' + (profileOf(n) && profileOf(n).role === 'admin' ? ' admin-name' : ''), onclick: () => openProfile(n) }, displayName(n) + (key(n) === key(me.name) ? ' (you)' : '')),
         key(n) === key(c.owner) && h('span', { class: 'ownerbadge' }, 'Owner'),
         isGroupMod(c, n) && h('span', { class: 'modbadge' }, 'Admin'),
         canManage && key(n) !== key(me.name) && (serverApi >= 16
           ? h('button', { class: 'ghost', title: 'Manage', 'aria-label': 'Manage ' + n, onclick: () => memberMenu(n) }, '\u22EF')
           : h('button', {
             class: 'ghost danger', onclick: async () => {
-              if (!confirm(`Remove ${n} from ${c.name}?`)) return;
+              if (!confirm(`Remove ${displayName(n)} from ${c.name}?`)) return;
               const d = await act('removeFromGroup', { convo: id, username: n }, null, s => {
                 const x = s.convos.find(x => x.id === id);
                 if (x) x.members = x.members.filter(m => key(m) !== key(n));
@@ -3222,11 +3250,11 @@ function buildMessage(m, pending) {
   const el = h('div', { class: 'msg' + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
     avatar(m.name),
     h('div', { class: 'head' },
-      h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }, m.name),
+      nameEl(m.name, 'span', { class: 'name' + (m.admin ? ' admin-name' : ''), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }),
       m.admin && h('span', { class: 'badge' }, 'ADMIN'),
       time, h('span', { class: 'edtag' })),
     h('div', { class: 'body' },
-      m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, h('b', null, m.rp.name), m.rp.text || '[image]'),
+      m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, nameEl(m.rp.name, 'b'), m.rp.text || '[image]'),
       h('span', { class: 'txt' }), m.img && (m.vo ? voiceBlock(m) : imageBlock(m)), h('div', { class: 'pollbox' })),
     h('div', { class: 'reacts' }),
     !pending && h('div', { class: 'acts' },
@@ -3281,7 +3309,7 @@ function storyRing(name) {
   const s = serverApi >= 11 && stories.find(x => key(x.name) === key(name));
   const av = avatar(name, { click: !s });
   if (!s) return av;
-  return h('span', { class: 'pring' + ((storySeen[key(s.name)] || 0) >= s.last ? ' seen' : ''), title: `${name}'s story`, onclick: () => openStoryViewer([s.name], 0) }, av);
+  return h('span', { class: 'pring' + ((storySeen[key(s.name)] || 0) >= s.last ? ' seen' : ''), title: `${displayName(name)}'s story`, onclick: () => openStoryViewer([s.name], 0) }, av);
 }
 
 // Photos keep Instagram's shapes: no taller than 4:5, no wider than 1.91:1.
@@ -3328,7 +3356,7 @@ const feedVideos = new IntersectionObserver(entries => entries.forEach(e => {
   } else v.pause();
 }), { root: log, threshold: [0, 0.6] });
 function videoBlock(m) {
-  const v = h('video', { muted: '', playsinline: '', loop: '', preload: 'none', poster: posterUrl(m.vd.id), 'aria-label': 'Short by ' + m.name });
+  const v = h('video', { muted: '', playsinline: '', loop: '', preload: 'none', poster: posterUrl(m.vd.id), 'aria-label': 'Short by ' + displayName(m.name) });
   v.muted = true;
   v.dataset.src = videoUrl(m.vd.id);
   const sound = h('button', { class: 'vsound', title: 'Sound on/off', 'aria-label': 'Sound on or off', onclick: e => {
@@ -3505,7 +3533,7 @@ async function openShorts(startId) {
         h('button', { title: 'Share', onclick: () => sharePost(slide._m) }, icon(ICON_SHARE), h('span', { class: 'vh' }, 'Share')),
         h('button', { title: 'More', onclick: () => shortMenu(slide, close) }, h('span', { style: 'font-size:26px;line-height:1' }, '\u22EF'))),
       h('div', { class: 'scap' },
-        h('div', { class: 'sname', onclick: () => openProfile(m.name) }, avatar(m.name, { click: false }), m.name, h('span', { class: 'when' }, '\u2022 ' + ago(m.time))),
+        h('div', { class: 'sname', onclick: () => openProfile(m.name) }, avatar(m.name, { click: false }), nameEl(m.name), h('span', { class: 'when' }, '\u2022 ' + ago(m.time))),
         m.text && h('div', { class: 'stext', onclick: e => e.currentTarget.classList.toggle('open') }, m.text)));
     // One tap: pause or play. Two: like, with a big heart.
     let lastTap = 0, tapTimer = null;
@@ -3551,7 +3579,7 @@ async function openShortComments(slide, repaint) {
   const input = h('input', { placeholder: 'Add a comment\u2026', maxlength: 300 });
   attachMentions(input);
   const row = c => h('div', { class: 'crow' }, avatar(c.name),
-    h('div', { class: 'ct' }, h('b', null, c.name), ' ', c.text, h('span', { class: 'when' }, ago(c.time))));
+    h('div', { class: 'ct' }, nameEl(c.name, 'b'), ' ', c.text, h('span', { class: 'when' }, ago(c.time))));
   const form = h('form', { onsubmit: async e => {
     e.preventDefault();
     const text = input.value.trim();
@@ -3595,7 +3623,7 @@ function shortMenu(slide, closePlayer) {
 }
 
 async function sharePost(m) {
-  const text = `${m.name} on Idiocy: ${m.text || (m.img ? '[photo]' : '')}`;
+  const text = `${displayName(m.name)} on Idiocy: ${m.text || (m.img ? '[photo]' : '')}`;
   const url = location.href.split('#')[0];
   try {
     if (navigator.share) { await navigator.share({ title: 'Idiocy', text, url }); return; }
@@ -3625,7 +3653,7 @@ function buildPost(m, pending) {
   const cbtn = h('button', { class: 'pact', title: 'Comment', onclick: () => toggleComments(el) });
   const like = h('button', { class: 'pact like', title: 'Like', onclick: () => toggleReaction(el, HEART) });
   const body = h('div', { class: 'body' },
-    (m.img || m.vd) && h('b', { class: 'capname', onclick: () => openProfile(m.name) }, m.name),
+    (m.img || m.vd) && nameEl(m.name, 'b', { class: 'capname', onclick: () => openProfile(m.name) }),
     !m.img && m.pl && h('div', { class: 'plabel' }, '\u{1F4CA} POLL'),
     h('span', { class: 'txt' }), h('div', { class: 'pollbox' }));
   const shot = m.vd ? videoBlock(m) : m.img && igShot(m);
@@ -3634,7 +3662,7 @@ function buildPost(m, pending) {
       storyRing(m.name),
       h('div', { class: 'who2' },
         h('div', { class: 'line' },
-          h('span', { class: 'name' + (m.admin ? ' admin-name' : ''), onclick: () => openProfile(m.name) }, m.name),
+          nameEl(m.name, 'span', { class: 'name' + (m.admin ? ' admin-name' : ''), onclick: () => openProfile(m.name) }),
           m.admin && h('span', { class: 'badge' }, 'ADMIN'),
           h('span', { class: 'sep' }, '\u2022'), time, h('span', { class: 'edtag' })))),
     !(m.img || m.vd) && body,
@@ -3733,7 +3761,7 @@ function buildComment(postEl, c, pending) {
     avatar(c.name),
     h('div', { class: 'col' },
       h('div', { class: 'bubble' },
-        h('b', { class: c.admin ? 'admin-name' : '', style: `color:${colorFor(c.name)}`, onclick: () => openProfile(c.name) }, c.name),
+        nameEl(c.name, 'b', { class: c.admin ? 'admin-name' : '', style: `color:${colorFor(c.name)}`, onclick: () => openProfile(c.name) }),
         c.admin && h('span', { class: 'badge' }, 'ADMIN'),
         richText(c.text || '')),
       h('div', { class: 'meta' },
@@ -3938,7 +3966,7 @@ function notePreview(convo, m) {
 function previewText(c) {
   const p = previews[c.id];
   if (p && p.text) {
-    const who = !p.name ? '' : me && key(p.name) === key(me.name) ? 'You: ' : c.type === 'group' ? p.name + ': ' : '';
+    const who = !p.name ? '' : me && key(p.name) === key(me.name) ? 'You: ' : c.type === 'group' ? displayName(p.name) + ': ' : '';
     return who + p.text;
   }
   return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : '';
@@ -3960,7 +3988,7 @@ function setReply(m) {
   replying = m;
   $('replybar').classList.toggle('hidden', !m);
   if (m) {
-    $('replytext').replaceChildren('Replying to ', h('b', null, m.name), ': ', m.text || '[image]');
+    $('replytext').replaceChildren('Replying to ', nameEl(m.name, 'b'), ': ', m.text || '[image]');
     textEl.focus();
   }
 }
@@ -4023,11 +4051,11 @@ function openSearch(convoId, q0) {
   const resultRow = (r, words) => {
     const conv = st && st.convos.find(x => x.id === r.convo);
     const where = r.post ? 'comment on a post' : r.convo === 'global' ? 'Global feed'
-      : conv ? (conv.type === 'group' ? conv.name : 'DM with ' + convoLabel(conv)) : '';
+      : conv ? (conv.type === 'group' ? conv.name : 'DM with ' + convoTitle(conv)) : '';
     return h('button', { class: 'sres', onclick: () => { md.close(); if (r.post || r.convo === 'global') openPost(r.post || r.id); else revealMessage(r.convo, r.id); } },
       avatar(r.name, { click: false }),
       h('div', { class: 'sbody' },
-        h('div', { class: 'stop' }, h('b', null, r.name), !scope && where && h('span', { class: 'swhere' }, where), h('span', { class: 'swhen' }, ago(r.time))),
+        h('div', { class: 'stop' }, nameEl(r.name, 'b'), !scope && where && h('span', { class: 'swhere' }, where), h('span', { class: 'swhen' }, ago(r.time))),
         h('div', { class: 'stext' }, highlightWords(r.text, words))));
   };
   input.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 300); };
@@ -4081,7 +4109,7 @@ function attachMentions(input) {
     if (!m) return close();
     start = pos - m[2].length - 1;
     const q = key(m[2]);
-    items = mentionCandidates().filter(n => key(n).includes(q))
+    items = mentionCandidates().filter(n => key(n).includes(q) || key(displayName(n)).includes(q))
       .sort((a, b) => key(b).startsWith(q) - key(a).startsWith(q) || a.localeCompare(b)).slice(0, 6);
     if (!items.length) return close();
     sel = Math.min(sel, items.length - 1);
@@ -4089,7 +4117,7 @@ function attachMentions(input) {
     box.replaceChildren(...items.map((n, i) => h('button', {
       type: 'button', class: i === sel ? 'on' : '',
       onpointerdown: e => { e.preventDefault(); pick(n); }, // before the input loses focus
-    }, avatar(n, { click: false }), h('span', null, n))));
+    }, avatar(n, { click: false }), h('span', null, displayName(n), displayName(n) !== n && h('small', { class: 'mat' }, ' @' + n)))));
     const r = input.getBoundingClientRect();
     box.style.left = Math.max(8, r.left) + 'px';
     box.style.bottom = (innerHeight - r.top + 6) + 'px';
@@ -4148,7 +4176,8 @@ function startEdit(el) {
 function showTyping(names) {
   const el = $('typing');
   if (!names.length || isFeed()) { el.replaceChildren(); return; }
-  const who = names.length === 1 ? `${names[0]} is typing` : names.length === 2 ? `${names[0]} and ${names[1]} are typing` : 'Several people are typing';
+  const [a, b] = names.map(displayName);
+  const who = names.length === 1 ? `${a} is typing` : names.length === 2 ? `${a} and ${b} are typing` : 'Several people are typing';
   el.replaceChildren(h('span', null, who, h('i'), h('i'), h('i')));
 }
 
@@ -4176,10 +4205,10 @@ function paintSeen() {
     if (!isMine(last._m)) return; // only under your own message
     text = 'Seen ' + seenAgo(who[0].t);
   } else {
-    const names = who.map(w => w.n);
+    const names = who.map(w => displayName(w.n));
     text = 'Seen by ' + (names.length <= 3 ? names.join(', ') : `${names.slice(0, 2).join(', ')} and ${names.length - 2} others`);
   }
-  last.after(h('div', { class: 'seenline', title: who.map(w => `${w.n}: ${new Date(w.t).toLocaleString()}`).join('\n') }, text));
+  last.after(h('div', { class: 'seenline', title: who.map(w => `${displayName(w.n)}: ${new Date(w.t).toLocaleString()}`).join('\n') }, text));
 }
 
 // Older messages load when you scroll to the top of a chat (or the bottom of the feed).
@@ -4239,7 +4268,7 @@ function paintReactions(el, popEmoji) {
     const mine = me && names.some(n => key(n) === key(me.name));
     return h('button', {
       class: (mine ? 'mine' : '') + (e === popEmoji ? ' pop' : ''),
-      title: names.join(', '),
+      title: names.map(displayName).join(', '),
       onclick: () => toggleReaction(el, e),
     }, e, h('span', null, String(names.length)));
   }));
@@ -4259,8 +4288,8 @@ function paintLikes(el, pop) {
   if (!line) return;
   if (!names.length) { line.replaceChildren(); return; }
   const first = names.find(n => !me || key(n) !== key(me.name)) || names[0];
-  const who = me && key(first) === key(me.name) ? 'you' : first;
-  line.title = names.join(', ');
+  const who = me && key(first) === key(me.name) ? 'you' : displayName(first);
+  line.title = names.map(displayName).join(', ');
   line.replaceChildren('Liked by ', h('b', null, who), ...(names.length > 1 ? [' and ', h('b', null, `${names.length - 1} other${names.length === 2 ? '' : 's'}`)] : []));
 }
 
@@ -4361,7 +4390,7 @@ function paintPoll(el) {
       const who = v[i] || [], pct = total ? Math.round(who.length * 100 / total) : 0;
       return h('button', {
         type: 'button', class: 'popt' + (String(i) === mine ? ' mine' : ''), disabled: live ? null : '',
-        title: reveal ? (who.length ? who.join(', ') : 'No votes yet') : 'Vote to see the results', onclick: () => castVote(el, i),
+        title: reveal ? (who.length ? who.map(displayName).join(', ') : 'No votes yet') : 'Vote to see the results', onclick: () => castVote(el, i),
       }, h('span', { class: 'bar', style: `width:${reveal ? pct : 0}%` }), h('span', { class: 'ol' }, String(i) === mine ? '\u2713 ' : '', o),
         h('span', { class: 'pc' }, reveal && total ? pct + '%' : ''));
     }),
@@ -4548,7 +4577,7 @@ function fillStoryBar(bar) {
     // Once you've posted, a separate "Add" button makes adding more obvious.
     ...(mine ? [h('button', { class: 'story addstory', title: 'Add to your story', onclick: addToStory },
       h('span', { class: 'ring none' }, h('span', { class: 'addcircle' }, '+')), h('span', { class: 'sn' }, 'Add'))] : []),
-    ...others.map((s, i) => item(s.name, s.name, (storySeen[key(s.name)] || 0) >= s.last ? 'seen' : '',
+    ...others.map((s, i) => item(s.name, displayName(s.name), (storySeen[key(s.name)] || 0) >= s.last ? 'seen' : '',
       () => openStoryViewer(others.map(o => o.name), i))));
 }
 
@@ -4638,7 +4667,7 @@ async function openStoryViewer(names, start) {
   function resume() { if (!paused) return; paused = false; run(left || DUR); }
   async function loadPerson() {
     const name = names[who];
-    nameEl.textContent = name;
+    nameEl.textContent = displayName(name);
     av.replaceChildren(avatar(name, { click: false }));
     ago.textContent = '';
     cap.textContent = '';
@@ -4874,7 +4903,7 @@ function openReport(m, convo = openId) {
   const md = modal('',
     h('h2', null, 'Report message'),
     h('div', { class: 'card' },
-      h('div', { class: 'meta' }, `${m.name} \u00b7 ${fmtTime(m.time)}`),
+      h('div', { class: 'meta' }, `${displayName(m.name)} \u00b7 ${fmtTime(m.time)}`),
       h('q', null, m.text || '[image]')),
     h('div', { class: 'chips' }, chips),
     other,
@@ -5522,7 +5551,7 @@ function callUi(state) {
   if (state === 'incoming') {
     $('callring').replaceChildren(
       avatar(call.peer, { click: false }),
-      h('div', { class: 't' }, h('b', null, call.peer), h('span', null, call.video ? 'Incoming video call\u2026' : 'Incoming call\u2026')),
+      h('div', { class: 't' }, h('b', null, displayName(call.peer)), h('span', null, call.video ? 'Incoming video call\u2026' : 'Incoming call\u2026')),
       cbtn('hang', '\u2715', 'Decline', () => endCall(true)),
       cbtn('accept', '\u{1F4DE}', 'Accept', () => acceptCall()));
     $('callring').classList.remove('hidden');
@@ -5530,7 +5559,7 @@ function callUi(state) {
     return;
   }
   $('callring').classList.add('hidden');
-  $('rlabel').textContent = call.peer;
+  $('rlabel').textContent = displayName(call.peer);
   paintRemoteTile();
   const muteBtn = cbtn('', '\u{1F399}\uFE0F', call.micOff ? 'Unmute' : 'Mute', () => toggleMute());
   muteBtn.classList.toggle('off', !!call.micOff);
@@ -5553,7 +5582,7 @@ function callUi(state) {
     else if (t.requestFullscreen) t.requestFullscreen().catch(() => {});
   });
   $('cctrls').replaceChildren(...[muteBtn, camBtn,
-    h('label', { class: 'vol', title: `${call.peer}'s volume` }, '\u{1F50A}', vol, pct),
+    h('label', { class: 'vol', title: `${displayName(call.peer)}'s volume` }, '\u{1F50A}', vol, pct),
     full, cbtn('hang', '\u{1F4DE}', 'Hang up', () => endCall(true))].filter(Boolean));
   setCallStatus(state === 'ringing' ? 'Ringing\u2026' : state === 'connecting' ? 'Connecting\u2026' : '');
   syncCallView();
@@ -5592,7 +5621,7 @@ function syncCallView() {
     const mute = cbtn('', '\u{1F399}\uFE0F', call.micOff ? 'Unmute' : 'Mute', e => { e.stopPropagation(); toggleMute(); });
     mute.classList.toggle('off', !!call.micOff);
     $('callmini').replaceChildren(
-      h('div', { class: 't' }, h('b', { id: 'ministatus' }, miniStatus()), call.peer),
+      h('div', { class: 't' }, h('b', { id: 'ministatus' }, miniStatus()), displayName(call.peer)),
       mute, cbtn('hang', '\u{1F4DE}', 'Hang up', e => { e.stopPropagation(); endCall(true); }));
   }
 }
@@ -5780,7 +5809,7 @@ async function incomingCall(p) {
   ringtone('incoming');
   if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const n = new Notification(`${call.peer} is calling you`, { body: call.video ? 'Video call' : 'Voice call', icon: $('favicon').href, tag: 'idiocy-call' });
+      const n = new Notification(`${displayName(call.peer)} is calling you`, { body: call.video ? 'Video call' : 'Voice call', icon: $('favicon').href, tag: 'idiocy-call' });
       n.onclick = () => { window.focus(); n.close(); };
     } catch (e) {}
   }
@@ -6027,7 +6056,7 @@ function groupTile(name, isMe) {
   if (!t) {
     const video = h('video', { autoplay: '', playsinline: '' });
     video.muted = true;
-    const vol = !isMe && h('input', { class: 'tvol', type: 'range', min: 0, max: 200, step: 5, title: `${name}'s volume`, 'aria-label': `${name}'s volume` });
+    const vol = !isMe && h('input', { class: 'tvol', type: 'range', min: 0, max: 200, step: 5, title: `${displayName(name)}'s volume`, 'aria-label': `${displayName(name)}'s volume` });
     if (vol) {
       vol.value = peerVolume(name);
       vol.oninput = () => {
@@ -6037,7 +6066,7 @@ function groupTile(name, isMe) {
         if (p && p.gain) p.gain.gain.value = vol.value / 100;
       };
     }
-    t = h('div', { class: 'tile' }, video, h('span', { class: 'tstate' }), h('span', { class: 'label' }, isMe ? 'You' : name), vol);
+    t = h('div', { class: 'tile' }, video, h('span', { class: 'tstate' }), h('span', { class: 'label' }, isMe ? 'You' : displayName(name)), vol);
     t._video = video;
     gcall.tiles.set(k, t);
   }
@@ -6131,7 +6160,7 @@ function groupCallInvite(p) {
   if (call || gcall || isMuted(p.convo)) return;
   $('callring').replaceChildren(
     avatar(p.from, { click: false }),
-    h('div', { class: 't' }, h('b', null, p.text || 'Group call'), h('span', null, `${p.from} started a ${p.video ? 'video ' : ''}call`)),
+    h('div', { class: 't' }, h('b', null, p.text || 'Group call'), h('span', null, `${displayName(p.from)} started a ${p.video ? 'video ' : ''}call`)),
     cbtn('hang', '\u2715', 'Dismiss', () => { ringtone(null); $('callring').classList.add('hidden'); }),
     cbtn('accept', '\u{1F4DE}', 'Join', () => joinGroupCall(p.convo, !!p.video)));
   $('callring').classList.remove('hidden');
@@ -6188,11 +6217,12 @@ function handlePings(pings) {
   const where = p.kind === 'group' && forMe(p) ? (mentionsMe(p.text || '') ? 'mentioned you in ' : 'replied to you in ') + (p.gname || 'a group')
     : p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group'
     : p.kind === 'comment' ? 'commented' : p.kind === 'removed' ? 'removed you from a group' : 'mentioned you';
-  const text = p.kind === 'removed' ? `${p.from} removed you from "${p.text}"`
-    : p.kind === 'friendreq' ? `${p.from} sent you a friend request`
-    : p.kind === 'friendaccept' ? `${p.from} accepted your friend request! Click to say hi.`
-    : p.kind === 'invitejoin' ? `\u{1F389} ${p.from} joined you with your invite link! Click to say hi.`
-    : `${p.from} ${where}: ${p.text}`;
+  const from = displayName(p.from);
+  const text = p.kind === 'removed' ? `${from} removed you from "${p.text}"`
+    : p.kind === 'friendreq' ? `${from} sent you a friend request`
+    : p.kind === 'friendaccept' ? `${from} accepted your friend request! Click to say hi.`
+    : p.kind === 'invitejoin' ? `\u{1F389} ${from} joined you with your invite link! Click to say hi.`
+    : `${from} ${where}: ${p.text}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
@@ -6201,7 +6231,7 @@ function handlePings(pings) {
   if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const plain = p.kind.startsWith('friend') || p.kind === 'removed' || p.kind === 'invitejoin';
-      const n = new Notification(plain ? text : `${p.from} ${where}`,
+      const n = new Notification(plain ? text : `${from} ${where}`,
         { body: plain ? '' : p.text, icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
     } catch (e) {}
@@ -6291,7 +6321,7 @@ function openSettings() {
     } }, label)));
   const blockedList = h('div', { class: 'blockedlist' });
   const paintBlocked = () => blockedList.replaceChildren(...((st && st.blocked) || []).map(n =>
-    h('div', { class: 'row' }, avatar(n), h('span', { class: 'label' }, n),
+    h('div', { class: 'row' }, avatar(n), h('span', { class: 'label' }, displayName(n)),
       h('button', { class: 'ghost', onclick: () => unblockUser(n, () => setTimeout(paintBlocked, 50)) }, 'Unblock'))));
   paintBlocked();
   const md = modal('',
