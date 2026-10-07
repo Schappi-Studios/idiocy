@@ -4971,13 +4971,21 @@ function feedTop() {
 }
 
 // ---------- feed order ----------
+// Swearing is allowed, but swears make a post come up less in For you: more of them, and more of
+// the post being swears, means less often, though each extra one matters less. m.sw is the
+// server's count. E.g. 1 swear in a long post: 0.92x; 4 in 100 words: 0.75x; 4 in five words: 0.58x.
+function swearFactor(m) {
+  if (!m.sw) return 1;
+  const words = [m.text || ''].concat(m.pl ? m.pl.o : []).join(' ').split(/\s+/).filter(Boolean).length;
+  return 1 / (1 + 0.08 * m.sw + 0.5 * Math.min(1, m.sw / Math.max(1, words)));
+}
 // Likes and comments push a post up; age slowly pulls it down.
 function postScore(m) {
   const r = m.r || {};
   const likes = (r[HEART] || []).length;
   const others = Object.keys(r).reduce((n, e) => n + (e === HEART ? 0 : (r[e] || []).length), 0);
   const hours = Math.max(0, (Date.now() - (m.time || Date.now())) / 36e5);
-  return (1 + likes * 3 + (m.cc || 0) * 4 + others) / Math.pow(hours + 2, 1.2);
+  return (1 + likes * 3 + (m.cc || 0) * 4 + others) / Math.pow(hours + 2, 1.2) * swearFactor(m);
 }
 // Puts the loaded posts in order, somewhat random with liked posts usually first. Only when
 // the feed opens, never while you're reading, so nothing jumps.
@@ -5015,7 +5023,7 @@ function paintFeedEnd() {
 function againWeight(m) {
   const r = m.r || {};
   const others = Object.keys(r).reduce((n, e) => n + (e === HEART ? 0 : (r[e] || []).length), 0);
-  return 1 + ((r[HEART] || []).length) * 3 + (m.cc || 0) * 2 + others;
+  return (1 + ((r[HEART] || []).length) * 3 + (m.cc || 0) * 2 + others) * swearFactor(m);
 }
 // More earlier posts at the end of the feed, never the same post twice in a row.
 function topUpFeed(n = AHEAD * 2) {
@@ -5249,6 +5257,9 @@ function updateComposer() {
   if (slowLeft > 0 || muted) slowTimer = setTimeout(updateComposer, 500);
 }
 
+// In a chat the problem shows as a line at the bottom; the feed's top could be far off, so there it pops up.
+const sendError = msg => (isFeed() ? toast(msg, true) : sys(msg, true));
+
 async function send(text, att, extra = {}) {
   const btn = isFeed() ? $('postbtn') : document.querySelector('#send button[type=submit]');
   const myEpoch = epoch, sentTo = openId;
@@ -5269,7 +5280,7 @@ async function send(text, att, extra = {}) {
   try {
     const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
       ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }) });
-    if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (verifyError(d.error)) openVerify(); else if (!d.auth) sys(d.error || 'Could not send', true); return false; }
+    if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false; }
     if (sentTo !== 'global') notePreview(sentTo, d.message);
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
     const m = d.message;
@@ -5292,7 +5303,7 @@ async function send(text, att, extra = {}) {
     return true;
   } catch (e) {
     pending.remove();
-    sys('Could not send — check your connection', true);
+    sendError('Could not send \u2014 check your connection');
     return false;
   } finally {
     btn.disabled = false;
