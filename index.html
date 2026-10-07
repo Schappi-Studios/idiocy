@@ -2359,7 +2359,7 @@ async function sendSignupCode() {
   const d = await api('signupStart', Object.assign(signupData(), { email }));
   if (!d.ok) {
     // Back to whichever answer needs fixing.
-    const back = /first name/i.test(d.error) ? 'name' : /username|your @/i.test(d.error) ? 'handle' : /password/i.test(d.error) ? 'password' : null;
+    const back = /first name|last name/i.test(d.error) ? 'name' : /username|your @|that @/i.test(d.error) ? 'handle' : /password/i.test(d.error) ? 'password' : null;
     if (back) showSignupStep(back);
     $('suerr').textContent = d.error;
     return false;
