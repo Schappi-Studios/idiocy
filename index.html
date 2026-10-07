@@ -3090,6 +3090,7 @@ function setMuted(id, on) {
 
 // A group's swear filter (the server applies it; DMs are never filtered).
 const FILTER_LEVELS = ['Off', 'No slurs', 'Clean'];
+const groupFilter = c => (c.flt == null ? 1 : c.flt); // groups start on No slurs
 const FILTER_HINT = 'No slurs: messages with slurs aren\u2019t sent. Clean: no slurs, and swears show as ****.';
 
 function openGroupInfo(id) {
@@ -3113,8 +3114,8 @@ function openGroupInfo(id) {
     mute.checked = isMuted(id);
     mute.onchange = () => setMuted(id, mute.checked);
     const filterChips = h('div', { class: 'notifychips' }, ...FILTER_LEVELS.map((label, lv) =>
-      h('button', { class: (c.flt || 0) === lv ? 'primary' : 'ghost', onclick: async () => {
-        if ((c.flt || 0) === lv) return;
+      h('button', { class: groupFilter(c) === lv ? 'primary' : 'ghost', onclick: async () => {
+        if (groupFilter(c) === lv) return;
         if (await act('setGroupFilter', { convo: id, level: lv }, null, s => { const x = s.convos.find(x => x.id === id); if (x) x.flt = lv; })) draw();
       } }, label)));
     const notify = h('div', { class: 'notifychips' }, ...[['all', 'All messages'], ['mentions', '@ Mentions only'], ['off', '\u{1F515} Off']].map(([v, label]) =>
@@ -3190,7 +3191,7 @@ function openGroupInfo(id) {
           }, 'Remove'))))),
       serverApi >= 26 && h('div', { class: 'toggle' }, h('span', null, 'Swear filter',
           h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, canManage ? FILTER_HINT : FILTER_HINT + ' The owner and admins choose it.')),
-        canManage ? filterChips : h('b', null, FILTER_LEVELS[c.flt || 0])),
+        canManage ? filterChips : h('b', null, FILTER_LEVELS[groupFilter(c)])),
       serverApi >= 16
         ? h('div', { class: 'toggle' }, h('span', null, 'Notifications',
             h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Mentions only: just when someone @mentions or replies to you.')), notify)
