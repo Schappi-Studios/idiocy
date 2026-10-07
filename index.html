@@ -13,6 +13,8 @@
 <meta name="apple-mobile-web-app-title" content="Idiocy">
 <!-- The home screen icon on iPhones. A full address, so every copy of the page (here, schappistudios.com/idiocy, GitHub) finds it. -->
 <link rel="apple-touch-icon" href="https://idiocy.schappistudios.com/apple-touch-icon.png">
+<!-- Lets Chrome (Android, Chromebooks, computers) install Idiocy as an app. -->
+<link rel="manifest" href="manifest.json">
 <title>Idiocy</title>
 <!-- Start talking to Google straight away; the first request then skips the connection setup. -->
 <link rel="preconnect" href="https://api.schappistudios.com" crossorigin>
@@ -1798,7 +1800,6 @@ async function openProfile(name) {
         h('div', { class: 'pname' + (p.role === 'admin' ? ' admin-name' : '') }, fullName(p) ? '@' + (p.username || name) : p.username || name, p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
-          p.verified && h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713 Verified'),
           !p.verified && p.username && me && me.role === 'admin' && serverApi >= 15 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: 'No verified email' }, 'NO EMAIL')),
         h('div', { class: 'pstatus' },
           h('span', { class: 'dotsm' + (p.online ? ' on' : '') }),
@@ -2131,41 +2132,180 @@ const INVITE_BASE = 'https://idiocy.schappistudios.com/';
 })();
 
 // Signed out with an invite waiting: "Lucas invited you", and start on Sign up.
-// ---------- add to your home screen ----------
+// ---------- tips: home screen, installing, notifications ----------
+// One small banner at a time, the most useful first: an old home screen icon that needs adding
+// again, adding Idiocy to the home screen (Safari on iPhones), installing it (Chrome), then
+// turning on notifications. Each one's ✕ puts it off for two weeks.
 // iPhones can't be asked to add a website to the home screen; people do it from Safari's Share
-// menu. So Safari on iPhones gets a small banner, and tapping it shows how.
+// menu, so the banner shows how.
 function canAddToHome() {
   const ua = navigator.userAgent;
   return /iPhone|iPod/.test(ua) && /Safari\//.test(ua) && !navigator.standalone && window.top === window.self &&
     !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\/|FBAN|FBAV|Instagram|Snapchat|musical_ly|Bytedance|TikTok|Discord|Line\//.test(ua); // other apps' built-in browsers can't
 }
-function paintA2hs() {
-  const show = canAddToHome() && !!me && !mustVerify() && Date.now() > (prefs.a2hsLater || 0);
-  document.querySelectorAll('.a2hsbar').forEach(b => b.classList.toggle('hidden', !show));
+// Home screen icons added before 6 October 2026 still put the app under the status bar, which made
+// iOS cut off the bottom of the screen. They need adding again. The page can tell: only they get
+// room at the top for the status bar.
+let oldIcon = null;
+function oldHomeIcon() {
+  if (!navigator.standalone) return false;
+  if (oldIcon === null) {
+    const probe = h('div', { id: 'satprobe', style: 'position:fixed;top:0;left:0;padding-top:env(safe-area-inset-top);visibility:hidden;pointer-events:none' });
+    document.body.append(probe);
+    oldIcon = probe.offsetHeight > 20;
+    probe.remove();
+  }
+  return oldIcon;
 }
-function openA2hs() {
-  const share = '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/>';
-  const add = '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>';
-  const chip = (icon, label) => { const c = h('span', { class: 'a2chip' }); c.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`; c.append(label); return c; };
-  const m = modal('a2hs',
-    h('h2', null, '\u{1F4F2} Add Idiocy to your home screen'),
-    h('p', { class: 'a2sub' }, 'Then it opens full screen, like a real app.'),
-    h('ol', null,
-      h('li', null, h('b', null, '1'), h('span', null, 'Tap ', chip(share, 'Share'), ' in Safari\u2019s buttons at the bottom.', h('span', { class: 'a2small' }, 'Can\u2019t see it? Tap \u2022\u2022\u2022 first.'))),
-      h('li', null, h('b', null, '2'), h('span', null, 'Scroll down and tap ', chip(add, 'Add to Home Screen'))),
-      h('li', null, h('b', null, '3'), h('span', null, 'Tap ', h('b', null, 'Add'), ' at the top.', h('span', { class: 'a2small' }, 'If you see \u201cOpen as Web App\u201d, leave it on.'))),
-      h('li', null, h('b', null, '4'), h('span', null, 'Open Idiocy from your home screen.', h('span', { class: 'a2small' }, 'You might need to log in again there.')))),
-    h('div', { class: 'btns' }, h('button', { class: 'primary', onclick: () => m.close() }, 'Got it')));
-  m.overlay.classList.add('a2hsov');
-  m.overlay.append(h('div', { class: 'a2hsarrow', 'aria-hidden': 'true' }, h('span', null, 'Safari\u2019s buttons are down here'), h('div', null, '\u2193')));
+const TIPS = [
+  { id: 'readd', when: oldHomeIcon, title: 'Update your Idiocy icon', sub: 'Add it again to fix the bottom of the screen', go: 'How?', act: () => openA2hs(true) },
+  { id: 'a2hs', when: canAddToHome, title: 'Get Idiocy on your home screen', sub: 'It opens full screen, like an app', go: 'How?', act: () => openA2hs() },
+  { id: 'install', when: () => !!installEvt, title: 'Install Idiocy', sub: 'Get it as an app on this device', go: 'Install', act: () => installApp() },
+  { id: 'push', when: () => pushReady() && Notification.permission === 'default' && !prefs.push, title: 'Turn on notifications', sub: 'Hear about messages when Idiocy is closed', go: 'Turn on', act: () => enablePush() },
+];
+let tipShown = null;
+function paintTip() {
+  const later = prefs.tipLater || {};
+  tipShown = (me && !mustVerify() && TIPS.find(t => Date.now() > (later[t.id] || (t.id === 'a2hs' && prefs.a2hsLater) || 0) && t.when())) || null;
+  document.querySelectorAll('.a2hsbar').forEach(b => {
+    b.classList.toggle('hidden', !tipShown);
+    if (!tipShown) return;
+    b.querySelector('.a2text b').textContent = tipShown.title;
+    b.querySelector('.a2text span').textContent = tipShown.sub;
+    b.querySelector('.a2go').textContent = tipShown.go;
+  });
 }
 document.querySelectorAll('.a2hsbar').forEach(b => {
   b.onclick = e => {
-    if (e.target.closest('.a2x')) { prefs.a2hsLater = Date.now() + 14 * 864e5; savePrefs(); paintA2hs(); return; } // not now: ask again in two weeks
-    openA2hs();
+    if (!tipShown) return;
+    if (e.target.closest('.a2x')) { // not now: ask again in two weeks
+      prefs.tipLater = Object.assign({}, prefs.tipLater, { [tipShown.id]: Date.now() + 14 * 864e5 });
+      savePrefs();
+      paintTip();
+      return;
+    }
+    tipShown.act();
   };
-  b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openA2hs(); } };
+  b.onkeydown = e => { if ((e.key === 'Enter' || e.key === ' ') && tipShown) { e.preventDefault(); tipShown.act(); } };
 });
+// How to add Idiocy to the home screen; again: how to swap an old icon for a new one.
+function openA2hs(again) {
+  const share = '<path d="M12 3v12M8 7l4-4 4 4"/><path d="M8 11H6a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-2"/>';
+  const add = '<rect x="4" y="4" width="16" height="16" rx="4"/><path d="M12 8v8M8 12h8"/>';
+  const chip = (icon, label) => { const c = h('span', { class: 'a2chip' }); c.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon}</svg>`; c.append(label); return c; };
+  const steps = again ? [
+    h('span', null, 'On your home screen, press and hold the Idiocy icon, then tap ', h('b', null, 'Remove App'), ' → ', h('b', null, 'Delete from Home Screen'), '.'),
+    h('span', null, 'Open Safari and go to ', h('b', null, 'idiocy.schappistudios.com'), '.'),
+    h('span', null, 'Tap ', chip(share, 'Share'), ', then ', chip(add, 'Add to Home Screen'), ', then ', h('b', null, 'Add'), '.', h('span', { class: 'a2small' }, 'Can’t see Share? Tap ••• first.')),
+    h('span', null, 'Open the new Idiocy icon.', h('span', { class: 'a2small' }, 'You might need to log in again there.')),
+  ] : [
+    h('span', null, 'Tap ', chip(share, 'Share'), ' in Safari’s buttons at the bottom.', h('span', { class: 'a2small' }, 'Can’t see it? Tap ••• first.')),
+    h('span', null, 'Scroll down and tap ', chip(add, 'Add to Home Screen')),
+    h('span', null, 'Tap ', h('b', null, 'Add'), ' at the top.', h('span', { class: 'a2small' }, 'If you see “Open as Web App”, leave it on.')),
+    h('span', null, 'Open Idiocy from your home screen.', h('span', { class: 'a2small' }, 'You might need to log in again there.')),
+  ];
+  const m = modal('a2hs',
+    h('h2', null, again ? '\u{1F4F2} Update your Idiocy icon' : '\u{1F4F2} Add Idiocy to your home screen'),
+    h('p', { class: 'a2sub' }, again ? 'Your icon is from an older Idiocy. A fresh one fixes the bottom of the screen and can get notifications.' : 'Then it opens full screen, like a real app.'),
+    h('ol', null, ...steps.map((st, i) => h('li', null, h('b', null, String(i + 1)), st))),
+    h('div', { class: 'btns' }, h('button', { class: 'primary', onclick: () => m.close() }, 'Got it')));
+  m.overlay.classList.add('a2hsov');
+  if (!again) m.overlay.append(h('div', { class: 'a2hsarrow', 'aria-hidden': 'true' }, h('span', null, 'Safari’s buttons are down here'), h('div', null, '↓')));
+}
+
+// Installing: Chrome (Android, Chromebooks, computers) offers it once the page qualifies
+// (manifest.json); the banner's button brings up Chrome's own install box.
+let installEvt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; paintTip(); });
+addEventListener('appinstalled', () => { installEvt = null; paintTip(); });
+async function installApp() {
+  const e = installEvt;
+  if (!e) return;
+  installEvt = null;
+  e.prompt();
+  try { await e.userChoice; } catch (err) {}
+  paintTip();
+}
+
+// ---------- push notifications ----------
+// Real notifications, even when Idiocy is closed: sw.js shows them, the server sends them.
+// On iPhones they need the home screen app. Each device keeps its own mutes, sent along with it.
+const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window && window.top === window.self &&
+  !(/iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone); // iPhones: only the home screen app can
+let swReg = null;
+if ('serviceWorker' in navigator && window.top === window.self) {
+  navigator.serviceWorker.register('sw.js').then(r => { swReg = r; paintTip(); }).catch(() => {});
+  // Tapping a notification while Idiocy is open: go where it points.
+  navigator.serviceWorker.addEventListener('message', e => { if (e.data && e.data.open) openLink(new URL(e.data.open).search); });
+}
+const pushReady = () => pushSupported() && !!swReg && serverApi >= 27;
+const b64uBytes = s => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - s.length % 4) % 4)), c => c.charCodeAt(0));
+const pushPrefs = () => ({ muted: prefs.muted || [], mentionsOnly: prefs.mentionsOnly || [], hideSwears: !!prefs.hideSwears });
+const pushSub = async () => (swReg ? swReg.pushManager.getSubscription() : null);
+async function enablePush() {
+  if (!pushReady()) { toast(canAddToHome() ? 'On iPhone, add Idiocy to your home screen first' : 'This browser can’t do notifications', true); return false; }
+  const perm = await Notification.requestPermission().catch(() => 'denied');
+  if (perm !== 'granted') { paintTip(); toast('Notifications are blocked. Allow them in your browser or phone settings.', true); return false; }
+  try {
+    const k = await api('pushKey', {});
+    if (!k.ok || !k.key) { toast('Notifications aren’t ready yet. Try again later.', true); return false; }
+    const sub = (await swReg.pushManager.getSubscription()) || await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(k.key) });
+    if (!(await act('pushSubscribe', { sub: sub.toJSON(), prefs: pushPrefs() }))) return false;
+  } catch (e) {
+    toast('Couldn’t turn on notifications here', true);
+    return false;
+  }
+  prefs.push = true;
+  savePrefs();
+  paintTip();
+  toast('\u{1F514} Notifications are on');
+  return true;
+}
+async function disablePush() {
+  const sub = await pushSub().catch(() => null);
+  if (sub) {
+    try { await api('pushUnsubscribe', { endpoint: sub.endpoint }); } catch (e) {}
+    try { await sub.unsubscribe(); } catch (e) {}
+  }
+  prefs.push = false;
+  savePrefs();
+}
+// Logging out: this device stops getting that account's notifications.
+function dropPushDevice(t) {
+  if (!prefs.push) return;
+  prefs.push = false;
+  savePrefs();
+  pushSub().then(sub => {
+    if (!sub) return;
+    if (t) fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'pushUnsubscribe', token: t, endpoint: sub.endpoint }) }).catch(() => {});
+    sub.unsubscribe().catch(() => {});
+  }).catch(() => {});
+}
+// This device's mutes (or swear hiding) changed, or it's a new visit: tell the server, quietly.
+let pushSyncTimer = 0;
+function pushSync() {
+  clearTimeout(pushSyncTimer);
+  pushSyncTimer = setTimeout(async () => {
+    if (!prefs.push || !pushReady() || Notification.permission !== 'granted') return;
+    const sub = await pushSub().catch(() => null);
+    if (sub) api('pushSubscribe', { sub: sub.toJSON(), prefs: pushPrefs() }).catch(() => {});
+  }, 800);
+}
+
+// ---------- links from notifications ----------
+// ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>; opened once you're logged in.
+let pendingLink = /[?&](go|dm|post)=/.test(location.search) ? location.search : '';
+if (pendingLink) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+function openLink(search) {
+  const q = new URLSearchParams(search || '');
+  if (!me || !st) { pendingLink = search; return; }
+  pendingLink = '';
+  const go = q.get('go'), dm = q.get('dm'), post = Number(q.get('post'));
+  if (go === 'friends') { if (isPhone()) mtab('friends'); else document.body.classList.add('side-open'); }
+  else if (go && (go === 'global' || st.convos.some(c => c.id === go))) switchTo(go);
+  else if (dm) openDm(dm);
+  else if (post) openPost(post);
+}
 
 async function showInviteBanner() {
   const code = store.get(INVITE_KEY);
@@ -2412,6 +2552,7 @@ function showAuth(msg) {
 }
 
 function signOut(msg) {
+  dropPushDevice(null);
   if (call) endCall(true);
   if (gcall) leaveGroupCall(true);
   token = null;
@@ -2439,6 +2580,7 @@ $('mename').onclick = () => { if (me) openProfile(me.name); };
 
 async function logOut() {
   const t = token;
+  dropPushDevice(t);
   signOut();
   try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'logout', token: t }) }); } catch (e) {}
 }
@@ -2555,7 +2697,7 @@ async function poll() {
   const myGen = stateGen;
   try {
     const d = await api('poll', {
-      open: openId, after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop,
+      open: openId, after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop, vis: document.visibilityState === 'visible' || undefined,
       ...(lastId && document.visibilityState === 'visible' && openRev !== null && !isFeed() && { read: lastId }), // for seen receipts
       k: me ? key(me.name) : undefined, known: st ? st.convos.map(c => c.id) : undefined, // lets the server batch its reads
     });
@@ -2625,6 +2767,9 @@ async function poll() {
     $('mtabshorts').classList.toggle('hidden', serverApi < 22);
     $('shortsrow').classList.toggle('hidden', serverApi < 22);
     if (store.get(INVITE_KEY)) redeemPendingInvite();
+    if (pendingLink) openLink(pendingLink);
+    pushSync();
+    paintTip();
   } catch (e) {
     setStatus(false);
   } finally {
@@ -3084,6 +3229,7 @@ function setNotify(id, lvl) {
 function setMuted(id, on) {
   prefs.muted = (prefs.muted || []).filter(x => x !== id).concat(on ? [id] : []);
   savePrefs();
+  pushSync();
   sideSig = '';
   renderSide();
 }
@@ -5288,7 +5434,7 @@ function updateComposer() {
   $('postpoll').disabled = !!muted || locked;
   note.onclick = null;
   document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
-  paintA2hs();
+  paintTip();
   if (locked) {
     note.textContent = '\u{1F4E7} Verify your email to post and send messages. Tap here.';
     note.className = 'composer-note warn verify';
@@ -5868,7 +6014,7 @@ async function incomingCall(p) {
   call = { role: 'callee', id: p.call, peer: info.from, convo: info.convo, video: info.video, offer: info.offer };
   callUi('incoming');
   ringtone('incoming');
-  if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+  if (prefs.desktop && !prefs.push && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const n = new Notification(`${displayName(call.peer)} is calling you`, { body: call.video ? 'Video call' : 'Voice call', icon: $('favicon').href, tag: 'idiocy-call' });
       n.onclick = () => { window.focus(); n.close(); };
@@ -6289,7 +6435,7 @@ function handlePings(pings) {
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
-  if (prefs.desktop && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+  if (prefs.desktop && !prefs.push && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
       const plain = p.kind.startsWith('friend') || p.kind === 'removed' || p.kind === 'invitejoin';
       const n = new Notification(plain ? text : `${from} ${where}`,
@@ -6350,10 +6496,38 @@ function updateTitle() {
   img.src = baseIcon;
 }
 
+// Settings' notifications: real ones (push) where this browser can; on an iPhone in Safari, how
+// to get them; otherwise the older kind, only while the tab is open in the background.
+function notifyRow(desk, closeSettings) {
+  const hint = t => h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, t);
+  if (pushReady()) {
+    const box = h('input', { type: 'checkbox' });
+    box.checked = !!prefs.push && Notification.permission === 'granted';
+    const test = h('button', { class: 'linkbtn', type: 'button', onclick: async e => {
+      e.preventDefault();
+      const d = await act('pushTest', {});
+      if (d) toast(`Sent to ${d.devices} device${d.devices === 1 ? '' : 's'}. It shows up when Idiocy isn’t open.`);
+    } }, 'Send a test notification');
+    test.classList.toggle('hidden', !box.checked);
+    box.onchange = async () => {
+      if (box.checked) box.checked = await enablePush();
+      else await disablePush();
+      test.classList.toggle('hidden', !box.checked);
+    };
+    return h('label', { class: 'toggle' }, h('span', null, 'Notifications on this device',
+      hint('Messages, mentions, friend requests and calls, even when Idiocy is closed.'), test), box);
+  }
+  if (canAddToHome()) {
+    return h('div', { class: 'toggle' }, h('span', null, 'Notifications', hint('On iPhone, add Idiocy to your home screen, then turn them on there.')),
+      h('button', { class: 'ghost', onclick: () => { closeSettings(); openA2hs(); } }, 'How?'));
+  }
+  return h('label', { class: 'toggle' }, h('span', null, 'Desktop notifications', hint('When this tab is in the background')), desk);
+}
+
 function openSettings() {
   const hideSw = h('input', { type: 'checkbox' });
   hideSw.checked = !!prefs.hideSwears;
-  hideSw.onchange = () => { prefs.hideSwears = hideSw.checked; savePrefs(); repaintTexts(); };
+  hideSw.onchange = () => { prefs.hideSwears = hideSw.checked; savePrefs(); repaintTexts(); pushSync(); };
   const sound = h('input', { type: 'checkbox' });
   sound.checked = prefs.sound;
   sound.onchange = () => { prefs.sound = sound.checked; savePrefs(); if (sound.checked) ding(); };
@@ -6398,7 +6572,9 @@ function openSettings() {
     serverApi >= 12 && st && st.blocked && st.blocked.length > 0 && h('div', null,
       h('div', { style: 'font-weight:600;margin:4px 0' }, '\u{1F6AB} Blocked accounts'), blockedList),
     h('label', { class: 'toggle' }, h('span', null, 'Hide swear words', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Shows them as **** instead. Just for you.')), hideSw),
-    h('label', { class: 'toggle' }, h('span', null, 'Desktop notifications', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'When this tab is in the background')), desk),
+    notifyRow(desk, () => md.close()),
+    installEvt && h('div', { class: 'toggle' }, h('span', null, 'Install Idiocy', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'As an app on this device')),
+      h('button', { class: 'ghost', onclick: () => { md.close(); installApp(); } }, 'Install')),
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
       h('button', { class: 'primary', onclick: () => md.close() }, 'Done')),
