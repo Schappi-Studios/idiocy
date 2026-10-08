@@ -838,6 +838,7 @@
   .embedmaker .empart.hidden { display: none; }
   .embedmaker .emcode { font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; resize: vertical; min-height: 160px; }
   .embedmaker .emfile, .projedit .emfile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .capbox { resize: vertical; min-height: 64px; } /* captions keep their line breaks */
   /* Idiocy Projects */
   .projedit .empart { display: flex; flex-direction: column; gap: 8px; }
   .projedit .empart.hidden { display: none; }
@@ -4780,7 +4781,7 @@ function openEmbedMaker() {
     countCode();
     fileNote.textContent = `${f.name} \u00b7 ${Math.max(1, Math.round(text.length / 1000))} KB`;
   };
-  const caption = h('input', { placeholder: 'Say something about it (optional)', maxlength: 1000 });
+  const caption = h('textarea', { class: 'capbox', placeholder: 'Say something about it (optional)', maxlength: 1000, rows: 3 });
   caption.value = $('posttext').value;
   const preview = h('div', { class: 'empreview' });
   const urlPart = h('div', { class: 'empart' }, url, h('div', { class: 'hint' }, 'YouTube links work. Some sites (like Google or Instagram) don\u2019t allow being embedded.'));
@@ -4872,7 +4873,7 @@ async function openProjects(pick) {
 $('postproject').onclick = () => openProjects(true);
 
 function postProject(p) {
-  const cap = h('input', { placeholder: 'Say something about it (optional)', maxlength: 1000 });
+  const cap = h('textarea', { class: 'capbox', placeholder: 'Say something about it (optional)', maxlength: 1000, rows: 3 });
   cap.value = isFeed() ? $('posttext').value : '';
   const md = modal('projpost', h('h2', null, projectIcon(p.kind), ' Post \u201c', p.title, '\u201d'),
     h('div', { class: 'hint' }, 'When you update the project, this post shows the new version.'), cap,
