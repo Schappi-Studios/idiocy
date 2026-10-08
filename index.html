@@ -837,7 +837,24 @@
   .embedmaker .empart { display: flex; flex-direction: column; gap: 6px; }
   .embedmaker .empart.hidden { display: none; }
   .embedmaker .emcode { font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; resize: vertical; min-height: 160px; }
-  .embedmaker .emfile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .embedmaker .emfile, .projedit .emfile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  /* Idiocy Projects */
+  .projedit .empart { display: flex; flex-direction: column; gap: 8px; }
+  .projedit .empart.hidden { display: none; }
+  .projedit .emcode { font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; resize: vertical; min-height: 160px; }
+  .projedit .hint, .projects .hint, .projpost .hint, .projinfo .hint { color: var(--muted); font-size: 12px; }
+  .projedit .projart { max-width: 100%; max-height: 220px; border-radius: 10px; object-fit: contain; align-self: flex-start; }
+  .projedit .projart:not([src]) { display: none; }
+  .projects .projlist { display: flex; flex-direction: column; gap: 6px; }
+  .projects .projrow { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 12px; }
+  .projects .projicon { font: 800 18px/1 ui-monospace, Menlo, Consolas, monospace; width: 34px; text-align: center; }
+  .projects .projtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .projects .projtext b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .projects .projtext span { color: var(--muted); font-size: 12px; }
+  .projinfo .projdesc { margin: 0; white-space: pre-wrap; }
+  .projline { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 0; margin: 0 0 4px; color: var(--accent); font: inherit; font-size: 13px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg .shot.projgone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 200px; color: var(--muted); font-size: 28px; cursor: default; }
+  .msg .shot.projgone span { font-size: 14px; }
   .embedmaker .hint { color: var(--muted); font-size: 12px; }
   .embedmaker .empreview:empty { display: none; }
   .embedmaker .empreview .emframe { height: 260px; border-radius: 10px; border: 1px solid var(--border); }
@@ -1218,8 +1235,8 @@
   .vshot video { display: block; width: 100%; height: 100%; object-fit: cover; background: #000; }
   .vshot .vbadge { position: absolute; left: 10px; top: 10px; background: rgba(0, 0, 0, .55); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; pointer-events: none; }
   .vshot .vsound { position: absolute; right: 10px; bottom: 10px; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .55); color: #fff; font-size: 16px; cursor: pointer; }
-  #shortsrow { width: calc(100% - 16px); margin: 0 8px 2px; }
-  #shortsrow.hidden { display: none; }
+  #shortsrow, #projectsrow { width: calc(100% - 16px); margin: 0 8px 2px; }
+  #shortsrow.hidden, #projectsrow.hidden { display: none; }
   .modal.shortmake video { width: 100%; max-height: 50vh; border-radius: 14px; background: #000; display: block; }
   .modal.shortmake textarea { width: 100%; margin-top: 10px; min-height: 60px; resize: vertical; }
   .modal.shortmake .upbar { height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin-top: 10px; }
@@ -1507,6 +1524,7 @@
       <div id="storybar" class="hidden" aria-label="Stories"></div>
       <div id="msearch"><input type="search" placeholder="Search" autocomplete="off" aria-label="Search chats"><button type="button" class="ghost hidden" id="msgsearch"></button></div>
       <button type="button" class="ghost hidden" id="shortsrow">🎬 Idiocy Shorts</button>
+      <button type="button" class="ghost hidden" id="projectsrow">🧪 Idiocy Projects</button>
       <div id="convos"></div>
     </div>
     <div class="sec friends">
@@ -1568,6 +1586,7 @@
         <button type="button" class="pollbtn hidden" id="postpoll" title="Make a poll">📊 Poll</button>
         <button type="button" class="pollbtn hidden" id="postshort" title="Post a Short (a video up to 60 seconds)">🎬 Short</button>
         <button type="button" class="pollbtn hidden" id="postembed" title="Embed a website or run some HTML">&lt;/&gt; Embed</button>
+        <button type="button" class="pollbtn hidden" id="postproject" title="Post one of your projects">🧪 Project</button>
         <input type="file" id="shortfile" accept="video/*" class="hidden">
         <span class="hint" id="postcount">Ctrl+Enter to post</span>
       </div>
@@ -2788,6 +2807,7 @@ async function poll() {
     $('invitebtn').classList.toggle('hidden', serverApi < 21);
     $('mtabshorts').classList.toggle('hidden', serverApi < 22);
     $('shortsrow').classList.toggle('hidden', serverApi < 22);
+    $('projectsrow').classList.toggle('hidden', serverApi < 29);
     if (store.get(INVITE_KEY)) redeemPendingInvite();
     if (pendingLink) openLink(pendingLink);
     pushSync();
@@ -3752,6 +3772,7 @@ function pickShort() {
 $('postshort').onclick = pickShort;
 $('shortfile').onchange = () => { const f = $('shortfile').files[0]; $('shortfile').value = ''; openShortMaker(f); };
 $('shortsrow').onclick = () => openShorts();
+$('projectsrow').onclick = () => openProjects();
 
 // Comments on a Short, in a pop-up over the player.
 async function openShortComments(slide, repaint) {
@@ -3834,11 +3855,12 @@ function buildPost(m, pending) {
   const cbtn = h('button', { class: 'pact', title: 'Comment', onclick: () => toggleComments(el) });
   const like = h('button', { class: 'pact like', title: 'Like', onclick: () => toggleReaction(el, HEART) });
   const body = h('div', { class: 'body' },
-    (m.img || m.vd || m.em) && nameEl(m.name, 'b', { class: 'capname', onclick: () => openProfile(m.name) }),
+    m.proj && projectLine(m.proj),
+    (m.img || m.vd || m.em || m.proj) && nameEl(m.name, 'b', { class: 'capname', onclick: () => openProfile(m.name) }),
     !m.img && m.pl && h('div', { class: 'plabel' }, '\u{1F4CA} POLL'),
     h('span', { class: 'txt' }), h('div', { class: 'pollbox' }));
-  const media = m.img || m.vd || m.em;
-  const shot = m.vd ? videoBlock(m) : m.img ? igShot(m) : m.em ? embedBlock(m) : null;
+  const media = m.img || m.vd || m.em || m.proj;
+  const shot = m.vd ? videoBlock(m) : m.img ? igShot(m) : m.em ? embedBlock(m) : m.proj ? projectBlock(m) : null;
   const el = h('div', { class: 'msg post ig' + (media ? ' hasimg' : '') + (m.vd ? ' hasvid' : '') + (m.em ? ' hasemb' : '') + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
     h('div', { class: 'phead' },
       storyRing(m.name),
@@ -3866,12 +3888,12 @@ function buildPost(m, pending) {
   el._cbtn = cbtn;
   el._like = like;
   el.dataset.id = m.id || '';
-  if (shot && !pending && !m.em) wireDoubleTap(el, shot, m.vd ? () => openShorts(el._m.id) : null); // a video opens Shorts; taps on an embed are its own
+  if (shot && !pending && !m.em && !(m.proj && /code|site/.test(m.proj.kind))) wireDoubleTap(el, shot, m.vd ? () => openShorts(el._m.id) : m.proj && m.proj.vd ? () => {} : null); // a Short opens Shorts; embeds and running projects take their own taps
   if (m.vd && !pending) el.classList.remove('txtcard');
   // Polls are their own colourful card.
   if (!m.img && m.pl) el.classList.add('pollcard');
   // Text posts become colourful cards on phones; the shorter the text, the bigger it is.
-  if (!m.img && !m.pl && !m.vd && !m.em) {
+  if (!m.img && !m.pl && !m.vd && !m.em && !m.proj) {
     const n = (m.text || '').length;
     el.classList.add('txtcard', n <= 40 ? 't-xl' : n <= 110 ? 't-l' : n <= 260 ? 't-m' : 't-s');
   }
@@ -4156,6 +4178,7 @@ function renderTabs() {
   else paintAvatar(mine);
   $('myou').replaceChildren(
     h('button', { onclick: () => openProfile(me.name) }, '\u{1F464}', ' Your profile'),
+    serverApi >= 29 && h('button', { onclick: () => openProjects() }, '\u{1F9EA}', ' Your projects'),
     serverApi >= 21 && h('button', { onclick: openInvite }, '\u{1F517}', ' Invite friends'),
     h('button', { onclick: openSettings }, '\u2699\uFE0F', ' Settings'),
     ...(me.role === 'admin' ? [h('button', { onclick: openAdmin }, '\u{1F6E1}\uFE0F', ' Admin panel')] : []),
@@ -4515,6 +4538,20 @@ function paintLikes(el, pop) {
 // Messages whose reactions changed (from a poll): repaint in place.
 function updateMessage(m) {
   if (m.e) eMax = Math.max(eMax, m.e);
+  if (m.proj) log.querySelectorAll(`.msg[data-id="${m.id}"]`).forEach(el => {
+    const was = el._m && el._m.proj;
+    if (was && was.v === m.proj.v && !was.gone === !m.proj.gone) return;
+    el._m = m;
+    const shot = el.querySelector(':scope > .shot');
+    if (shot) {
+      if (shot._stop && runningEmbed === shot) shot._stop();
+      const fresh = projectBlock(m);
+      shot.replaceWith(fresh);
+      if (/art|video/.test(m.proj.kind) && !m.proj.gone) wireDoubleTap(el, fresh, m.proj.kind === 'video' ? () => {} : null);
+    }
+    const line = el.querySelector('.projline');
+    if (line) line.replaceWith(projectLine(m.proj));
+  });
   // The feed can show a post more than once (it keeps going), so update every copy.
   log.querySelectorAll(`.msg[data-id="${m.id}"]`).forEach(el => {
     if (el._busy) return;
@@ -4699,7 +4736,7 @@ function embedBlock(m) {
     if (!m.em.u && code == null) {
       box.replaceChildren(h('div', { class: 'emload' }, h('span', { class: 'spinner' })));
       try {
-        const d = await api('embedCode', { id: m.id });
+        const d = m.em.pj ? await api('projectCode', { id: m.em.pj }) : await api('embedCode', { id: m.id });
         if (!d.ok) throw new Error(d.error);
         code = d.code;
       } catch (err) { toast(err.message || 'Couldn\u2019t load it', true); stop(); return; }
@@ -4785,6 +4822,172 @@ function openEmbedMaker() {
   url.focus();
 }
 $('postembed').onclick = openEmbedMaker;
+
+// ---------- Idiocy Projects ----------
+// Something you made (code, a picture, a video or a website) that you keep changing. Posts with
+// it always show its newest version: saving one updates every post it's in.
+const PROJECT_KINDS = [['code', '</>', 'Code'], ['art', '\u{1F3A8}', 'Art'], ['video', '\u{1F3AC}', 'Video'], ['site', '\u{1F310}', 'Website']];
+const projectIcon = kind => (PROJECT_KINDS.find(k => k[0] === kind) || ['', '\u{1F9EA}'])[1];
+const projectLine = p => p.gone
+  ? h('div', { class: 'projline' }, '\u{1F9EA} This project was deleted')
+  : h('button', { type: 'button', class: 'projline', onclick: () => openProjectInfo(p) },
+    '\u{1F9EA} ', h('b', null, p.title), ` \u00b7 v${p.v} \u00b7 updated ${ago(p.u)}`);
+function projectBlock(m) {
+  const p = m.proj;
+  if (p.gone) return h('div', { class: 'shot projgone' }, '\u{1F9EA}', h('span', null, 'This project was deleted'));
+  if (p.kind === 'art') return igShot({ img: `proj:${p.id}:${p.v}`, w: p.img.w, h: p.img.h });
+  if (p.kind === 'video') return videoBlock(Object.assign({}, m, { vd: p.vd }));
+  return embedBlock(Object.assign({}, m, { em: p.kind === 'site' ? { u: p.url } : { c: p.c, pj: p.id } }));
+}
+function openProjectInfo(p) {
+  const md = modal('projinfo',
+    h('h2', null, projectIcon(p.kind), ' ', p.title),
+    h('div', { class: 'hint' }, `By ${displayName(p.by)} \u00b7 version ${p.v} \u00b7 updated ${ago(p.u) === 'now' ? 'just now' : ago(p.u) + ' ago'}`),
+    p.desc ? h('p', { class: 'projdesc' }, tame(p.desc)) : null,
+    h('div', { class: 'hint' }, 'Posts with this project always show its newest version.'),
+    h('div', { class: 'btns' },
+      me && key(p.by) === key(me.name) && h('button', { class: 'ghost', onclick: () => { md.close(); openProjectEditor(p); } }, 'Edit'),
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Done')));
+}
+
+// Your projects: make new ones, change them, post them. pick: choosing one to post.
+async function openProjects(pick) {
+  const list = h('div', { class: 'projlist' }, h('div', { class: 'hint' }, h('span', { class: 'spinner' })));
+  const md = modal('projects scroll',
+    h('h2', null, pick ? '\u{1F9EA} Post a project' : '\u{1F9EA} Your projects'),
+    h('div', { class: 'hint' }, 'Code, art, a video or a website that you keep changing. Posts with it always show the newest version.'),
+    h('button', { class: 'primary', onclick: () => { md.close(); openProjectEditor(null); } }, '+ New project'),
+    list,
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Close')));
+  let d;
+  try { d = await api('projects', {}); } catch (e) { d = { ok: false, error: 'Could not reach the server' }; }
+  if (!d.ok) { list.replaceChildren(h('div', { class: 'hint' }, d.error || 'Couldn\u2019t load them')); return; }
+  if (!d.projects.length) { list.replaceChildren(h('div', { class: 'hint' }, 'Nothing yet. Make your first one!')); return; }
+  list.replaceChildren(...d.projects.map(p => h('div', { class: 'projrow' },
+    h('span', { class: 'projicon' }, projectIcon(p.kind)),
+    h('span', { class: 'projtext' }, h('b', null, p.title), h('span', null, `v${p.v} \u00b7 updated ${ago(p.u)}`)),
+    !pick && h('button', { class: 'ghost', onclick: () => { md.close(); openProjectEditor(p); } }, 'Edit'),
+    h('button', { class: pick ? 'primary' : 'ghost', onclick: () => { md.close(); postProject(p); } }, 'Post'))));
+}
+$('postproject').onclick = () => openProjects(true);
+
+function postProject(p) {
+  const cap = h('input', { placeholder: 'Say something about it (optional)', maxlength: 1000 });
+  cap.value = isFeed() ? $('posttext').value : '';
+  const md = modal('projpost', h('h2', null, projectIcon(p.kind), ' Post \u201c', p.title, '\u201d'),
+    h('div', { class: 'hint' }, 'When you update the project, this post shows the new version.'), cap,
+    h('div', { class: 'btns' },
+      h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'),
+      h('button', { class: 'primary', onclick: () => {
+        md.close();
+        if (!isFeed()) switchTo('global');
+        if (cap.value === $('posttext').value) { $('posttext').value = ''; growPost(); }
+        send(cap.value.trim(), null, { project: p });
+      } }, 'Post')));
+  cap.focus();
+}
+
+// Making or changing a project. Saving makes the next version, and every post with it updates.
+async function openProjectEditor(p) {
+  let kind = p ? p.kind : 'code', picked = null, video = null;
+  const title = h('input', { placeholder: 'Name it', maxlength: 60 });
+  title.value = p ? p.title : '';
+  const desc = h('textarea', { placeholder: 'What is it? (optional)', maxlength: 500, rows: 2 });
+  desc.value = p ? p.desc : '';
+  // Code
+  const code = h('textarea', { class: 'emcode', placeholder: '<h1>Hello!</h1>\n<script>\n  // HTML, CSS and JavaScript\n<\/script>', spellcheck: 'false', rows: 9 });
+  let codeChanged = false;
+  code.oninput = () => { codeChanged = true; };
+  if (p && p.kind === 'code') {
+    code.value = 'Loading\u2026';
+    code.disabled = true;
+    api('projectCode', { id: p.id }).then(d => { code.disabled = false; code.value = d.ok ? d.code : ''; }).catch(() => { code.disabled = false; code.value = ''; });
+  }
+  const codeFile = h('input', { type: 'file', accept: '.html,.htm,text/html', class: 'hidden' });
+  codeFile.onchange = async () => {
+    const f = codeFile.files[0];
+    codeFile.value = '';
+    if (!f) return;
+    const text = f.size > MAX_EMBED * 4 ? null : await f.text().catch(() => null);
+    if (text === null || text.length > MAX_EMBED) { toast('That file is too big (200 KB at most)', true); return; }
+    code.value = text;
+    codeChanged = true;
+  };
+  // Art
+  const artImg = h('img', { class: 'projart', alt: '' });
+  if (p && p.kind === 'art') artImg.dataset.load = `proj:${p.id}:${p.v}`;
+  const artFile = h('input', { type: 'file', accept: 'image/*', class: 'hidden' });
+  artFile.onchange = async () => {
+    const f = artFile.files[0];
+    artFile.value = '';
+    if (!f) return;
+    try { picked = await prepareImage(f); artImg.src = picked.data; } catch (e) { toast(e.message || 'Couldn\u2019t read that picture', true); }
+  };
+  // Video
+  const vidNote = h('div', { class: 'hint' }, p && p.kind === 'video' ? `Current video: ${fmtDur(p.vd.s)}` : 'Up to a minute. It counts as one of your 5 Shorts uploads today.');
+  const vidFile = h('input', { type: 'file', accept: 'video/*', class: 'hidden' });
+  vidFile.onchange = async () => {
+    const f = vidFile.files[0];
+    vidFile.value = '';
+    if (!f) return;
+    if (f.size > 150 * 1024 * 1024) { toast('That video is too big (150 MB at most)', true); return; }
+    save.disabled = true;
+    try {
+      const d = await uploadVideo(f, x => { vidNote.textContent = x < 1 ? `Uploading\u2026 ${Math.round(x * 100)}%` : 'Getting it ready\u2026'; });
+      if (!d.ok) throw new Error(d.error || 'The upload didn\u2019t work');
+      video = d.vid;
+      vidNote.textContent = `\u2713 New video ready (${fmtDur(d.dur)})`;
+    } catch (e) { vidNote.textContent = e.message; toast(e.message, true); }
+    save.disabled = false;
+  };
+  // Website
+  const url = h('input', { type: 'url', placeholder: 'https://\u2026', maxlength: 500, autocapitalize: 'none', spellcheck: 'false' });
+  url.value = p && p.kind === 'site' ? p.url : '';
+  const parts = {
+    code: h('div', { class: 'empart' }, code, h('div', { class: 'emfile' }, codeFile,
+      h('button', { class: 'ghost', type: 'button', onclick: () => codeFile.click() }, '\u{1F4C4} Upload .html file'),
+      h('span', { class: 'hint' }, 'Up to 200 KB. Runs in a sealed box.'))),
+    art: h('div', { class: 'empart' }, artImg, artFile, h('button', { class: 'ghost', type: 'button', onclick: () => artFile.click() }, '\u{1F5BC}\uFE0F Choose a picture')),
+    video: h('div', { class: 'empart' }, vidFile, h('button', { class: 'ghost', type: 'button', onclick: () => vidFile.click() }, '\u{1F3AC} Choose a video'), vidNote),
+    site: h('div', { class: 'empart' }, url, h('div', { class: 'hint' }, 'YouTube links work. Some sites don\u2019t allow being embedded.')),
+  };
+  const showPart = () => Object.entries(parts).forEach(([k, el]) => el.classList.toggle('hidden', k !== kind));
+  const tabs = h('div', { class: 'notifychips' }, ...PROJECT_KINDS.map(([k, ic, label]) =>
+    h('button', { type: 'button', class: k === kind ? 'primary' : 'ghost', onclick: e => {
+      kind = k;
+      tabs.querySelectorAll('button').forEach(b => { b.className = b === e.currentTarget ? 'primary' : 'ghost'; });
+      showPart();
+    } }, ic + ' ' + label)));
+  showPart();
+  const save = h('button', { class: 'primary', onclick: async () => {
+    const body = { title: title.value, kind, desc: desc.value, ...(p && { id: p.id }) };
+    if (kind === 'code' && (codeChanged || !p || p.kind !== 'code')) body.code = code.value;
+    if (kind === 'art' && picked) Object.assign(body, { image: picked.data, w: picked.w, h: picked.h });
+    if (kind === 'video' && video) body.video = video;
+    if (kind === 'site') body.url = url.value.trim() && !/^https?:\/\//i.test(url.value.trim()) ? 'https://' + url.value.trim() : url.value.trim();
+    const d = await act('saveProject', body);
+    if (!d) return;
+    md.close();
+    toast(p ? `Saved \u2014 version ${d.project.v}. Posts with it show the new version.` : '\u{1F9EA} Project made!');
+    if (!p) postProject(d.project); // straight to sharing it (or not)
+  } }, p ? 'Save new version' : 'Make it');
+  const md = modal('projedit scroll',
+    h('h2', null, p ? 'Edit project' : '\u{1F9EA} New project'),
+    title, tabs, parts.code, parts.art, parts.video, parts.site, desc,
+    h('div', { class: 'btns' },
+      p && h('button', { class: 'ghost danger', style: 'margin-right:auto', onclick: async () => {
+        if (!confirm(`Delete \u201c${p.title}\u201d? Posts with it will say it\u2019s gone.`)) return;
+        if (await act('deleteProject', { id: p.id })) { md.close(); toast('Project deleted'); }
+      } }, 'Delete'),
+      h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'),
+      save));
+  // The current picture, if it's an art project.
+  if (artImg.dataset.load) {
+    const pid = p.id;
+    api('projectImage', { id: pid }).then(d => { if (d.ok && !picked) artImg.src = d.image; }).catch(() => {});
+  }
+  if (!p) title.focus();
+}
 
 // ---------- voice messages ----------
 let playingVoice = null;
@@ -5576,6 +5779,8 @@ function updateComposer() {
   $('postshort').disabled = !!muted || locked;
   $('postembed').classList.toggle('hidden', serverApi < 28);
   $('postembed').disabled = !!muted || locked;
+  $('postproject').classList.toggle('hidden', serverApi < 29);
+  $('postproject').disabled = !!muted || locked;
   $('postpoll').disabled = !!muted || locked;
   note.onclick = null;
   document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
@@ -5614,6 +5819,7 @@ async function send(text, att, extra = {}) {
     ...(extra.poll && { pl: { o: extra.poll, v: {} } }),
     ...(extra.voice && { img: 'local', local: extra.voice, vo: extra.dur }),
     ...(extra.embed && { em: extra.embed.url ? { u: extra.embed.url } : { c: extra.embed.code.length, local: extra.embed.code } }),
+    ...(extra.project && { pj: extra.project.id, proj: extra.project }),
   }, true);
   if (rp) setReply(null);
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
@@ -5621,7 +5827,7 @@ async function send(text, att, extra = {}) {
   scrollDown();
   try {
     const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
-      ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }) });
+      ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }), ...(extra.project && { project: extra.project.id }) });
     if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false; }
     if (sentTo !== 'global') notePreview(sentTo, d.message);
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
@@ -5777,7 +5983,8 @@ async function fetchImage(box) {
   try {
     let src = imageCache.get(id);
     if (!src) {
-      const d = await api('image', { convo: box.dataset.convo, id });
+      const pj = /^proj:([^:]+):/.exec(id); // a project's picture: proj:<id>:<version>
+      const d = pj ? await api('projectImage', { id: pj[1] }) : await api('image', { convo: box.dataset.convo, id });
       if (!d.ok) throw new Error(d.error);
       src = d.image;
       rememberImage(id, src);
