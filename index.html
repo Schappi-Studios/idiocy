@@ -837,6 +837,7 @@
   .embedmaker .empart { display: flex; flex-direction: column; gap: 6px; }
   .embedmaker .empart.hidden { display: none; }
   .embedmaker .emcode { font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; resize: vertical; min-height: 160px; }
+  .embedmaker .emfile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .embedmaker .hint { color: var(--muted); font-size: 12px; }
   .embedmaker .empreview:empty { display: none; }
   .embedmaker .empreview .emframe { height: 260px; border-radius: 10px; border: 1px solid var(--border); }
@@ -4673,6 +4674,7 @@ $('postpoll').onclick = openPollMaker;
 const EMBED_CODE_SANDBOX = 'allow-scripts allow-forms allow-pointer-lock allow-modals';
 const EMBED_SITE_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups'; // the site's own origin, never Idiocy's
 const hostOf = url => { try { return new URL(url).host.replace(/^www\./, ''); } catch (e) { return 'Website'; } };
+const MAX_EMBED = 200000; // characters of code (the server checks too)
 function embedFrame(em, code) {
   const frame = h('iframe', { class: 'emframe', referrerpolicy: 'no-referrer', allow: 'fullscreen; autoplay; gamepad', allowfullscreen: '',
     title: em.u ? 'Embedded website: ' + hostOf(em.u) : 'Embedded HTML' });
@@ -4725,13 +4727,29 @@ function openEmbedMaker() {
   const url = h('input', { type: 'url', placeholder: 'https://\u2026', maxlength: 500, inputmode: 'url', autocapitalize: 'none', spellcheck: 'false' });
   const code = h('textarea', { class: 'emcode', placeholder: '<h1>Hello!</h1>\n<script>\n  // HTML, CSS and JavaScript\n<\/script>', spellcheck: 'false', rows: 9 });
   const count = h('span', { class: 'hint' });
-  const countCode = () => { count.textContent = code.value.length > 1000 ? `${Math.round(code.value.length / 1000)} KB of 100` : ''; };
+  const countCode = () => { count.textContent = code.value.length > 1000 ? `${Math.round(code.value.length / 1000)} KB used.` : ''; };
   code.oninput = countCode;
+  // Or upload an .html file: it goes in the box above, to check or change before posting.
+  const file = h('input', { type: 'file', accept: '.html,.htm,text/html', class: 'hidden' });
+  const fileNote = h('span', { class: 'hint' });
+  file.onchange = async () => {
+    const f = file.files[0];
+    file.value = '';
+    if (!f) return;
+    const text = f.size > MAX_EMBED * 4 ? null : await f.text().catch(() => null); // * 4: a character can take up to 4 bytes
+    if (text === null && f.size <= MAX_EMBED * 4) { toast('Couldn\u2019t read that file', true); return; }
+    if (text === null || text.length > MAX_EMBED) { toast('That file is too big (200 KB at most)', true); return; }
+    code.value = text;
+    countCode();
+    fileNote.textContent = `${f.name} \u00b7 ${Math.max(1, Math.round(text.length / 1000))} KB`;
+  };
   const caption = h('input', { placeholder: 'Say something about it (optional)', maxlength: 1000 });
   caption.value = $('posttext').value;
   const preview = h('div', { class: 'empreview' });
   const urlPart = h('div', { class: 'empart' }, url, h('div', { class: 'hint' }, 'YouTube links work. Some sites (like Google or Instagram) don\u2019t allow being embedded.'));
-  const codePart = h('div', { class: 'empart hidden' }, code, h('div', { class: 'hint' }, 'HTML, CSS and JavaScript, like a little web page or game. ', count));
+  const codePart = h('div', { class: 'empart hidden' }, code,
+    h('div', { class: 'emfile' }, file, h('button', { class: 'ghost', type: 'button', onclick: () => file.click() }, '\u{1F4C4} Upload .html file'), fileNote),
+    h('div', { class: 'hint' }, 'HTML, CSS and JavaScript, like a little web page or game. Up to 200 KB. ', count));
   const tabs = h('div', { class: 'notifychips' }, ...[['url', '\u{1F310} Website'], ['code', '</> Code']].map(([v, label]) =>
     h('button', { type: 'button', class: v === kind ? 'primary' : 'ghost', onclick: e => {
       kind = v;
@@ -4749,7 +4767,7 @@ function openEmbedMaker() {
       return { url: u };
     }
     if (!code.value.trim()) { toast('Paste some HTML first', true); code.focus(); return null; }
-    if (code.value.length > 100000) { toast('That code is too long (100 KB at most)', true); return null; }
+    if (code.value.length > MAX_EMBED) { toast('That code is too long (200 KB at most)', true); return null; }
     return { code: code.value };
   };
   const md = modal('embedmaker scroll', h('h2', null, '</> Embed'), tabs, urlPart, codePart, preview, caption,
