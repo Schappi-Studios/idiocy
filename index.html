@@ -278,6 +278,25 @@
   }
   .picker button { font-size: 22px; background: none; border: 0; border-radius: 8px; padding: 4px 6px; cursor: pointer; transition: transform .1s; }
   .picker button:hover { background: var(--hover); transform: scale(1.2); }
+  .picker { flex-wrap: wrap; align-items: center; max-width: min(336px, calc(100vw - 16px)); max-height: 45vh; overflow-y: auto; }
+  .picker .pcustom { display: contents; }
+  .picker .cemo { width: 28px; height: 28px; display: block; }
+  .picker .padd { width: 36px; height: 36px; padding: 0; border: 2px dashed var(--border); border-radius: 50%; color: var(--muted); font-size: 20px; font-weight: 700; line-height: 1; }
+  .cemo { object-fit: contain; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+  .reacts .cpill { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+  .reacts .cpill .cemo { width: 18px; height: 18px; display: block; }
+  .emojis .emoup { display: flex; gap: 8px; }
+  .emojis .emohead { font-weight: 700; margin-top: 4px; }
+  .emojis .emogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+  .emojis .emotile { position: relative; }
+  .emojis .emopick { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 4px 6px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); color: var(--text); font: inherit; font-size: 12px; cursor: pointer; }
+  .emojis .emopick:hover { border-color: var(--accent); }
+  .emojis .emopick .cemo { width: 44px; height: 44px; }
+  .emojis .emopick span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .emojis .emox { position: absolute; top: -6px; right: -6px; width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--panel); color: var(--muted); font-size: 11px; cursor: pointer; }
+  .emojiinfo { align-items: center; text-align: center; }
+  .emojiinfo .cemo.big { width: 96px; height: 96px; margin: 0 auto; }
+  .emojiinfo .btns { width: 100%; }
 
   .msg.mentioned { background: rgba(255, 200, 87, .16); box-shadow: inset 3px 0 0 var(--gold); }
   .msg.mentioned:hover { background: rgba(255, 200, 87, .24); }
@@ -1788,7 +1807,8 @@ function paintAvatar(el) {
 
 function modal(cls, ...kids) {
   const box = h('div', { class: 'modal ' + (cls || '') }, ...kids);
-  const overlay = h('div', { class: 'overlay', onclick: e => { if (e.target === overlay) overlay.remove(); } }, box);
+  const opened = Date.now(); // a tap that's still finishing as it opens doesn't close it
+  const overlay = h('div', { class: 'overlay', onclick: e => { if (e.target === overlay && Date.now() - opened > 400) overlay.remove(); } }, box);
   document.body.append(overlay);
   return { overlay, box, close: () => overlay.remove() };
 }
@@ -4575,14 +4595,23 @@ function paintReactions(el, popEmoji) {
   const r = m.r || {};
   const ig = el.classList.contains('ig');
   if (ig) paintLikes(el, popEmoji === HEART);
-  bar.replaceChildren(...REACTIONS.filter(e => r[e] && r[e].length && !(ig && e === HEART)).map(e => {
+  const kinds = REACTIONS.filter(e => r[e] && r[e].length && !(ig && e === HEART))
+    .concat(Object.keys(r).filter(e => isCustomEmoji(e) && r[e].length));
+  bar.replaceChildren(...kinds.map(e => {
     const names = r[e];
     const mine = me && names.some(n => key(n) === key(me.name));
-    return h('button', {
-      class: (mine ? 'mine' : '') + (e === popEmoji ? ' pop' : ''),
-      title: names.map(displayName).join(', '),
+    const custom = isCustomEmoji(e);
+    const btn = h('button', {
+      class: (mine ? 'mine' : '') + (e === popEmoji ? ' pop' : '') + (custom ? ' cpill' : ''),
+      title: names.map(displayName).join(', ') + (custom ? ' \u00b7 hold or right-click for this emoji' : ''),
       onclick: () => toggleReaction(el, e),
-    }, e, h('span', null, String(names.length)));
+    }, custom ? emojiImg(e) : e, h('span', null, String(names.length)));
+    if (custom) {
+      btn.firstChild.onerror = () => btn.classList.add('hidden'); // deleted
+      btn.oncontextmenu = ev => { ev.preventDefault(); openEmojiInfo(e); };
+      onHold(btn, () => openEmojiInfo(e));
+    }
+    return btn;
   }));
 }
 
@@ -4660,12 +4689,22 @@ let pickerEl = null;
 function openPicker(btn, el) {
   closePicker();
   const rect = btn.getBoundingClientRect();
+  const customs = h('span', { class: 'pcustom' });
+  const paintCustoms = list => customs.replaceChildren(...list.map(e =>
+    h('button', { title: `:${e.name}:`, onclick: () => toggleReaction(el, e.code) }, emojiImg(e.code, e.name))));
   pickerEl = h('div', { class: 'picker', role: 'menu' },
-    REACTIONS.map(e => h('button', { title: 'React ' + e, onclick: () => toggleReaction(el, e) }, e)));
+    REACTIONS.map(e => h('button', { title: 'React ' + e, onclick: () => toggleReaction(el, e) }, e)),
+    customs,
+    serverApi >= 31 && h('button', { class: 'padd', title: 'Make a custom emoji from a GIF or picture', onclick: () => { closePicker(); openEmojis(el); } }, '+'));
+  const place = () => {
+    const w = pickerEl.offsetWidth;
+    pickerEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, rect.right - w)) + 'px';
+    pickerEl.style.top = Math.max(8, rect.top - pickerEl.offsetHeight - 6) + 'px';
+  };
+  if (myEmojis) paintCustoms(myEmojis);
+  else if (serverApi >= 31) loadMyEmojis().then(list => { if (pickerEl && pickerEl._msg === el && list.length) { paintCustoms(list); place(); } });
   document.body.append(pickerEl);
-  const w = pickerEl.offsetWidth;
-  pickerEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, rect.right - w)) + 'px';
-  pickerEl.style.top = Math.max(8, rect.top - pickerEl.offsetHeight - 6) + 'px';
+  place();
   el.classList.add('picking');
   pickerEl._msg = el;
   pickerEl._top = log.scrollTop;
@@ -4682,6 +4721,111 @@ document.addEventListener('mousedown', e => {
 });
 // Scrolling away closes it; the feed settling by a few pixels (snapping) doesn't.
 log.addEventListener('scroll', () => { if (pickerEl && Math.abs(log.scrollTop - pickerEl._top) > 40) closePicker(); });
+
+// ---------- custom emojis ----------
+// GIFs and pictures people made into emojis (the server shrinks and keeps them; GIFs keep moving).
+// A reaction with one is its code, "c:<id>.gif", and the picture comes from the server like Shorts
+// videos do. Your emojis are saved to your account, so they're in your picker on every device.
+const CUSTOM_EMOJI = /^c:[a-f0-9]{24}\.(gif|png)$/;
+const isCustomEmoji = e => CUSTOM_EMOJI.test(e);
+const emojiSrc = code => `${MEDIA_BASE}/v/e${code.slice(2)}`;
+let myEmojis = null, myEmojisLoading = null; // [{ code, name }], newest first
+function loadMyEmojis(fresh) {
+  if (!me || serverApi < 31) return Promise.resolve([]);
+  if (myEmojis && !fresh) return Promise.resolve(myEmojis);
+  if (!myEmojisLoading) {
+    myEmojisLoading = api('emojis', {}).then(d => { if (d.ok) myEmojis = d.emojis; return myEmojis || []; })
+      .catch(() => myEmojis || []).finally(() => { myEmojisLoading = null; });
+  }
+  return myEmojisLoading;
+}
+const emojiImg = (code, name) => h('img', { class: 'cemo', src: emojiSrc(code), alt: name ? `:${name}:` : 'custom emoji', draggable: 'false', decoding: 'async' });
+// Holding a finger on something (phones have no right-click). The tap that ends the hold doesn't count.
+function onHold(el, fn) {
+  let timer = 0, held = false;
+  el.addEventListener('touchstart', () => { held = false; timer = setTimeout(() => { held = true; fn(); }, 500); }, { passive: true });
+  el.addEventListener('touchend', e => { clearTimeout(timer); if (held) e.preventDefault(); }); // lifting the finger isn't a tap
+  ['touchmove', 'touchcancel'].forEach(ev => el.addEventListener(ev, () => clearTimeout(timer), { passive: true }));
+  el.addEventListener('click', e => { if (held) { held = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+}
+
+// Your emojis: upload a GIF or picture to make one, or remove them. el: the message the picker was
+// for (a new emoji is used on it straight away, and tapping one reacts with it).
+function openEmojis(el) {
+  const grid = h('div', { class: 'emogrid' });
+  const status = h('div', { class: 'hint' });
+  const name = h('input', { placeholder: 'Name it (optional), like party_cat', maxlength: 24, autocapitalize: 'none', autocomplete: 'off', spellcheck: 'false' });
+  const file = h('input', { type: 'file', accept: 'image/gif,image/png,image/jpeg,image/webp', class: 'hidden' });
+  const up = h('button', { class: 'primary', type: 'button', onclick: () => file.click() }, '\u2B06\uFE0F Upload a GIF or picture');
+  const paint = () => {
+    const list = myEmojis || [];
+    grid.replaceChildren(...list.map(e => h('div', { class: 'emotile' },
+      h('button', { type: 'button', class: 'emopick', title: el ? `React with :${e.name}:` : `:${e.name}:`, onclick: () => {
+        if (el) { md.close(); toggleReaction(el, e.code); } else openEmojiInfo(e.code);
+      } }, emojiImg(e.code, e.name), h('span', null, e.name)),
+      h('button', { type: 'button', class: 'emox', title: 'Remove from my emojis', 'aria-label': `Remove :${e.name}:`, onclick: async () => {
+        const d = await act('forgetEmoji', { code: e.code });
+        if (d) { myEmojis = d.emojis; paint(); }
+      } }, '\u2715'))),
+      ...(list.length ? [] : [h('div', { class: 'hint' }, myEmojis ? 'None yet. Upload one!' : 'Loading\u2026')]));
+  };
+  file.onchange = async () => {
+    const f = file.files[0];
+    file.value = '';
+    if (!f) return;
+    if (f.size > 15 * 1024 * 1024) { toast('That\u2019s too big for an emoji (15 MB at most)', true); return; }
+    up.disabled = true;
+    status.replaceChildren(h('span', { class: 'spinner' }), ' Making your emoji\u2026');
+    let d;
+    try {
+      const n = name.value.trim() || f.name;
+      d = await fetch(`${MEDIA_BASE}/upload/emoji?name=${encodeURIComponent(n)}`, { method: 'POST', headers: { 'x-idiocy-token': token || '' }, body: f }).then(r => r.json());
+    } catch (e) { d = { ok: false, error: 'Could not reach the server' }; }
+    up.disabled = false;
+    status.replaceChildren();
+    if (!d.ok) { if (verifyError(d.error)) openVerify(); else toast(d.error || 'That didn\u2019t work', true); return; }
+    myEmojis = [d.emoji].concat((myEmojis || []).filter(x => x.code !== d.emoji.code));
+    name.value = '';
+    toast(`:${d.emoji.name}: is saved to your emojis`);
+    if (el) { md.close(); toggleReaction(el, d.emoji.code); return; }
+    paint();
+  };
+  const md = modal('emojis scroll', h('h2', null, '\u{1F600} Custom emojis'),
+    h('div', { class: 'hint' }, 'Turn a GIF or picture into an emoji to react with. GIFs keep moving. They\u2019re saved to your account, so they\u2019re there on every device.'),
+    name, h('div', { class: 'emoup' }, file, up), status,
+    h('div', { class: 'emohead' }, 'Your emojis'), grid,
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
+  paint();
+  loadMyEmojis(true).then(paint);
+}
+
+// One emoji (hold or right-click it on a message): whose it is; save it, remove it, or delete it.
+async function openEmojiInfo(code) {
+  closePicker();
+  const about = h('div', { class: 'hint' }, h('span', { class: 'spinner' }));
+  const btns = h('div', { class: 'btns' });
+  const md = modal('emojiinfo', h('img', { class: 'cemo big', src: emojiSrc(code), alt: '' }), about, btns);
+  const close = h('button', { class: 'ghost', onclick: () => md.close() }, 'Close');
+  btns.append(close);
+  let d;
+  try { d = await api('emojiInfo', { code }); } catch (e) { d = { ok: false }; }
+  if (!d.ok || d.gone) { about.textContent = d.gone ? 'This emoji was deleted.' : 'Couldn\u2019t load it'; return; }
+  about.replaceChildren(h('b', null, `:${d.name}:`), d.username ? h('span', null, ' by ', nameEl(d.username, 'b')) : '');
+  const done = res => { if (res) myEmojis = res.emojis; md.close(); };
+  btns.replaceChildren(...[
+    d.canDelete && h('button', { class: 'ghost danger', style: 'margin-right:auto', onclick: async () => {
+      if (!confirm(`Delete :${d.name}: everywhere? Reactions with it disappear.`)) return;
+      const r = await act('deleteEmoji', { code });
+      if (!r) return;
+      document.querySelectorAll('.reacts .cpill img').forEach(i => { if (i.src === emojiSrc(code)) i.closest('button').classList.add('hidden'); });
+      done(r);
+      toast('Emoji deleted');
+    } }, 'Delete'),
+    d.saved
+      ? h('button', { class: 'ghost', onclick: async () => { const r = await act('forgetEmoji', { code }); if (r) { done(r); toast('Removed from your emojis'); } } }, 'Remove from my emojis')
+      : h('button', { class: 'primary', onclick: async () => { const r = await act('saveEmoji', { code }); if (r) { done(r); toast(`:${d.name}: is saved to your emojis`); } } }, 'Save to my emojis'),
+    close].filter(Boolean));
+}
 
 // ---------- media (pictures, voice) by id, cached ----------
 const mediaLoading = new Map(); // id -> the download already on its way, so it's never fetched twice
@@ -7140,6 +7284,8 @@ function openSettings() {
     serverApi >= 12 && st && st.blocked && st.blocked.length > 0 && h('div', null,
       h('div', { style: 'font-weight:600;margin:4px 0' }, '\u{1F6AB} Blocked accounts'), blockedList),
     h('label', { class: 'toggle' }, h('span', null, 'Hide swear words', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Shows them as **** instead. Just for you.')), hideSw),
+    serverApi >= 31 && h('div', { class: 'toggle' }, h('span', null, 'Custom emojis', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'GIFs and pictures to react with')),
+      h('button', { class: 'ghost', onclick: () => { md.close(); openEmojis(null); } }, '\u{1F600} Yours')),
     notifyRow(desk, () => md.close()),
     installEvt && h('div', { class: 'toggle' }, h('span', null, 'Install Idiocy', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'As an app on this device')),
       h('button', { class: 'ghost', onclick: () => { md.close(); installApp(); } }, 'Install')),
