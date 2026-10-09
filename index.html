@@ -826,9 +826,13 @@
   .emcover { flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; border: 0; cursor: pointer;
     background: radial-gradient(circle at 30% 20%, #3b2a7a, #12121a 70%); color: #fff; font: inherit; text-align: center; }
   .emcover .emicon { font-size: 40px; font-weight: 800; font-family: ui-monospace, Menlo, Consolas, monospace; }
-  .emcover b { font-size: 18px; word-break: break-word; }
+  .emcover b { font-size: 18px; word-break: break-word; max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .emcover .emgo { margin-top: 6px; padding: 9px 20px; border-radius: 999px; background: var(--accent); font-weight: 800; }
   .emcover .emnote { font-size: 12px; opacity: .7; }
+  .emcover .emhost { font-size: 13px; opacity: .75; margin-top: -4px; }
+  .emcover.emlink { text-decoration: none; }
+  .emcover.emlink .emgo { background: rgba(255, 255, 255, .16); }
+  .embedmaker .empreview .emcover { min-height: 220px; border-radius: 10px; }
   .emload { flex: 1; display: flex; align-items: center; justify-content: center; }
   .emframe { flex: 1; width: 100%; min-height: 240px; border: 0; background: #fff; }
   .embar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #111; color: #ccc; font-size: 12px; }
@@ -839,6 +843,21 @@
   .embedmaker .emcode { font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; resize: vertical; min-height: 160px; }
   .embedmaker .emfile, .projedit .emfile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .capbox { resize: vertical; min-height: 64px; } /* captions keep their line breaks */
+  /* Sharing posts */
+  .sharesheet .sharelist { display: flex; flex-direction: column; gap: 4px; max-height: 42vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
+  .sharesheet .sharepick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid transparent; border-radius: 12px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .sharesheet .sharepick:hover { background: var(--hover); }
+  .sharesheet .sharepick.on { border-color: var(--accent); background: var(--panel-2); }
+  .sharesheet .sharepick .avatar { width: 36px; height: 36px; flex: none; }
+  .sharesheet .spname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+  .sharesheet .sptick { width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--border); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 13px; flex: none; }
+  .sharesheet .sharepick.on .sptick { background: var(--accent); border-color: var(--accent); }
+  .sharesheet .hint { color: var(--muted); font-size: 13px; padding: 8px; }
+  .sharecard { display: flex; flex-direction: column; gap: 3px; margin: 4px 0; padding: 10px 12px; max-width: 320px; border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 12px; background: var(--panel-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .sharecard .shtop { font-size: 13px; color: var(--muted); }
+  .sharecard .shtop b { color: var(--text); }
+  .sharecard .shtext { white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .sharecard .shgo { font-size: 13px; color: var(--accent); font-weight: 700; }
   /* Idiocy Projects */
   .projedit .empart { display: flex; flex-direction: column; gap: 8px; }
   .projedit .empart.hidden { display: none; }
@@ -3457,6 +3476,7 @@ function buildMessage(m, pending) {
       time, h('span', { class: 'edtag' })),
     h('div', { class: 'body' },
       m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, nameEl(m.rp.name, 'b'), tame(m.rp.text) || '[image]'),
+      m.sh && shareCard(m.sh),
       h('span', { class: 'txt' }), m.img && (m.vo ? voiceBlock(m) : imageBlock(m)), h('div', { class: 'pollbox' })),
     h('div', { class: 'reacts' }),
     !pending && h('div', { class: 'acts' },
@@ -3825,13 +3845,62 @@ function shortMenu(slide, closePlayer) {
       h('button', { class: 'primary', onclick: () => md.close() }, 'Close')));
 }
 
-async function sharePost(m) {
-  const text = `${displayName(m.name)} on Idiocy: ${m.text || (m.img ? '[photo]' : '')}`;
-  const url = location.href.split('#')[0];
-  try {
-    if (navigator.share) { await navigator.share({ title: 'Idiocy', text, url }); return; }
-  } catch (e) { if (e && e.name === 'AbortError') return; }
-  try { await navigator.clipboard.writeText(text + '\n' + url); toast('Copied to share'); } catch (e) { toast("Couldn't share that", true); }
+// Sharing a post: send it to friends and groups (it arrives as a card that opens the post), copy
+// a link straight to it, or use the phone's own share menu.
+const postLink = id => INVITE_BASE + '?post=' + id;
+function sharePost(m) {
+  if (!m || !m.id) return;
+  const chats = (st ? st.convos : []).filter(c => c.type === 'dm' || c.type === 'group')
+    .sort((a, b) => (latest[b.id] || 0) - (latest[a.id] || 0));
+  const chosen = new Set();
+  const search = h('input', { type: 'search', placeholder: 'Search your chats' });
+  const list = h('div', { class: 'sharelist' });
+  const note = h('input', { placeholder: 'Add a message (optional)', maxlength: 300 });
+  const send = h('button', { class: 'primary' }, 'Send');
+  const paint = () => {
+    const q = search.value.trim().toLowerCase();
+    const shown = chats.filter(c => !q || convoTitle(c).toLowerCase().includes(q) || (c.type === 'dm' && convoLabel(c).toLowerCase().includes(q.replace(/^@/, ''))));
+    list.replaceChildren(...shown.map(c => h('button', { type: 'button', class: 'sharepick' + (chosen.has(c.id) ? ' on' : ''), 'aria-pressed': String(chosen.has(c.id)), onclick: () => {
+      if (chosen.has(c.id)) chosen.delete(c.id); else if (chosen.size < 10) chosen.add(c.id); else toast('Up to 10 chats at a time', true);
+      paint();
+    } }, c.type === 'dm' ? avatar(convoLabel(c), { click: false }) : groupIcon(c), h('span', { class: 'spname' }, convoTitle(c)), h('span', { class: 'sptick' }, chosen.has(c.id) ? '\u2713' : ''))),
+      ...(!chats.length ? [h('div', { class: 'hint' }, 'No chats yet. Add some friends and you can send them posts.')]
+        : !shown.length ? [h('div', { class: 'hint' }, 'No chats called that')] : []));
+    send.disabled = !chosen.size;
+    send.textContent = chosen.size > 1 ? `Send to ${chosen.size}` : 'Send';
+  };
+  search.oninput = paint;
+  paint();
+  send.onclick = async () => {
+    const d = await act('sharePost', { post: m.id, convos: [...chosen], text: note.value.trim() });
+    if (!d) return;
+    d.sent.forEach(x => notePreview(x.convo, x.message));
+    md.close();
+    const first = chats.find(c => c.id === d.sent[0].convo);
+    toast((d.sent.length === 1 ? `Sent to ${first ? convoTitle(first) : '1 chat'}` : `Sent to ${d.sent.length} chats`) +
+      (d.failed.length ? ` (${d.failed.length} couldn\u2019t take it)` : ''));
+    sideSig = '';
+    renderSide();
+  };
+  const copy = h('button', { class: 'ghost', onclick: async () => {
+    try { await navigator.clipboard.writeText(postLink(m.id)); toast('\u{1F517} Link copied'); md.close(); }
+    catch (e) { prompt('Copy this link:', postLink(m.id)); }
+  } }, '\u{1F517} Copy link');
+  const more = navigator.share && h('button', { class: 'ghost', onclick: async () => {
+    try { await navigator.share({ title: `${displayName(m.name)}\u2019s post on Idiocy`, text: (m.text || '').slice(0, 100), url: postLink(m.id) }); md.close(); }
+    catch (e) {}
+  } }, '\u{1F4E4} More\u2026');
+  const md = modal('sharesheet', h('h2', null, '\u{1F4EE} Share post'), search, list, note,
+    h('div', { class: 'btns' }, copy, more, h('span', { style: 'flex:1' }), send));
+  if (!isPhone()) search.focus();
+}
+// A shared post, in a chat: a card that opens it.
+const SHARE_KINDS = { photo: '\u{1F4F7} Photo', video: '\u{1F3AC} Short', poll: '\u{1F4CA} Poll', embed: '</> Embed', project: '\u{1F9EA} Project' };
+function shareCard(sh) {
+  return h('button', { type: 'button', class: 'sharecard', onclick: e => { e.stopPropagation(); revealMessage('global', sh.id); } },
+    h('span', { class: 'shtop' }, '\u{1F4EE} ', nameEl(sh.name, 'b'), '\u2019s post', SHARE_KINDS[sh.k] ? ' \u00b7 ' + SHARE_KINDS[sh.k] : ''),
+    sh.text && h('span', { class: 'shtext' }, tame(sh.text)),
+    h('span', { class: 'shgo' }, 'Open post \u2192'));
 }
 
 const CARD_COLOURS = [
@@ -4200,7 +4269,7 @@ function notePreview(convo, m) {
   const old = previews[convo];
   if (old && old.time > (m.time || 0)) return;
   const text = m.sys ? m.text : m.vo ? '\u{1F3A4} Voice message' : m.pl ? '\u{1F4CA} ' + (m.text || 'Poll')
-    : m.img && !m.text ? '\u{1F4F7} Photo' : (m.text || '');
+    : m.img && !m.text ? '\u{1F4F7} Photo' : m.sh && !m.text ? '\u{1F4EE} Shared a post' : (m.text || '');
   previews[convo] = { name: m.sys ? '' : m.name || '', text: String(text).slice(0, 120), time: m.time || Date.now() };
   prevVer++;
   store.set('chat_prev', JSON.stringify(previews));
@@ -4710,45 +4779,153 @@ $('postpoll').onclick = openPollMaker;
 // the page around it) and nothing in it can steer Idiocy. One runs at a time, and it stops when
 // it scrolls away, so a heavy one can't slow the feed down.
 const EMBED_CODE_SANDBOX = 'allow-scripts allow-forms allow-pointer-lock allow-modals';
-const EMBED_SITE_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups'; // the site's own origin, never Idiocy's
+// A website gets its own origin (never Idiocy's). Its popups open as normal tabs.
+const EMBED_SITE_SANDBOX = 'allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups allow-popups-to-escape-sandbox allow-presentation allow-storage-access-by-user-activation';
+const EMBED_ALLOW = 'fullscreen; autoplay; gamepad; encrypted-media; picture-in-picture; clipboard-write; web-share; accelerometer; gyroscope';
 const hostOf = url => { try { return new URL(url).host.replace(/^www\./, ''); } catch (e) { return 'Website'; } };
 const MAX_EMBED = 200000; // characters of code (the server checks too)
+
+// Lots of sites won't be shown inside other sites from their normal pages, but have a player
+// that can be: links to those play right in the post. { src: what runs, open: the normal page,
+// what: e.g. "YouTube video", sure: no need to ask the server whether it can be shown }
+function embedSrc(u) {
+  let x;
+  try { x = new URL(u); } catch (e) { return { src: u, open: u }; }
+  if (x.protocol === 'http:' && location.protocol === 'https:') x.protocol = 'https:'; // an https page can't show http ones
+  const host = x.hostname.replace(/^(www|m|mobile)\./, ''), path = x.pathname, q = x.searchParams;
+  const seg = path.split('/').filter(Boolean);
+  const dec = t => { try { return decodeURIComponent(t.replace(/\+/g, ' ')); } catch (e) { return t; } };
+  const out = (src, what, open = u, sure = true) => ({ src, what, open, sure });
+  let m;
+  // YouTube (older posts saved the player address itself)
+  const yt = /^(youtube\.com|music\.youtube\.com|youtube-nocookie\.com)$/.test(host)
+    ? (path === '/watch' ? q.get('v') : /^(shorts|live|embed|v)$/.test(seg[0]) ? seg[1] : null)
+    : host === 'youtu.be' ? seg[0] : null;
+  if (yt && /^[\w-]{11}$/.test(yt)) {
+    const t = /^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s?)?$/.exec(q.get('t') || q.get('start') || '');
+    const start = t ? (+t[1] || 0) * 3600 + (+t[2] || 0) * 60 + (+t[3] || 0) : 0;
+    return out(`https://www.youtube-nocookie.com/embed/${yt}${start ? '?start=' + start : ''}`, 'YouTube video',
+      `https://www.youtube.com/watch?v=${yt}${start ? '&t=' + start + 's' : ''}`);
+  }
+  if (host === 'youtube.com' && path === '/playlist' && q.get('list')) return out('https://www.youtube-nocookie.com/embed/videoseries?list=' + encodeURIComponent(q.get('list')), 'YouTube playlist');
+  if (host === 'vimeo.com' && /^\d+$/.test(seg[0] || '')) return out('https://player.vimeo.com/video/' + seg[0], 'Vimeo video');
+  if (host === 'scratch.mit.edu' && seg[0] === 'projects' && /^\d+$/.test(seg[1] || '')) return out(`https://scratch.mit.edu/projects/${seg[1]}/embed`, 'Scratch project', `https://scratch.mit.edu/projects/${seg[1]}/`);
+  if (host === 'open.spotify.com') {
+    const s = /^intl-/.test(seg[0] || '') ? seg.slice(1) : seg;
+    if (/^(track|album|playlist|episode|show|artist)$/.test(s[0]) && s[1]) return out(`https://open.spotify.com/embed/${s[0]}/${s[1]}`, 'Spotify');
+  }
+  if (host === 'tiktok.com' && (m = /^\/@[^/]+\/(?:video|photo)\/(\d+)/.exec(path))) return out('https://www.tiktok.com/player/v1/' + m[1], 'TikTok');
+  if (host === 'soundcloud.com' && seg.length >= 2) return out('https://w.soundcloud.com/player/?visual=true&url=' + encodeURIComponent('https://soundcloud.com/' + seg.join('/')), 'SoundCloud');
+  if (host === 'music.apple.com') return out('https://embed.music.apple.com' + path + x.search, 'Apple Music');
+  if (host === 'codepen.io' && seg[1] === 'pen' && seg[2]) return out(`https://codepen.io/${seg[0]}/embed/${seg[2]}?default-tab=result`, 'CodePen');
+  // Google Docs, Sheets, Slides and Forms: they only show if they're shared with anyone who has the link
+  if (host === 'docs.google.com' && (m = /^\/(document|spreadsheets|presentation|forms)\/d\/(e\/)?([\w-]+)/.exec(path))) {
+    const [, kind, pub, id] = m, base = `https://docs.google.com/${kind}/d/${pub || ''}${id}/`;
+    const what = { document: 'Google Doc', spreadsheets: 'Google Sheet', presentation: 'Google Slides', forms: 'Google Form' }[kind];
+    const end = kind === 'forms' ? 'viewform?embedded=true' : kind === 'presentation' ? (pub ? 'embed' : 'preview')
+      : pub ? (kind === 'document' ? 'pub?embedded=true' : 'pubhtml?widget=true&headers=false') : 'preview';
+    return out(base + end, what, u, false);
+  }
+  if (host === 'drive.google.com' && seg[0] === 'file' && seg[1] === 'd' && seg[2]) return out(`https://drive.google.com/file/d/${seg[2]}/preview`, 'Google Drive file', u, false);
+  if ((/^google\.[a-z.]+$/.test(host) && seg[0] === 'maps') || host === 'maps.google.com') {
+    const s = seg[0] === 'maps' ? seg.slice(1) : seg;
+    const at = /^@(-?[\d.]+),(-?[\d.]+)(?:,([\d.]+)z)?/.exec(s.find(p => p.startsWith('@')) || '');
+    const where = q.get('q') || q.get('query') || ((s[0] === 'place' || s[0] === 'search') && s[1] ? dec(s[1]) : at ? at[1] + ',' + at[2] : '');
+    if (where) return out(`https://maps.google.com/maps?q=${encodeURIComponent(where)}${at && at[3] ? '&z=' + Math.round(at[3]) : ''}&output=embed`, 'Google Maps');
+  }
+  if ((host === 'twitter.com' || host === 'x.com') && (m = /^\/\w+\/status(?:es)?\/(\d+)/.exec(path))) return out('https://platform.twitter.com/embed/Tweet.html?id=' + m[1], 'Post on X');
+  if (/^((old|new)\.)?reddit\.com$/.test(host) && seg[0] === 'r' && seg[2] === 'comments' && seg[3]) return out(`https://embed.reddit.com/${seg.slice(0, 5).join('/')}/`, 'Reddit post');
+  if (host === 'instagram.com' && /^(p|reel|tv)$/.test(seg[0]) && seg[1]) return out(`https://www.instagram.com/${seg[0] === 'reel' ? 'reel' : 'p'}/${seg[1]}/embed/`, 'Instagram');
+  if (host === 'twitch.tv' || host === 'clips.twitch.tv') {
+    const parent = 'parent=' + encodeURIComponent(location.hostname || 'idiocy.schappistudios.com');
+    if (host === 'clips.twitch.tv' && seg[0]) return out(`https://clips.twitch.tv/embed?clip=${seg[0]}&${parent}&autoplay=false`, 'Twitch clip');
+    if (seg[1] === 'clip' && seg[2]) return out(`https://clips.twitch.tv/embed?clip=${seg[2]}&${parent}&autoplay=false`, 'Twitch clip');
+    if (seg[0] === 'videos' && /^\d+$/.test(seg[1] || '')) return out(`https://player.twitch.tv/?video=v${seg[1]}&${parent}&autoplay=false`, 'Twitch video');
+    if (seg.length === 1 && /^\w{3,25}$/.test(seg[0])) return out(`https://player.twitch.tv/?channel=${seg[0]}&${parent}&autoplay=false`, 'Twitch stream');
+  }
+  if (host === 'desmos.com' && seg[0] === 'calculator' && seg[1]) return out(`https://www.desmos.com/calculator/${seg[1]}?embed`, 'Desmos graph');
+  if (host === 'canva.com' && seg[0] === 'design' && seg[seg.length - 1] === 'view') return out(x.origin + path + '?embed', 'Canva design');
+  if (host === 'figma.com' && /^(file|design|proto|board|slides)$/.test(seg[0])) return out('https://www.figma.com/embed?embed_host=idiocy&url=' + encodeURIComponent(u), 'Figma');
+  if (host === 'loom.com' && seg[0] === 'share' && seg[1]) return out('https://www.loom.com/embed/' + seg[1], 'Loom video');
+  if (host === 'streamable.com' && seg.length === 1) return out('https://streamable.com/e/' + seg[0], 'Streamable video');
+  if (host === 'giphy.com' && seg[0] === 'gifs' && seg[1]) return out('https://giphy.com/embed/' + seg[1].split('-').pop(), 'GIPHY');
+  if ((host === 'dailymotion.com' && seg[0] === 'video' && seg[1]) || (host === 'dai.ly' && seg[0])) return out('https://geo.dailymotion.com/player.html?video=' + (seg[1] || seg[0]), 'Dailymotion video');
+  return { src: x.href, open: u, what: '', sure: false };
+}
+const embedIcon = what => /video|TikTok|Twitch|YouTube|GIPHY/.test(what || '') ? '\u{1F3AC}' : /Spotify|SoundCloud|Music/.test(what || '') ? '\u{1F3B5}' : '\u{1F310}';
+
+// Asks the server whether a site lets other sites show it (most big ones don't), and what it's
+// called. Remembered until the page is reloaded.
+const linkKnown = new Map(), linkAsking = new Map();
+function linkCheck(src) {
+  if (linkKnown.has(src)) return Promise.resolve(linkKnown.get(src));
+  if (!linkAsking.has(src)) {
+    linkAsking.set(src, fetch(MEDIA_BASE + '/linkinfo', { method: 'POST', headers: { 'content-type': 'application/json', 'x-idiocy-token': token || '' }, body: JSON.stringify({ url: src }) })
+      .then(r => r.json()).catch(() => null)
+      .then(d => {
+        const info = d && d.ok ? { frame: d.frame, title: d.title || '' } : { frame: null, title: '' };
+        linkKnown.set(src, info);
+        linkAsking.delete(src);
+        return info;
+      }));
+  }
+  return linkAsking.get(src);
+}
+
 function embedFrame(em, code) {
-  const frame = h('iframe', { class: 'emframe', referrerpolicy: 'no-referrer', allow: 'fullscreen; autoplay; gamepad', allowfullscreen: '',
-    title: em.u ? 'Embedded website: ' + hostOf(em.u) : 'Embedded HTML' });
-  frame.setAttribute('sandbox', em.u ? EMBED_SITE_SANDBOX : EMBED_CODE_SANDBOX);
-  if (em.u) frame.src = em.u; else frame.srcdoc = code;
+  const site = em.u && embedSrc(em.u);
+  const frame = h('iframe', { class: 'emframe', allow: EMBED_ALLOW, allowfullscreen: '',
+    // Sites see that they're on Idiocy (just the address of Idiocy, nothing else): YouTube won't play without it.
+    referrerpolicy: site ? 'strict-origin-when-cross-origin' : 'no-referrer',
+    title: site ? 'Embedded website: ' + hostOf(site.src) : 'Embedded HTML' });
+  frame.setAttribute('sandbox', site ? EMBED_SITE_SANDBOX : EMBED_CODE_SANDBOX);
+  if (site) frame.src = site.src; else frame.srcdoc = code;
   return frame;
+}
+// The cover of a website embed: tap to run it, or (if the site won't be shown inside other
+// sites) a link that opens it in a new tab.
+function siteCover(site, run) {
+  const info = site.sure ? null : linkKnown.get(site.src);
+  const blocked = !!info && info.frame === false;
+  const name = (info && info.title && tame(info.title)) || site.what || hostOf(site.open);
+  const kids = [h('span', { class: 'emicon' }, embedIcon(site.what)), h('b', null, name),
+    name !== hostOf(site.open) && h('span', { class: 'emhost' }, hostOf(site.open)),
+    h('span', { class: 'emgo' }, blocked ? 'Open site ↗' : site.what ? '▶ Tap to play' : '▶ Tap to run'),
+    h('span', { class: 'emnote' }, blocked ? 'This site doesn’t let other apps show it, so it opens in a new tab' : 'Runs in a sealed box: it can’t see Idiocy or your account')];
+  return blocked
+    ? h('a', { class: 'emcover emlink', href: site.open, target: '_blank', rel: 'noopener noreferrer nofollow', onclick: e => e.stopPropagation() }, ...kids)
+    : h('button', { class: 'emcover', type: 'button', onclick: run }, ...kids);
 }
 let runningEmbed = null;
 const feedEmbeds = new IntersectionObserver(entries => entries.forEach(e => { if (!e.isIntersecting && e.target._stop) e.target._stop(); }), { root: log, threshold: 0 });
 function embedBlock(m) {
   const box = h('div', { class: 'shot emshot' });
-  const cover = () => box.replaceChildren(h('button', { class: 'emcover', type: 'button', onclick: run },
-    h('span', { class: 'emicon' }, m.em.u ? '\u{1F310}' : '</>'),
-    h('b', null, m.em.u ? hostOf(m.em.u) : 'HTML code'),
-    h('span', { class: 'emgo' }, '\u25B6 Tap to run'),
-    h('span', { class: 'emnote' }, 'Runs in a sealed box: it can\u2019t see Idiocy or your account')));
+  const site = m.em.u && embedSrc(m.em.u);
+  const cover = () => box.replaceChildren(site ? siteCover(site, run) : h('button', { class: 'emcover', type: 'button', onclick: run },
+    h('span', { class: 'emicon' }, '</>'),
+    h('b', null, 'HTML code'),
+    h('span', { class: 'emgo' }, '▶ Tap to run'),
+    h('span', { class: 'emnote' }, 'Runs in a sealed box: it can’t see Idiocy or your account')));
   async function run(e) {
     if (e) e.stopPropagation();
     if (runningEmbed && runningEmbed !== box) runningEmbed._stop();
     runningEmbed = box;
     let code = m.em.local;
-    if (!m.em.u && code == null) {
+    if (!site && code == null) {
       box.replaceChildren(h('div', { class: 'emload' }, h('span', { class: 'spinner' })));
       try {
         const d = m.em.pj ? await api('projectCode', { id: m.em.pj }) : await api('embedCode', { id: m.id });
         if (!d.ok) throw new Error(d.error);
         code = d.code;
-      } catch (err) { toast(err.message || 'Couldn\u2019t load it', true); stop(); return; }
+      } catch (err) { toast(err.message || 'Couldn’t load it', true); stop(); return; }
       if (runningEmbed !== box) return; // something else started meanwhile
     }
     const frame = embedFrame(m.em, code);
     box.replaceChildren(frame, h('div', { class: 'embar' },
-      h('span', null, `Embedded by ${displayName(m.name)} \u00b7 not part of Idiocy`),
-      m.em.u && h('a', { href: m.em.u, target: '_blank', rel: 'noopener noreferrer nofollow' }, 'Open \u2197'),
-      h('button', { type: 'button', title: 'Full screen', onclick: () => (frame.requestFullscreen ? frame.requestFullscreen() : frame.webkitRequestFullscreen && frame.webkitRequestFullscreen()) }, '\u26F6'),
-      h('button', { type: 'button', onclick: stop }, '\u25A0 Stop')));
+      h('span', null, `Embedded by ${displayName(m.name)} · not part of Idiocy`),
+      site && h('a', { href: site.open, target: '_blank', rel: 'noopener noreferrer nofollow' }, 'Open ↗'),
+      h('button', { type: 'button', title: 'Full screen', onclick: () => (frame.requestFullscreen ? frame.requestFullscreen() : frame.webkitRequestFullscreen && frame.webkitRequestFullscreen()) }, '⛶'),
+      h('button', { type: 'button', onclick: stop }, '■ Stop')));
     feedEmbeds.observe(box);
   }
   function stop() {
@@ -4758,7 +4935,31 @@ function embedBlock(m) {
   }
   box._stop = stop;
   cover();
+  // Ask whether the site can be shown here, then fix up the cover (if it's still showing).
+  if (site && !site.sure && !linkKnown.has(site.src)) linkCheck(site.src).then(() => { if (runningEmbed !== box) cover(); });
   return box;
+}
+// Under a website address box: what will happen with that link, checked as it's typed.
+function siteHint(input, note) {
+  const plain = 'Paste a link: a website, a YouTube or TikTok video, a Scratch project, a Spotify song, a Google Doc and lots more.';
+  note.textContent = plain;
+  let timer = 0;
+  const check = async () => {
+    let u = input.value.trim();
+    if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+    if (!/^https?:\/\/[^\s<>"]+\.[^\s<>"]{2,}/i.test(u)) { note.textContent = plain; return; }
+    const site = embedSrc(u);
+    if (site.sure) { note.textContent = `✓ ${site.what}: it plays right in the post`; return; }
+    note.textContent = 'Checking the site…';
+    const info = await linkCheck(site.src);
+    if (input.value.trim() !== u && 'https://' + input.value.trim() !== u) return; // they've typed more since
+    note.textContent = info.frame === false
+      ? `⚠️ ${hostOf(site.src)} doesn’t let other apps show it, so the post will have a button that opens it in a new tab.`
+      : info.frame ? `✓ ${info.title ? tame(info.title) + ' · ' : ''}it runs right in the post`
+        : 'Couldn’t check this site. It might not show inside posts.';
+  };
+  input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(check, 500); });
+  if (input.value) check();
 }
 function openEmbedMaker() {
   let kind = 'url';
@@ -4784,7 +4985,9 @@ function openEmbedMaker() {
   const caption = h('textarea', { class: 'capbox', placeholder: 'Say something about it (optional)', maxlength: 1000, rows: 3 });
   caption.value = $('posttext').value;
   const preview = h('div', { class: 'empreview' });
-  const urlPart = h('div', { class: 'empart' }, url, h('div', { class: 'hint' }, 'YouTube links work. Some sites (like Google or Instagram) don\u2019t allow being embedded.'));
+  const urlNote = h('div', { class: 'hint' });
+  siteHint(url, urlNote);
+  const urlPart = h('div', { class: 'empart' }, url, urlNote);
   const codePart = h('div', { class: 'empart hidden' }, code,
     h('div', { class: 'emfile' }, file, h('button', { class: 'ghost', type: 'button', onclick: () => file.click() }, '\u{1F4C4} Upload .html file'), fileNote),
     h('div', { class: 'hint' }, 'HTML, CSS and JavaScript, like a little web page or game. Up to 200 KB. ', count));
@@ -4812,7 +5015,16 @@ function openEmbedMaker() {
     h('div', { class: 'hint' }, 'It runs in a sealed box, only when someone taps it. It can\u2019t see Idiocy or anyone\u2019s account.'),
     h('div', { class: 'btns' },
       h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'),
-      h('button', { class: 'ghost', onclick: () => { const e = embed(); if (e) preview.replaceChildren(embedFrame(e.url ? { u: e.url } : { c: 1 }, e.code)); } }, 'Preview'),
+      h('button', { class: 'ghost', onclick: async () => {
+        const e = embed();
+        if (!e) return;
+        if (e.url) {
+          const site = embedSrc(e.url);
+          if (!site.sure) await linkCheck(site.src);
+          if (!site.sure && linkKnown.get(site.src).frame === false) return preview.replaceChildren(siteCover(site));
+        }
+        preview.replaceChildren(embedFrame(e.url ? { u: e.url } : { c: 1 }, e.code));
+      } }, 'Preview'),
       h('button', { class: 'primary', onclick: () => {
         const e = embed();
         if (!e) return;
@@ -4944,14 +5156,16 @@ async function openProjectEditor(p) {
   // Website
   const url = h('input', { type: 'url', placeholder: 'https://\u2026', maxlength: 500, autocapitalize: 'none', spellcheck: 'false' });
   url.value = p && p.kind === 'site' ? p.url : '';
+  const siteNote = h('div', { class: 'hint' });
   const parts = {
     code: h('div', { class: 'empart' }, code, h('div', { class: 'emfile' }, codeFile,
       h('button', { class: 'ghost', type: 'button', onclick: () => codeFile.click() }, '\u{1F4C4} Upload .html file'),
       h('span', { class: 'hint' }, 'Up to 200 KB. Runs in a sealed box.'))),
     art: h('div', { class: 'empart' }, artImg, artFile, h('button', { class: 'ghost', type: 'button', onclick: () => artFile.click() }, '\u{1F5BC}\uFE0F Choose a picture')),
     video: h('div', { class: 'empart' }, vidFile, h('button', { class: 'ghost', type: 'button', onclick: () => vidFile.click() }, '\u{1F3AC} Choose a video'), vidNote),
-    site: h('div', { class: 'empart' }, url, h('div', { class: 'hint' }, 'YouTube links work. Some sites don\u2019t allow being embedded.')),
+    site: h('div', { class: 'empart' }, url, siteNote),
   };
+  siteHint(url, siteNote);
   const showPart = () => Object.entries(parts).forEach(([k, el]) => el.classList.toggle('hidden', k !== kind));
   const tabs = h('div', { class: 'notifychips' }, ...PROJECT_KINDS.map(([k, ic, label]) =>
     h('button', { type: 'button', class: k === kind ? 'primary' : 'ghost', onclick: e => {
