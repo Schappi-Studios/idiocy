@@ -286,6 +286,13 @@
   .reacts .cpill { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
   .reacts .cpill .cemo { width: 18px; height: 18px; display: block; }
   .emojis .emoup { display: flex; gap: 8px; }
+  .cemo.inl { height: 1.4em; width: auto; max-width: 4em; vertical-align: -0.35em; margin: 0 1px; cursor: pointer; }
+  .txt.emonly .cemo.inl { height: 48px; max-width: 120px; vertical-align: middle; }
+  .post.txtcard .txt.emonly .cemo.inl { height: 96px; max-width: 200px; }
+  .mentionbox .cemo { width: 24px; height: 24px; flex: none; }
+  .picker.emopanel { max-width: min(300px, calc(100vw - 16px)); }
+  .picker.emopanel .phint { font-size: 13px; color: var(--muted); padding: 0 6px; max-width: 200px; }
+  #emojibtn { font-size: 19px; }
   .emojis .emohead { font-weight: 700; margin-top: 4px; }
   .emojis .emogrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
   .emojis .emotile { position: relative; }
@@ -553,7 +560,9 @@
   #feedbox .fbrow { display: flex; gap: 10px; align-items: flex-start; }
   #feedbox .fbrow .avatar { width: 36px; height: 36px; margin-top: 3px; }
   #posttext { flex: 1; resize: none; min-height: 42px; max-height: 180px; overflow-y: auto; font: inherit; }
-  #feedbox .fbact { display: flex; align-items: center; gap: 8px; padding-left: 46px; }
+  #feedbox .fbact { display: flex; align-items: center; gap: 8px; padding-left: 46px; overflow-x: auto; scrollbar-width: none; }
+  #feedbox .fbact::-webkit-scrollbar { display: none; }
+  #feedbox .fbact > * { flex: none; } /* phones: the row swipes sideways instead of running off the screen */
   /* Post sits on the same line as the typing box, a bit smaller than other buttons. */
   #feedbox .fbrow #postbtn { flex-shrink: 0; height: 36px; margin-top: 3px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
   #feedbox .fbact .hint { color: var(--muted); font-size: 12px; }
@@ -1622,6 +1631,7 @@
           </svg>
         </button>
         <button type="button" class="camerabtn" id="postcam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Take photo</button>
+        <button type="button" class="pollbtn emojibtn hidden" id="postemoji" title="Your custom emojis">😀 Emoji</button>
         <button type="button" class="pollbtn hidden" id="postpoll" title="Make a poll">📊 Poll</button>
         <button type="button" class="pollbtn hidden" id="postshort" title="Post a Short (a video up to 60 seconds)">🎬 Short</button>
         <button type="button" class="pollbtn hidden" id="postembed" title="Embed a website or run some HTML">&lt;/&gt; Embed</button>
@@ -1646,6 +1656,7 @@
       <input type="file" id="camfile" accept="image/*" capture="environment" class="hidden">
       <button type="button" class="iconbtn hidden" id="mic" title="Record a voice message" aria-label="Record a voice message"><svg class="i-mic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><svg class="i-send" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg></button>
       <span id="recbar"><span class="recdot"></span><span id="rectime">0:00</span><span class="rlabel">Recording…</span><button type="button" id="reccancel">Cancel</button></span>
+      <button type="button" class="iconbtn emojibtn hidden" id="emojibtn" title="Your custom emojis" aria-label="Your custom emojis">😀</button>
       <input id="text" autocomplete="off" placeholder="Say something…" maxlength="300">
       <span id="count"></span>
       <button class="primary" type="submit">Send</button>
@@ -3522,7 +3533,9 @@ function buildMessage(m, pending) {
 // The message text and "(edited)" tag, repainted when an edit arrives.
 function paintText(el) {
   const m = el._m, t = el.querySelector('.txt');
-  if (t) t.replaceChildren(...(m.text ? [richText(m.text)] : []));
+  if (t) t.replaceChildren(...(m.text ? [richText(m.text, m.ce)] : []));
+  // Just a few custom emojis and nothing else: show them big.
+  if (t) t.classList.toggle('emonly', !!m.ce && /^\s*(:[a-z0-9_]{1,24}:\s*){1,5}$/.test(m.text || '') && (m.text.match(/:[a-z0-9_]{1,24}:/g) || []).every(x => m.ce[x.slice(1, -1)]));
   const tag = el.querySelector('.edtag');
   if (tag) tag.textContent = m.ed ? '(edited)' : '';
 }
@@ -4024,6 +4037,7 @@ async function toggleComments(el, focus = true) {
   const list = h('div', { class: 'comments' }, h('div', { class: 'shimmer', style: 'height:34px;border-radius:12px' }));
   const input = h('input', { placeholder: 'Write a comment\u2026', maxlength: 300 });
   attachMentions(input);
+  attachEmojiComplete(input);
   const form = h('form', { class: 'cform', onsubmit: e => { e.preventDefault(); sendComment(el, input); } },
     input, h('button', { class: 'primary', type: 'submit' }, 'Reply'));
   el._cmts = h('div', { class: 'comments enter' }, list, form);
@@ -4057,7 +4071,7 @@ function buildComment(postEl, c, pending) {
       h('div', { class: 'bubble' },
         nameEl(c.name, 'b', { class: c.admin ? 'admin-name' : '', style: `color:${colorFor(c.name)}`, onclick: () => openProfile(c.name) }),
         c.admin && h('span', { class: 'badge' }, 'ADMIN'),
-        richText(c.text || '')),
+        richText(c.text || '', c.ce)),
       h('div', { class: 'meta' },
         pending ? 'sending\u2026' : fmtTime(c.time),
         !pending && !isMine(c) && h('button', { onclick: () => openReport(c, convo) }, 'Report'),
@@ -4079,10 +4093,10 @@ async function sendComment(postEl, input) {
   if (!text || !me) return;
   input.value = '';
   const list = postEl._cmts && postEl._cmts.firstElementChild;
-  const pending = buildComment(postEl, { name: me.name, admin: me.role === 'admin', text }, true);
+  const pending = buildComment(postEl, { name: me.name, admin: me.role === 'admin', text, ce: emojisIn(text) }, true);
   if (list) { list.querySelectorAll('.shimmer, .muted').forEach(x => x.remove()); list.append(pending); }
   try {
-    const d = await api('send', { convo: 'p:' + postEl._m.id, text });
+    const d = await api('send', { convo: 'p:' + postEl._m.id, text, ...(emojisIn(text) && { emojis: emojisIn(text) }) });
     if (!d.ok) {
       pending.remove();
       if (!input.value) input.value = text;
@@ -4159,14 +4173,21 @@ function repaintTexts() {
 }
 
 // Message text with @mentions highlighted (built from text nodes, never HTML).
-function richText(text) {
+// ce: the custom emojis the text uses ({ party_cat: "c:<id>.gif" }); their :names: show as the picture.
+function richText(text, ce) {
   const mine = myMentionRe();
   // (?!) never matches, for when we don't know our own name yet.
-  const re = new RegExp('(' + (mine ? mine.source : '(?!)') + ')|(@[A-Za-z0-9_-]+)|(https?:\\/\\/[^\\s<>"]+)', 'gi');
+  const re = new RegExp('(' + (mine ? mine.source : '(?!)') + ')|(@[A-Za-z0-9_-]+)|(https?:\\/\\/[^\\s<>"]+)' + (ce ? '|:([a-z0-9_]{1,24}):' : ''), 'gi');
   const out = [];
   let last = 0, m;
   while ((m = re.exec(text))) {
     out.push(tame(text.slice(last, m.index)));
+    if (m[4] !== undefined) {
+      const code = Object.prototype.hasOwnProperty.call(ce, m[4]) && isCustomEmoji(ce[m[4]]) && ce[m[4]];
+      out.push(code ? inlineEmoji(code, m[4]) : m[0]);
+      last = m.index + m[0].length;
+      continue;
+    }
     if (m[3]) {
       // Links: only http(s), opened in a new tab. Trailing punctuation stays as text.
       const url = m[3].replace(/[.,!?;:)\]'"]+$/, '');
@@ -4474,6 +4495,8 @@ function attachMentions(input) {
 }
 attachMentions(textEl);
 attachMentions($('posttext'));
+attachEmojiComplete(textEl);
+attachEmojiComplete($('posttext'));
 
 function startEdit(el) {
   if (el._editing) return;
@@ -4485,8 +4508,9 @@ function startEdit(el) {
   const save = async () => {
     const text = box.value.trim();
     if (text === (m.text || '')) return done();
+    // (the emojis it already had stay, even ones you've since removed from your picker)
     box.disabled = true;
-    const d = await act('editMessage', { convo: openId, id: m.id, text });
+    const d = await act('editMessage', { convo: openId, id: m.id, text, ...(emojisIn(text, m.ce) && { emojis: emojisIn(text, m.ce) }) });
     box.disabled = false;
     if (!d) return;
     el._m = d.message;
@@ -4695,7 +4719,7 @@ function openPicker(btn, el) {
   pickerEl = h('div', { class: 'picker', role: 'menu' },
     REACTIONS.map(e => h('button', { title: 'React ' + e, onclick: () => toggleReaction(el, e) }, e)),
     customs,
-    serverApi >= 31 && h('button', { class: 'padd', title: 'Make a custom emoji from a GIF or picture', onclick: () => { closePicker(); openEmojis(el); } }, '+'));
+    serverApi >= 31 && h('button', { class: 'padd', title: 'Make a custom emoji from a GIF or picture', onclick: () => { closePicker(); openEmojis(code => toggleReaction(el, code)); } }, '+'));
   const place = () => {
     const w = pickerEl.offsetWidth;
     pickerEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, rect.right - w)) + 'px';
@@ -4717,7 +4741,7 @@ function closePicker() {
   pickerEl = null;
 }
 document.addEventListener('mousedown', e => {
-  if (pickerEl && !pickerEl.contains(e.target) && !e.target.closest('.acts')) closePicker();
+  if (pickerEl && !pickerEl.contains(e.target) && !e.target.closest('.acts, .emojibtn')) closePicker();
 });
 // Scrolling away closes it; the feed settling by a few pixels (snapping) doesn't.
 log.addEventListener('scroll', () => { if (pickerEl && Math.abs(log.scrollTop - pickerEl._top) > 40) closePicker(); });
@@ -4740,6 +4764,112 @@ function loadMyEmojis(fresh) {
   return myEmojisLoading;
 }
 const emojiImg = (code, name) => h('img', { class: 'cemo', src: emojiSrc(code), alt: name ? `:${name}:` : 'custom emoji', draggable: 'false', decoding: 'async' });
+// In a message's text. If the picture is gone (the emoji was deleted), it's ":name:" again.
+function inlineEmoji(code, name) {
+  const img = h('img', { class: 'cemo inl', src: emojiSrc(code), alt: `:${name}:`, title: `:${name}:`, draggable: 'false', decoding: 'async',
+    onclick: e => { e.stopPropagation(); openEmojiInfo(code); } }); // whose it is, and save it to yours
+  img.onerror = () => img.replaceWith(`:${name}:`);
+  return img;
+}
+// Which emoji each :name: in what you wrote is: the one you picked, else the newest of yours with
+// that name, else (editing) the one it was before.
+const chosenEmoji = new Map(); // name -> code
+function emojisIn(text, before) {
+  if (!text || !text.includes(':')) return null;
+  const ce = {};
+  for (const [, n] of text.matchAll(/:([a-z0-9_]{1,24}):/g)) {
+    if (ce[n]) continue;
+    const code = chosenEmoji.get(n) || ((myEmojis || []).find(e => e.name === n) || {}).code || (before && before[n]);
+    if (code) ce[n] = code;
+  }
+  return Object.keys(ce).length ? ce : null;
+}
+// Puts ":name:" where the cursor is.
+function insertEmoji(input, code, name) {
+  chosenEmoji.set(name, code);
+  const a = input.selectionStart == null ? input.value.length : input.selectionStart;
+  const b = input.selectionEnd == null ? a : input.selectionEnd;
+  const before = input.value.slice(0, a), after = input.value.slice(b);
+  const add = (before && !/\s$/.test(before) ? ' ' : '') + `:${name}: `;
+  if (input.maxLength > 0 && (before + add + after).length > input.maxLength) { toast('No room for that emoji', true); return; }
+  input.value = before + add + after;
+  input.focus();
+  input.setSelectionRange(before.length + add.length, before.length + add.length);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+}
+// The 😀 button by the post box and the chat box: your emojis, and + to make one.
+function openEmojiPanel(btn, input) {
+  if (pickerEl && pickerEl._for === btn) { closePicker(); return; }
+  closePicker();
+  const rect = btn.getBoundingClientRect();
+  const grid = h('span', { class: 'pcustom' });
+  const paint = list => grid.replaceChildren(...list.map(e =>
+    h('button', { type: 'button', title: `:${e.name}:`, onclick: () => { closePicker(); insertEmoji(input, e.code, e.name); } }, emojiImg(e.code, e.name))),
+    ...(list.length ? [] : [h('span', { class: 'phint' }, myEmojis ? 'Make your own emoji from a GIF or picture \u2192' : 'Loading\u2026')]));
+  pickerEl = h('div', { class: 'picker emopanel', role: 'menu' }, grid,
+    h('button', { class: 'padd', type: 'button', title: 'Make a custom emoji from a GIF or picture', onclick: () => {
+      closePicker();
+      openEmojis((code, name) => insertEmoji(input, code, name));
+    } }, '+'));
+  pickerEl._for = btn;
+  const place = () => {
+    const w = pickerEl.offsetWidth;
+    pickerEl.style.left = Math.max(8, Math.min(window.innerWidth - w - 8, rect.left)) + 'px';
+    pickerEl.style.top = Math.max(8, rect.top - pickerEl.offsetHeight - 6) + 'px';
+  };
+  paint(myEmojis || []);
+  if (!myEmojis) loadMyEmojis().then(list => { if (pickerEl && pickerEl._for === btn) { paint(list); place(); } });
+  document.body.append(pickerEl);
+  place();
+}
+// Typing ":par" suggests your emojis with "par" in their names.
+function attachEmojiComplete(input) {
+  let box = null, items = [], sel = 0, start = -1;
+  const close = () => { if (box) box.remove(); box = null; };
+  const pick = e => {
+    const pos = input.selectionStart;
+    chosenEmoji.set(e.name, e.code);
+    input.value = input.value.slice(0, start) + `:${e.name}: ` + input.value.slice(pos);
+    const at = start + e.name.length + 3;
+    close();
+    input.focus();
+    input.setSelectionRange(at, at);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+  const update = () => {
+    const pos = input.selectionStart, m = /(^|\s):([a-z0-9_]{2,24})$/i.exec(input.value.slice(0, pos));
+    if (!m) return close();
+    if (!myEmojis) { loadMyEmojis().then(() => { if (myEmojis) update(); }); return close(); }
+    start = pos - m[2].length - 1;
+    const q = m[2].toLowerCase();
+    items = myEmojis.filter(e => e.name.includes(q)).sort((a, b) => b.name.startsWith(q) - a.name.startsWith(q)).slice(0, 6);
+    if (!items.length) return close();
+    sel = Math.min(sel, items.length - 1);
+    if (!box) { box = h('div', { class: 'mentionbox', role: 'listbox' }); document.body.append(box); }
+    box.replaceChildren(...items.map((e, i) => h('button', {
+      type: 'button', class: i === sel ? 'on' : '',
+      onpointerdown: ev => { ev.preventDefault(); pick(e); }, // before the box loses focus
+    }, emojiImg(e.code, e.name), h('span', null, `:${e.name}:`))));
+    const r = input.getBoundingClientRect();
+    box.style.left = Math.max(8, r.left) + 'px';
+    box.style.bottom = (innerHeight - r.top + 6) + 'px';
+    box.style.width = Math.min(Math.max(r.width, 200), 280) + 'px';
+  };
+  input.addEventListener('input', () => { sel = 0; update(); });
+  input.addEventListener('focus', () => { loadMyEmojis(); });
+  input.addEventListener('keydown', e => {
+    if (!box) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+      update();
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault(); e.stopImmediatePropagation();
+      pick(items[sel]);
+    } else if (e.key === 'Escape') { e.stopPropagation(); close(); }
+  }, true);
+  input.addEventListener('blur', () => setTimeout(close, 150));
+}
 // Holding a finger on something (phones have no right-click). The tap that ends the hold doesn't count.
 function onHold(el, fn) {
   let timer = 0, held = false;
@@ -4749,9 +4879,9 @@ function onHold(el, fn) {
   el.addEventListener('click', e => { if (held) { held = false; e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 }
 
-// Your emojis: upload a GIF or picture to make one, or remove them. el: the message the picker was
-// for (a new emoji is used on it straight away, and tapping one reacts with it).
-function openEmojis(el) {
+// Your emojis: upload a GIF or picture to make one, or remove them. onPick(code, name): what
+// tapping one does (react with it, or put it in what you're writing); a new one is used straight away.
+function openEmojis(onPick) {
   const grid = h('div', { class: 'emogrid' });
   const status = h('div', { class: 'hint' });
   const name = h('input', { placeholder: 'Name it (optional), like party_cat', maxlength: 24, autocapitalize: 'none', autocomplete: 'off', spellcheck: 'false' });
@@ -4760,8 +4890,8 @@ function openEmojis(el) {
   const paint = () => {
     const list = myEmojis || [];
     grid.replaceChildren(...list.map(e => h('div', { class: 'emotile' },
-      h('button', { type: 'button', class: 'emopick', title: el ? `React with :${e.name}:` : `:${e.name}:`, onclick: () => {
-        if (el) { md.close(); toggleReaction(el, e.code); } else openEmojiInfo(e.code);
+      h('button', { type: 'button', class: 'emopick', title: `:${e.name}:`, onclick: () => {
+        if (onPick) { md.close(); onPick(e.code, e.name); } else openEmojiInfo(e.code);
       } }, emojiImg(e.code, e.name), h('span', null, e.name)),
       h('button', { type: 'button', class: 'emox', title: 'Remove from my emojis', 'aria-label': `Remove :${e.name}:`, onclick: async () => {
         const d = await act('forgetEmoji', { code: e.code });
@@ -4787,11 +4917,11 @@ function openEmojis(el) {
     myEmojis = [d.emoji].concat((myEmojis || []).filter(x => x.code !== d.emoji.code));
     name.value = '';
     toast(`:${d.emoji.name}: is saved to your emojis`);
-    if (el) { md.close(); toggleReaction(el, d.emoji.code); return; }
+    if (onPick) { md.close(); onPick(d.emoji.code, d.emoji.name); return; }
     paint();
   };
   const md = modal('emojis scroll', h('h2', null, '\u{1F600} Custom emojis'),
-    h('div', { class: 'hint' }, 'Turn a GIF or picture into an emoji to react with. GIFs keep moving. They\u2019re saved to your account, so they\u2019re there on every device.'),
+    h('div', { class: 'hint' }, 'Turn a GIF or picture into an emoji for your posts and messages (type its :name: or use the \u{1F600} button). GIFs keep moving. They\u2019re saved to your account, so they\u2019re there on every device.'),
     name, h('div', { class: 'emoup' }, file, up), status,
     h('div', { class: 'emohead' }, 'Your emojis'), grid,
     h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
@@ -5179,6 +5309,8 @@ function openEmbedMaker() {
   url.focus();
 }
 $('postembed').onclick = openEmbedMaker;
+$('postemoji').onclick = e => openEmojiPanel(e.currentTarget, $('posttext'));
+$('emojibtn').onclick = e => openEmojiPanel(e.currentTarget, $('text'));
 
 // ---------- Idiocy Projects ----------
 // Something you made (code, a picture, a video or a website) that you keep changing. Posts with
@@ -6139,6 +6271,8 @@ function updateComposer() {
   $('postembed').classList.toggle('hidden', serverApi < 28);
   $('postembed').disabled = !!muted || locked;
   $('postproject').classList.toggle('hidden', serverApi < 29);
+  $('postemoji').classList.toggle('hidden', serverApi < 32);
+  $('emojibtn').classList.toggle('hidden', serverApi < 32);
   $('postproject').disabled = !!muted || locked;
   $('postpoll').disabled = !!muted || locked;
   note.onclick = null;
@@ -6179,13 +6313,14 @@ async function send(text, att, extra = {}) {
     ...(extra.voice && { img: 'local', local: extra.voice, vo: extra.dur }),
     ...(extra.embed && { em: extra.embed.url ? { u: extra.embed.url } : { c: extra.embed.code.length, local: extra.embed.code } }),
     ...(extra.project && { pj: extra.project.id, proj: extra.project }),
+    ...(emojisIn(text) && { ce: emojisIn(text) }),
   }, true);
   if (rp) setReply(null);
   log.querySelectorAll('.sys.empty').forEach(e => e.remove());
   if (isFeed()) log.insertBefore(pending, feedTop()); else log.appendChild(pending); // under the stories row
   scrollDown();
   try {
-    const d = await api('send', { convo: openId, text, ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
+    const d = await api('send', { convo: openId, text, ...(emojisIn(text) && { emojis: emojisIn(text) }), ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
       ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }), ...(extra.project && { project: extra.project.id }) });
     if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false; }
     if (sentTo !== 'global') notePreview(sentTo, d.message);
