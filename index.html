@@ -680,7 +680,7 @@
   .storyview .stop .ago { color: rgba(255, 255, 255, .7); font-size: 13px; flex: 1; }
   .storyview .sx { border: 0; background: none; color: #fff; font-size: 26px; cursor: pointer; padding: 0 6px; }
   .storyview .sstage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
-  .storyview .sstage img { max-width: 100%; max-height: 100%; object-fit: contain; }
+  .storyview .sstage img { width: 100%; height: 100%; object-fit: contain; } /* small ones (like shrunk GIFs) fill the screen too */
   .storyview .sstage img.hidden { display: none; }
   .storyview .sload { display: flex; flex-direction: column; align-items: center; gap: 14px; color: rgba(255, 255, 255, .85); font-size: 15px; font-weight: 600; }
   .storyview .sload.hidden { display: none; }
@@ -6390,15 +6390,35 @@ function readAsDataURL(file) {
 }
 
 // Shrinks photos to fit the server limit. Small GIFs are kept as-is so they stay animated.
+// A GIF too big to keep as a picture (about 210 KB): the server turns it into a smaller animated
+// WebP that still moves. null if it can't (then it becomes a still picture).
+async function shrinkGif(file) {
+  if (serverApi < 33 || file.size > 25 * 1024 * 1024) return null;
+  toast('Shrinking your GIF so it keeps moving\u2026');
+  progress(1);
+  try {
+    const d = await fetch(`${MEDIA_BASE}/upload/gif`, { method: 'POST', headers: { 'x-idiocy-token': token || '' }, body: file }).then(r => r.json());
+    if (d.ok && d.data && d.data.length - d.data.indexOf(',') - 1 <= MAX_IMAGE_CHARS) return { data: d.data, w: d.w, h: d.h };
+    if (d.error) console.warn('GIF:', d.error);
+  } catch (e) {}
+  finally { progress(-1); }
+  return null;
+}
+
 async function prepareImage(file) {
   if (!file || !file.type.startsWith('image/')) throw new Error("That file isn't an image");
   const url = URL.createObjectURL(file);
   try {
     const img = await loadImg(url);
     const w0 = img.naturalWidth, h0 = img.naturalHeight;
+    let stillGif = false;
     if (file.type === 'image/gif') {
       const data = await readAsDataURL(file);
       if (data.length - data.indexOf(',') - 1 <= MAX_IMAGE_CHARS) return { data, w: w0, h: h0 };
+      // Too big to keep as it is: the server makes it a smaller moving picture that fits.
+      const small = await shrinkGif(file);
+      if (small) return small;
+      stillGif = true;
     }
     for (const max of [1280, 1024, 800, 640, 480]) {
       const scale = Math.min(1, max / Math.max(w0, h0));
@@ -6412,7 +6432,10 @@ async function prepareImage(file) {
       g.drawImage(img, 0, 0, w, h);
       for (const q of [0.82, 0.7]) {
         const data = c.toDataURL('image/jpeg', q);
-        if (data.length - data.indexOf(',') - 1 <= MAX_IMAGE_CHARS) return { data, w, h };
+        if (data.length - data.indexOf(',') - 1 <= MAX_IMAGE_CHARS) {
+          if (stillGif) toast('That GIF was too big to keep moving, so it\u2019s a still picture. Try a shorter one.', true);
+          return { data, w, h };
+        }
       }
     }
     throw new Error('That image is too big');
