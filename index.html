@@ -3120,7 +3120,7 @@ function setFeedMode(on) {
   const note = $('composernote'), bar = $('attachbar');
   if (on) {
     $('feedbox').prepend(note, bar); // above the post box, like in chats
-    if (me) $('fbrow').replaceChildren(avatar(me.name, { click: false }), $('posttext'), $('postbtn'), $('postcammini'));
+    if (me) $('fbrow').replaceChildren(avatar(me.name, { click: false }), $('posttext'), $('postemoji'), $('postbtn'), $('postcammini'));
   } else {
     $('send').before(note, bar);
   }
