@@ -560,9 +560,10 @@
   #feedbox .fbrow { display: flex; gap: 10px; align-items: flex-start; }
   #feedbox .fbrow .avatar { width: 36px; height: 36px; margin-top: 3px; }
   #posttext { flex: 1; resize: none; min-height: 42px; max-height: 180px; overflow-y: auto; font: inherit; }
-  #feedbox .fbact { display: flex; align-items: center; gap: 8px; padding-left: 46px; overflow-x: auto; scrollbar-width: none; }
+  #feedbox .fbact { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding-left: 46px; scrollbar-width: none; }
   #feedbox .fbact::-webkit-scrollbar { display: none; }
-  #feedbox .fbact > * { flex: none; } /* phones: the row swipes sideways instead of running off the screen */
+  #feedbox .fbact > * { flex: none; }
+  #feedbox .fbmore { display: none; }
   /* Post sits on the same line as the typing box, a bit smaller than other buttons. */
   #feedbox .fbrow #postbtn { flex-shrink: 0; height: 36px; margin-top: 3px; padding: 0 14px; font-size: 14px; border-radius: 10px; }
   #feedbox .fbact .hint { color: var(--muted); font-size: 12px; }
@@ -574,10 +575,31 @@
   .camerabtn:hover { background: rgba(106, 76, 245, .2); }
   .camerabtn:disabled { opacity: .5; cursor: default; }
   .camerabtn, .pollbtn { white-space: nowrap; }
+  .pollbtn { display: inline-flex; align-items: center; gap: 6px; }
+  .tl.mob { display: none; }
+  /* Phones: every option is a small tile (icon over its name) and they all fit across. On a very
+     narrow screen the row swipes, and fades at the edge with an arrow so it's clear there's more. */
   @media (max-width: 720px) {
-    #feedbox .camerabtn { flex: 1; max-width: 280px; height: 44px; padding: 0 12px; }
-    #feedbox .pollbtn { height: 44px; padding: 0 12px; }
-    #feedbox .fbact { gap: 6px; }
+    #feedbox { padding-left: 10px; padding-right: 10px; }
+    #feedbox .fbact { padding-left: 0; gap: 3px; flex-wrap: nowrap; overflow-x: auto; }
+    #feedbox .fbact > button { flex: 1 1 0; min-width: 43px; max-width: 76px; height: 54px; padding: 5px 2px 4px; margin: 0;
+      display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      border-radius: 12px; font-size: 11px; font-weight: 600; line-height: 1.1; }
+    #feedbox .fbact > button.hidden { display: none; }
+    #feedbox .fbact .ti { font-size: 20px; line-height: 1; }
+    #feedbox .fbact .ti.emb { font-size: 14px; font-weight: 800; font-family: ui-monospace, Menlo, Consolas, monospace; height: 20px; display: flex; align-items: center; }
+    #feedbox .fbact svg { width: 21px; height: 21px; flex: none; }
+    #feedbox .fbact .tl.mob { display: inline; }
+    #feedbox .fbact .tl.dsk { display: none; }
+    #feedbox .fbact #postimg { color: var(--text); }
+    #feedbox #postcount:empty { display: none; }
+    #feedbox .fbact.more-r { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
+    #feedbox .fbact.more-l { -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to left, #000 calc(100% - 44px), transparent); }
+    #feedbox .fbact.more-l.more-r { -webkit-mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, transparent, #000 44px, #000 calc(100% - 44px), transparent); }
+    #feedbox .fbwrap { position: relative; }
+    #feedbox .fbmore { display: block; position: absolute; top: 50%; right: 0; transform: translateY(-50%); width: 26px; height: 26px; padding: 0; border-radius: 50%;
+      border: 1px solid var(--border); background: var(--panel); color: var(--text); font-size: 16px; line-height: 1; box-shadow: 0 2px 6px rgba(0, 0, 0, .15); z-index: 1; }
+    #feedbox .fbmore.hidden { display: none; }
   }
   /* ---------- polls ---------- */
   .pollbtn { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font-weight: 600; cursor: pointer; flex-shrink: 0; }
@@ -806,7 +828,7 @@
     #log.feed > .feedend { height: var(--feedh, 600px); }
     /* The post box stays one slim row until you tap it. */
     #feedbox:not(.open) { padding-top: 8px; padding-bottom: 8px; }
-    #feedbox:not(.open) .fbact, #feedbox:not(.open) #postbtn { display: none; }
+    #feedbox:not(.open) .fbwrap, #feedbox:not(.open) #postbtn { display: none; }
     #feedbox:not(.open) #postcammini { display: inline-flex; }
   }
   /* One post per screen, on phones and computers: each swipe or scroll moves exactly one post. */
@@ -1624,18 +1646,18 @@
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
       <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What idiotic idea have you thought of?"></textarea><button class="primary" id="postbtn" type="button">Post</button><button type="button" id="postcammini" title="Take photo" aria-label="Take photo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button></div>
-      <div class="fbact">
+      <div class="fbact" id="fbact">
         <button type="button" class="iconbtn" id="postimg" title="Add a picture" aria-label="Add a picture">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
-          </svg>
+          </svg><span class="tl mob">Photo</span>
         </button>
-        <button type="button" class="camerabtn" id="postcam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg>Take photo</button>
-        <button type="button" class="pollbtn emojibtn hidden" id="postemoji" title="Your custom emojis">😀 Emoji</button>
-        <button type="button" class="pollbtn hidden" id="postpoll" title="Make a poll">📊 Poll</button>
-        <button type="button" class="pollbtn hidden" id="postshort" title="Post a Short (a video up to 60 seconds)">🎬 Short</button>
-        <button type="button" class="pollbtn hidden" id="postembed" title="Embed a website or run some HTML">&lt;/&gt; Embed</button>
-        <button type="button" class="pollbtn hidden" id="postproject" title="Post one of your projects">🧪 Project</button>
+        <button type="button" class="camerabtn" id="postcam"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/></svg><span class="tl dsk">Take photo</span><span class="tl mob">Camera</span></button>
+        <button type="button" class="pollbtn emojibtn hidden" id="postemoji" title="Your custom emojis"><span class="ti">😀</span><span class="tl">Emoji</span></button>
+        <button type="button" class="pollbtn hidden" id="postpoll" title="Make a poll"><span class="ti">📊</span><span class="tl">Poll</span></button>
+        <button type="button" class="pollbtn hidden" id="postshort" title="Post a Short (a video up to 60 seconds)"><span class="ti">🎬</span><span class="tl">Short</span></button>
+        <button type="button" class="pollbtn hidden" id="postembed" title="Embed a website or run some HTML"><span class="ti emb">&lt;/&gt;</span><span class="tl">Embed</span></button>
+        <button type="button" class="pollbtn hidden" id="postproject" title="Post one of your projects"><span class="ti">🧪</span><span class="tl">Project</span></button>
         <input type="file" id="shortfile" accept="video/*" class="hidden">
         <span class="hint" id="postcount">Ctrl+Enter to post</span>
       </div>
@@ -7720,6 +7742,28 @@ $('send').addEventListener('submit', async e => {
   }
   textEl.focus();
 });
+
+// The post box's options: if they don't all fit (very narrow phones), fade the edge that has more
+// and show an arrow that scrolls to them.
+(() => {
+  const row = $('fbact');
+  const wrap = h('div', { class: 'fbwrap' });
+  row.replaceWith(wrap);
+  const more = h('button', { type: 'button', class: 'fbmore hidden', 'aria-label': 'More options',
+    onpointerdown: e => e.preventDefault(), // keeps the typing where it is (and the post box open)
+    onclick: () => row.scrollBy({ left: row.clientWidth * 0.7, behavior: 'smooth' }) }, '\u203A');
+  wrap.append(row, more);
+  const check = () => {
+    const over = row.scrollWidth - row.clientWidth > 2;
+    const right = over && row.scrollLeft < row.scrollWidth - row.clientWidth - 2, left = over && row.scrollLeft > 2;
+    row.classList.toggle('more-r', right);
+    row.classList.toggle('more-l', left);
+    more.classList.toggle('hidden', !right);
+  };
+  row.addEventListener('scroll', check, { passive: true });
+  if (window.ResizeObserver) new ResizeObserver(check).observe(row);
+  new MutationObserver(check).observe(row, { subtree: true, attributes: true, attributeFilter: ['class'] }); // options appear as the server says what it can do
+})();
 
 // Post box: grows as you type; Ctrl/Cmd+Enter posts, Enter makes a new line.
 const TOUCH = matchMedia('(hover: none)').matches;
