@@ -206,6 +206,9 @@
   .row:hover .x { visibility: visible; }
   .row .x:hover { color: var(--danger); }
   .req { padding: 6px 8px; font-size: 14px; }
+  .profile .pfollow { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; font-size: 14px; color: var(--muted); margin: 2px 0; }
+  .profile .pfollow b { color: var(--text); }
+  .profile .pfollow .ptag { padding: 1px 8px; border-radius: 999px; background: var(--panel-2); color: var(--text); font-size: 12px; font-weight: 600; }
   .req .actions { display: flex; gap: 6px; margin-top: 6px; }
   .muted { color: var(--muted); font-size: 13px; padding: 4px 8px; }
   #addfriend { display: flex; gap: 6px; padding: 0 8px 8px; }
@@ -1590,8 +1593,8 @@
     <div class="sec friends">
       <div class="sec-head">Friends</div>
       <form id="addfriend">
-        <input placeholder="Add by username" maxlength="20" autocomplete="off">
-        <button class="primary" type="submit">Add</button>
+        <input placeholder="Follow by username" maxlength="20" autocomplete="off">
+        <button class="primary" type="submit">Follow</button>
       </form>
       <button type="button" class="ghost hidden" id="invitebtn">🔗 Invite friends with a link</button>
       <div id="requests"></div>
@@ -1868,20 +1871,20 @@ async function openProfile(name) {
       : st.outgoing.some(n => key(n) === key(name)) ? 'outgoing' : '';
     const run = (action, data, done) => async () => { if (await act(action, data)) { m.close(); if (done) done(); } };
     // Friend buttons use the same instant-updating helpers as the sidebar.
-    const friendly = (fn, done) => async () => { m.close(); if (await fn()) { if (done) done(); } };
+    const friendly = (fn, done) => async () => { m.close(); const d = await fn(); if (d && done) done(d); };
     const big = avatar(p.username || name, { dot: true, click: false });
     big.classList.add('big');
     const btns = [];
     if (isMe) btns.push(h('button', { class: 'primary', onclick: () => { m.close(); openEditProfile(); } }, 'Edit profile'));
     else if (rel === 'friend') btns.push(
       h('button', { class: 'primary', onclick: () => { m.close(); openDm(p.username || name); } }, 'Message'),
-      h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Remove ${name} from your friends?`)) friendly(() => unfriend(name))(); } }, 'Remove friend'));
+      h('button', { class: 'ghost', onclick: () => { if (confirm(unfollowQuestion(name))) friendly(() => unfollowUser(name))(); } }, 'Unfollow'));
     else if (rel === 'incoming') btns.push(
-      h('button', { class: 'primary', onclick: friendly(() => respond(name, true), () => toast(`You're now friends with ${name}!`)) }, 'Accept request'),
-      h('button', { class: 'ghost', onclick: friendly(() => respond(name, false)) }, 'Decline'));
+      h('button', { class: 'primary', onclick: friendly(() => respond(name, true), () => toast(`\u{1F389} You and ${displayName(name)} follow each other, so you\u2019re friends now!`)) }, 'Follow back'),
+      h('button', { class: 'ghost', onclick: friendly(() => respond(name, false)) }, 'Remove follower'));
     else if (rel === 'outgoing') btns.push(
-      h('button', { class: 'ghost', onclick: friendly(() => unfriend(name)) }, 'Cancel request'));
-    else if (!isBlocked(name)) btns.push(h('button', { class: 'primary', onclick: friendly(() => requestFriend(name), () => toast('Friend request sent')) }, 'Add friend'));
+      h('button', { class: 'ghost', title: 'Unfollow', onclick: friendly(() => unfollowUser(name)) }, '\u2713 Following'));
+    else if (!isBlocked(name)) btns.push(h('button', { class: 'primary', onclick: friendly(() => requestFriend(name), d => toast(followToast(d))) }, 'Follow'));
     if (!isMe && serverApi >= 12 && p.role !== 'admin') btns.push(isBlocked(name)
       ? h('button', { class: 'ghost', onclick: () => { m.close(); unblockUser(p.username || name); } }, 'Unblock')
       : h('button', { class: 'ghost danger', onclick: () => { m.close(); blockUser(p.username || name); } }, 'Block'));
@@ -1909,6 +1912,11 @@ async function openProfile(name) {
           tame(p.status) || (p.online ? 'Online' : 'Offline')),
         p.game && h('div', { class: 'pgame' }, '\u{1F3AE} Playing ', h('b', null, p.game)),
         isBlocked(name) && h('div', { class: 'pmeta' }, '\u{1F6AB} You\u2019ve blocked them. They can\u2019t add or message you.'),
+        serverApi >= 34 && m._counts && h('div', { class: 'pfollow' },
+          h('span', null, h('b', null, String(m._counts.followers)), m._counts.followers === 1 ? ' follower' : ' followers'),
+          h('span', null, h('b', null, String(m._counts.following)), ' following'),
+          !isMe && rel === 'friend' && h('span', { class: 'ptag' }, '\u{1F91D} Friends'),
+          !isMe && rel === 'incoming' && h('span', { class: 'ptag' }, 'Follows you')),
         badgeRow(p, m._badges),
         p.bio && h('div', { class: 'pbio' }, tame(p.bio)),
         p.created && h('div', { class: 'pmeta' }, 'Joined ' + new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })),
@@ -1920,9 +1928,11 @@ async function openProfile(name) {
   m._st = st;
   // Always get a fresh copy when opening someone's profile, plus their badges.
   try {
-    const [d, b] = await Promise.all([api('profiles', { names: [name] }),
-      serverApi >= 12 ? api('badges', { username: name }) : Promise.resolve(null)]);
+    const [d, b, c] = await Promise.all([api('profiles', { names: [name] }),
+      serverApi >= 12 ? api('badges', { username: name }) : Promise.resolve(null),
+      serverApi >= 34 ? api('followCounts', { username: name }) : Promise.resolve(null)]);
     if (b && b.ok) m._badges = b;
+    if (c && c.ok) m._counts = c;
     if (d.ok) storeProfiles(d.profiles);
     if (m.overlay.isConnected) render();
   } catch (e) {}
@@ -2887,7 +2897,9 @@ let lastActivity = 0; // when the open chat last had a new message
 function schedule() {
   clearTimeout(pollTimer);
   // Check a bit more often while messages are flowing, back off when quiet.
-  const busy = Date.now() - lastActivity < 30000 || (st && (st.outgoing.length || st.incoming.length) > 0);
+  // (Following people who haven't followed back can last forever, so that doesn't speed polling up:
+  // a follow-back comes as a ping, which refreshes the friends list straight away.)
+  const busy = Date.now() - lastActivity < 30000 || (serverApi < 34 && st && (st.outgoing.length || st.incoming.length) > 0);
   if (token) pollTimer = setTimeout(poll, document.hidden ? POLL_HIDDEN : busy ? POLL_BUSY : POLL_ACTIVE);
 }
 
@@ -2987,14 +2999,15 @@ function renderSide() {
 
   const reqs = [];
   wantProfiles(st.incoming); // for their names
+  // People who follow you (follow them back and you're friends), then people you follow.
   st.incoming.forEach(n => reqs.push(fresh(h('div', { class: 'req' },
-    h('b', null, displayName(n)), ' wants to be friends',
+    h('b', null, displayName(n)), ' follows you',
     h('div', { class: 'actions' },
-      h('button', { class: 'primary', style: 'padding:4px 12px', onclick: () => respond(n, true) }, 'Accept'),
-      h('button', { class: 'ghost', onclick: () => respond(n, false) }, 'Decline'))), 'i:' + key(n))));
-  st.outgoing.forEach(n => reqs.push(fresh(h('div', { class: 'row' },
-    avatar(n), h('span', { class: 'label' }, displayName(n), h('span', { class: 'muted' }, 'pending')),
-    h('button', { class: 'x', title: 'Cancel request', onclick: () => unfriend(n) }, '✕')), 'o:' + key(n))));
+      h('button', { class: 'primary', style: 'padding:4px 12px', onclick: async () => { const d = await respond(n, true); if (d && d.status) toast(followToast(d)); } }, 'Follow back'),
+      h('button', { class: 'ghost', onclick: () => respond(n, false) }, 'Remove'))), 'i:' + key(n))));
+  st.outgoing.forEach(n => reqs.push(fresh(h('div', { class: 'row', onclick: () => openProfile(n) },
+    avatar(n), h('span', { class: 'label' }, displayName(n), h('span', { class: 'muted' }, 'following')),
+    h('button', { class: 'x', title: 'Unfollow', onclick: e => { e.stopPropagation(); unfollowUser(n); } }, '✕')), 'o:' + key(n))));
   $('requests').replaceChildren(...reqs);
 
   $('friends').replaceChildren(...(st.friends.length
@@ -3003,10 +3016,10 @@ function renderSide() {
         h('span', { class: 'label two' }, h('b', { style: 'font-weight:500', class: profileOf(n) && profileOf(n).role === 'admin' ? 'admin-name' : null }, displayName(n)),
           profileOf(n) && (profileOf(n).status || profileOf(n).game) && h('span', { class: 'st' }, tame(profileOf(n).status) || '\u{1F3AE} ' + tame(profileOf(n).game))),
         h('button', {
-          class: 'x', title: 'Remove friend',
-          onclick: e => { e.stopPropagation(); if (confirm(`Remove ${displayName(n)} from your friends?`)) unfriend(n); },
+          class: 'x', title: 'Unfollow',
+          onclick: e => { e.stopPropagation(); if (confirm(unfollowQuestion(n))) unfollowUser(n); },
         }, '✕')), 'f:' + key(n)))
-    : [h('div', { class: 'muted' }, 'No friends yet. Add someone by username!')]));
+    : [h('div', { class: 'muted' }, 'No friends yet. Follow people, and when they follow you back you\u2019re friends!')]));
   seenRows = seen;
   renderStories();
   renderTabs();
@@ -3015,10 +3028,28 @@ function renderSide() {
 
 
 // Friend actions update the sidebar immediately; the server catches up after.
+// Following: follow someone who follows you and you're friends. (Older servers: friend requests.)
 function respond(n, accept) {
+  if (serverApi >= 34) return accept ? requestFriend(n) : removeFollower(n);
   return act('friendRespond', { username: n, accept }, null, s => {
     drop(s.incoming, n);
     if (accept && !has(s.friends, n)) s.friends.push(n);
+  });
+}
+const unfollowQuestion = n => `Unfollow ${displayName(n)}? You won\u2019t be friends any more, but they\u2019ll still follow you.`;
+// You stop following them. A friend who's unfollowed still follows you.
+function unfollowUser(n) {
+  if (serverApi < 34) return unfriend(n);
+  return act('unfollow', { username: n }, null, s => {
+    if (has(s.friends, n)) { drop(s.friends, n); s.incoming.push(n); }
+    drop(s.outgoing, n);
+  });
+}
+// They stop following you. If you were friends, you still follow them.
+function removeFollower(n) {
+  return act('removeFollower', { username: n }, null, s => {
+    if (has(s.friends, n)) { drop(s.friends, n); s.outgoing.push(n); }
+    drop(s.incoming, n);
   });
 }
 
@@ -3027,7 +3058,7 @@ function unfriend(n) {
 }
 
 function requestFriend(n) {
-  return act('friendRequest', { username: n }, null, s => {
+  return act(serverApi >= 34 ? 'follow' : 'friendRequest', { username: n }, null, s => {
     if (has(s.friends, n)) return;
     if (has(s.incoming, n)) { drop(s.incoming, n); s.friends.push(n); } // they'd already asked us
     else if (!has(s.outgoing, n)) s.outgoing.push(n);
@@ -3222,6 +3253,9 @@ async function openDm(name) {
   switchTo(d ? d.convo : 'global');
 }
 
+const followToast = d => d.status === 'friends'
+  ? `\u{1F389} You and ${displayName(d.username)} follow each other, so you\u2019re friends now!`
+  : serverApi >= 34 ? `You\u2019re following ${displayName(d.username)}. If they follow you back, you\u2019ll be friends.` : `Friend request sent to ${displayName(d.username)}`;
 $('addfriend').addEventListener('submit', async e => {
   e.preventDefault();
   const input = $('addfriend').querySelector('input');
@@ -3232,7 +3266,7 @@ $('addfriend').addEventListener('submit', async e => {
   if (!d && !input.value) input.value = name;
   if (!d) return;
   input.value = '';
-  toast(d.status === 'friends' ? `You're now friends with ${displayName(d.username)}!` : `Friend request sent to ${displayName(d.username)}`);
+  toast(followToast(d));
 });
 
 // ---------- groups ----------
@@ -6025,13 +6059,18 @@ function swearFactor(m) {
   const words = [m.text || ''].concat(m.pl ? m.pl.o : []).join(' ').split(/\s+/).filter(Boolean).length;
   return 1 / (1 + 0.08 * m.sw + 0.5 * Math.min(1, m.sw / Math.max(1, words)));
 }
+// People you follow (friends too) come up more.
+function followFactor(m) {
+  if (!st || !m.name || (me && key(m.name) === key(me.name))) return 1;
+  return has(st.friends, m.name) || has(st.outgoing, m.name) ? 2.5 : 1;
+}
 // Likes and comments push a post up; age slowly pulls it down.
 function postScore(m) {
   const r = m.r || {};
   const likes = (r[HEART] || []).length;
   const others = Object.keys(r).reduce((n, e) => n + (e === HEART ? 0 : (r[e] || []).length), 0);
   const hours = Math.max(0, (Date.now() - (m.time || Date.now())) / 36e5);
-  return (1 + likes * 3 + (m.cc || 0) * 4 + others) / Math.pow(hours + 2, 1.2) * swearFactor(m);
+  return (1 + likes * 3 + (m.cc || 0) * 4 + others) / Math.pow(hours + 2, 1.2) * swearFactor(m) * followFactor(m);
 }
 // Puts the loaded posts in order, somewhat random with liked posts usually first. Only when
 // the feed opens, never while you're reading, so nothing jumps.
@@ -6069,7 +6108,7 @@ function paintFeedEnd() {
 function againWeight(m) {
   const r = m.r || {};
   const others = Object.keys(r).reduce((n, e) => n + (e === HEART ? 0 : (r[e] || []).length), 0);
-  return (1 + ((r[HEART] || []).length) * 3 + (m.cc || 0) * 2 + others) * swearFactor(m);
+  return (1 + ((r[HEART] || []).length) * 3 + (m.cc || 0) * 2 + others) * swearFactor(m) * followFactor(m);
 }
 // More earlier posts at the end of the feed, never the same post twice in a row.
 function topUpFeed(n = AHEAD * 2) {
@@ -7309,8 +7348,8 @@ function handlePings(pings) {
     : p.kind === 'comment' ? 'commented' : p.kind === 'removed' ? 'removed you from a group' : 'mentioned you';
   const from = displayName(p.from);
   const text = p.kind === 'removed' ? `${from} removed you from "${p.text}"`
-    : p.kind === 'friendreq' ? `${from} sent you a friend request`
-    : p.kind === 'friendaccept' ? `${from} accepted your friend request! Click to say hi.`
+    : p.kind === 'friendreq' ? (serverApi >= 34 ? `${from} followed you. Follow them back to be friends!` : `${from} sent you a friend request`)
+    : p.kind === 'friendaccept' ? (serverApi >= 34 ? `${from} followed you back. You\u2019re friends now! Click to say hi.` : `${from} accepted your friend request! Click to say hi.`)
     : p.kind === 'invitejoin' ? `\u{1F389} ${from} joined you with your invite link! Click to say hi.`
     : `${from} ${where}: ${tame(p.text)}`;
   const go = () => (p.kind === 'removed' ? null
@@ -7722,7 +7761,7 @@ function handleCommand(input) {
     case 'help':
       sys(admin
         ? 'Admin commands: /clear (wipes Global), /ban <username>, /unban <username>. Hover any message to delete it.'
-        : 'Hover your own messages to delete them. Add friends in the sidebar to DM them or make groups.');
+        : 'Hover your own messages to delete them. Follow people in the sidebar: when they follow you back you\u2019re friends, and can DM and make groups.');
       return true;
     case 'clear':
       if (!admin) return false;
