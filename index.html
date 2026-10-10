@@ -2034,10 +2034,16 @@ function openEditProfile() {
   paintPreview();
   const file = h('input', { type: 'file', accept: 'image/*', class: 'hidden' });
   file.onchange = async () => {
-    if (!file.files[0]) return;
-    try { pic = await shrinkImage(file.files[0]); paintPreview(); }
-    catch (e) { toast("Couldn't read that image", true); }
+    const f = file.files[0];
     file.value = '';
+    if (!f) return;
+    try {
+      // A GIF stays moving (the server makes it a small square animation); anything else is a still.
+      const moving = f.type === 'image/gif' ? await shrinkGif(f, true) : null;
+      if (f.type === 'image/gif' && !moving) toast('Couldn\u2019t keep that GIF moving, so it\u2019s a still picture', true);
+      pic = moving ? moving.data : await shrinkImage(f);
+      paintPreview();
+    } catch (e) { toast("Couldn't read that image", true); }
   };
   const status = h('input', { maxlength: 40, placeholder: 'What are you up to?' });
   status.value = p.status || '';
@@ -6430,14 +6436,16 @@ function readAsDataURL(file) {
 
 // Shrinks photos to fit the server limit. Small GIFs are kept as-is so they stay animated.
 // A GIF too big to keep as a picture (about 210 KB): the server turns it into a smaller animated
-// WebP that still moves. null if it can't (then it becomes a still picture).
-async function shrinkGif(file) {
-  if (serverApi < 33 || file.size > 25 * 1024 * 1024) return null;
-  toast('Shrinking your GIF so it keeps moving\u2026');
+// WebP that still moves. avatar: a small square for a profile picture instead. null if it can't
+// (then it becomes a still picture).
+const MAX_AVATAR_CHARS = 40000; // the server's limit for a profile picture
+async function shrinkGif(file, avatar) {
+  if (serverApi < (avatar ? 35 : 33) || file.size > 25 * 1024 * 1024) return null;
+  toast(avatar ? 'Making your profile picture\u2026 it\u2019ll keep moving' : 'Shrinking your GIF so it keeps moving\u2026');
   progress(1);
   try {
-    const d = await fetch(`${MEDIA_BASE}/upload/gif`, { method: 'POST', headers: { 'x-idiocy-token': token || '' }, body: file }).then(r => r.json());
-    if (d.ok && d.data && d.data.length - d.data.indexOf(',') - 1 <= MAX_IMAGE_CHARS) return { data: d.data, w: d.w, h: d.h };
+    const d = await fetch(`${MEDIA_BASE}/upload/gif${avatar ? '?for=avatar' : ''}`, { method: 'POST', headers: { 'x-idiocy-token': token || '' }, body: file }).then(r => r.json());
+    if (d.ok && d.data && (avatar ? d.data.length <= MAX_AVATAR_CHARS : d.data.length - d.data.indexOf(',') - 1 <= MAX_IMAGE_CHARS)) return { data: d.data, w: d.w, h: d.h };
     if (d.error) console.warn('GIF:', d.error);
   } catch (e) {}
   finally { progress(-1); }
