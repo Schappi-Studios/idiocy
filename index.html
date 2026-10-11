@@ -1282,6 +1282,48 @@
   #shorts.desk .sicons .on { color: #ff3040; }
   #shorts.desk .sempty .big { line-height: 1; }
   #shortsrow.on { background: var(--panel-2); }
+  /* Someone's profile page. Phones: full screen above the tab bar. Computers: where the feed goes,
+     beside the sidebar. Shorts opened from it go on top (same level, added later). */
+  #profilepage { position: fixed; inset: 0 0 var(--mtabh, 64px); z-index: 900; display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
+  #profilepage.desk { position: absolute; inset: 0; z-index: 40; }
+  body.profile-open .overlay { z-index: 950; }
+  body.profile-open #toast { z-index: 960; }
+  #profilepage .ptop { flex: none; display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 12px; box-sizing: border-box; background: var(--panel); border-bottom: 1px solid var(--border); }
+  #profilepage .ptop .iconbtn { height: 36px; font-size: 16px; }
+  #profilepage .ptop .titles { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  #profilepage .ptop .titles b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #profilepage .ptop .titles span { color: var(--muted); font-size: 12px; }
+  #profilepage .pscroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  #profilepage .profile, #profilepage .ptabs, #profilepage .pgrid, #profilepage .pfoot { max-width: 760px; margin-left: auto; margin-right: auto; }
+  #profilepage .profile { background: var(--panel); border-bottom: 1px solid var(--border); }
+  #profilepage .profile .banner { height: 110px; }
+  #profilepage .profile .inner { padding-bottom: 18px; }
+  #profilepage .profile .pfollow { justify-content: flex-start; }
+  #profilepage .profile .btns { display: flex; gap: 8px; }
+  #profilepage.desk .profile { margin-top: 16px; border: 1px solid var(--border); border-radius: 16px; overflow: hidden; }
+  #profilepage .ptabs { display: flex; position: sticky; top: 0; z-index: 1; background: var(--bg); border-bottom: 1px solid var(--border); }
+  #profilepage .ptabs button { flex: 1; padding: 13px 8px 11px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+  #profilepage .ptabs button.on { color: var(--text); border-bottom-color: var(--text); }
+  #profilepage .ptabs .n { margin-left: 6px; font-weight: 600; opacity: .75; }
+  #profilepage .pgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; padding-top: 3px; }
+  #profilepage .tile { position: relative; aspect-ratio: 1; overflow: hidden; padding: 0; border: 0; border-radius: 0; background: var(--panel-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  #profilepage .pgrid.shorts .tile { aspect-ratio: 9 / 16; background: #000; }
+  #profilepage .tile:hover { filter: brightness(.93); }
+  #profilepage .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  #profilepage .tile .ttext { position: absolute; inset: 0; padding: 10px 10px 26px; font-size: 13px; line-height: 1.35; overflow: hidden; overflow-wrap: anywhere; white-space: pre-wrap;
+    -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+  #profilepage .tile.short .ttext { display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; font-size: 16px; font-weight: 700; -webkit-mask-image: none; mask-image: none; }
+  #profilepage .tile .tstat { position: absolute; left: 7px; bottom: 6px; display: flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+  #profilepage .tile .tstat svg { width: 13px; height: 13px; }
+  #profilepage .tile .tstat svg:not(:first-child) { margin-left: 6px; }
+  #profilepage .tile.media .tstat { color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .7); }
+  #profilepage .tile.media .tstat svg { filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .6)); }
+  #profilepage .pfoot { padding: 28px 16px 40px; text-align: center; color: var(--muted); font-size: 14px; }
+  #profilepage .pfoot .spinner { display: inline-block; }
+  @media (max-width: 720px) {
+    #profilepage .profile .banner { height: 90px; }
+    #profilepage .pgrid { gap: 2px; padding-top: 2px; }
+  }
   #shorts .strack { position: absolute; inset: 0; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none; }
   #shorts .strack::-webkit-scrollbar { display: none; }
   #shorts .slide { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; justify-content: center; overflow: hidden; }
@@ -1825,44 +1867,83 @@ function paintNamesSoon() {
 }
 const nameEl = (n, tag = 'span', attrs = {}) => h(tag, Object.assign({ 'data-dn': n }, attrs), displayName(n));
 
-async function openProfile(name) {
-  const m = modal('profile');
-  const render = () => {
+// Someone's profile page: who they are, Follow (and the rest), then their posts and Shorts in a
+// grid. Computers: where the feed goes, beside the sidebar. Phones: full screen above the tab bar.
+// It goes on top of whatever was open (Shorts too), which is still there when you go back.
+let profileOpen = null;
+// Shorts and profile pages stack up: the one opened last is on top.
+const isTopPage = el => ![...document.querySelectorAll('#shorts, #profilepage')]
+  .some(o => o !== el && (el.compareDocumentPosition(o) & Node.DOCUMENT_POSITION_FOLLOWING));
+const profileLink = n => INVITE_BASE + '?u=' + encodeURIComponent(n);
+function openProfile(name) {
+  if (profileOpen) profileOpen.close();
+  document.querySelectorAll('.overlay').forEach(o => o.remove()); // from a pop-up (comments, followers): the page, not behind it
+  const desk = !isPhone();
+  const head = h('div', { class: 'profile' }), tabs = h('div', { class: 'ptabs', role: 'tablist' });
+  const grid = h('div', { class: 'pgrid' }), foot = h('div', { class: 'pfoot' });
+  const scroller = h('div', { class: 'pscroll' }, head, tabs, grid, foot);
+  const titles = h('div', { class: 'titles' });
+  const username = () => (profileOf(name) || {}).username || name;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(profileLink(username())); toast('\u{1F517} Link copied'); }
+    catch (e) { prompt('Copy this link:', profileLink(username())); }
+  };
+  const view = h('div', { id: 'profilepage', class: desk ? 'desk' : null, role: desk ? 'region' : 'dialog', 'aria-label': displayName(name) + '’s profile' },
+    h('div', { class: 'ptop' },
+      h('button', { class: 'iconbtn', title: 'Back', 'aria-label': 'Back', onclick: () => close() }, icon('M15 18l-6-6 6-6', { width: 20, height: 20, 'stroke-width': '2.5' })),
+      titles,
+      h('button', { class: 'iconbtn', title: 'Copy a link to this profile', 'aria-label': 'Copy a link to this profile', onclick: copy }, '\u{1F517}')),
+    scroller);
+  const state = {
+    name, el: view, close: () => close(), username,
+    counts: null, badges: null, tab: 'posts',
+    posts: { list: null, more: false, loading: false }, shorts: { list: null, more: false, loading: false },
+  };
+  (desk ? document.querySelector('main') : document.body).append(view);
+  document.body.classList.add('profile-open');
+  document.documentElement.style.setProperty('--mtabh', ($('mtabs').offsetHeight || 64) + 'px');
+  profileOpen = state;
+  document.querySelectorAll('#shorts video, #log .vshot video').forEach(v => v.pause()); // what's underneath waits
+
+  const relOf = () => !st ? '' : st.friends.some(n => key(n) === key(name)) ? 'friend'
+    : st.incoming.some(n => key(n) === key(name)) ? 'incoming'
+    : st.outgoing.some(n => key(n) === key(name)) ? 'outgoing' : '';
+  function renderHead() {
     const p = profileOf(name) || { username: name };
-    const isMe = me && key(name) === key(me.name);
-    const rel = !st ? '' : st.friends.some(n => key(n) === key(name)) ? 'friend'
-      : st.incoming.some(n => key(n) === key(name)) ? 'incoming'
-      : st.outgoing.some(n => key(n) === key(name)) ? 'outgoing' : '';
-    const run = (action, data, done) => async () => { if (await act(action, data)) { m.close(); if (done) done(); } };
-    // Friend buttons use the same instant-updating helpers as the sidebar.
-    const friendly = (fn, done) => async () => { m.close(); const d = await fn(); if (d && done) done(d); };
+    const isMe = me && key(name) === key(me.name), rel = relOf();
+    // Following and the rest happen here and the page stays: the buttons and numbers update.
+    const then = (fn, done) => async () => { const d = await fn(); if (d && done) done(d); loadCounts(); };
+    const run = (action, data, done) => async () => { if (await act(action, data)) { if (done) done(); loadInfo(); } };
     const big = avatar(p.username || name, { dot: true, click: false });
     big.classList.add('big');
     const btns = [];
-    if (isMe) btns.push(h('button', { class: 'primary', onclick: () => { m.close(); openEditProfile(); } }, 'Edit profile'));
+    if (isMe) btns.push(h('button', { class: 'primary', onclick: () => openEditProfile() }, 'Edit profile'));
     else if (rel === 'friend') btns.push(
-      h('button', { class: 'primary', onclick: () => { m.close(); openDm(p.username || name); } }, 'Message'),
-      h('button', { class: 'ghost', onclick: () => { if (confirm(unfollowQuestion(name))) friendly(() => unfollowUser(name))(); } }, 'Unfollow'));
+      h('button', { class: 'primary', onclick: () => { close(); openDm(p.username || name); } }, 'Message'),
+      h('button', { class: 'ghost', onclick: () => { if (confirm(unfollowQuestion(name))) then(() => unfollowUser(name))(); } }, 'Unfollow'));
     else if (rel === 'incoming') btns.push(
-      h('button', { class: 'primary', onclick: friendly(() => respond(name, true), () => toast(`\u{1F389} You and ${displayName(name)} follow each other, so you\u2019re friends now!`)) }, 'Follow back'),
-      h('button', { class: 'ghost', onclick: friendly(() => respond(name, false)) }, 'Remove follower'));
+      h('button', { class: 'primary', onclick: then(() => respond(name, true), () => toast(`\u{1F389} You and ${displayName(name)} follow each other, so you’re friends now!`)) }, 'Follow back'),
+      h('button', { class: 'ghost', onclick: then(() => respond(name, false)) }, 'Remove follower'));
     else if (rel === 'outgoing') btns.push(
-      h('button', { class: 'ghost', title: 'Unfollow', onclick: friendly(() => unfollowUser(name)) }, '\u2713 Following'));
-    else if (!isBlocked(name)) btns.push(h('button', { class: 'primary', onclick: friendly(() => requestFriend(name), d => toast(followToast(d))) }, 'Follow'));
+      h('button', { class: 'ghost', title: 'Unfollow', onclick: then(() => unfollowUser(name)) }, '✓ Following'));
+    else if (!isBlocked(name)) btns.push(h('button', { class: 'primary', onclick: then(() => requestFriend(name), d => toast(followToast(d))) }, 'Follow'));
     if (!isMe && serverApi >= 12 && p.role !== 'admin') btns.push(isBlocked(name)
-      ? h('button', { class: 'ghost', onclick: () => { m.close(); unblockUser(p.username || name); } }, 'Unblock')
-      : h('button', { class: 'ghost danger', onclick: () => { m.close(); blockUser(p.username || name); } }, 'Block'));
+      ? h('button', { class: 'ghost', onclick: () => unblockUser(p.username || name) }, 'Unblock')
+      : h('button', { class: 'ghost danger', onclick: () => blockUser(p.username || name) }, 'Block'));
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
       btns.push(p.banned
         ? h('button', { class: 'ghost', onclick: run('unban', { username: name }, () => toast(`${name} unbanned`)) }, 'Unban')
         : h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Ban ${name}?`)) run('ban', { username: name }, () => toast(`${name} banned`))(); } }, 'Ban'));
-      if (serverApi >= 7) btns.push(h('button', { class: 'ghost', onclick: () => renameUser(p.username || name, true, () => m.close()) }, 'Rename'));
-      if (serverApi >= 15) btns.push(h('button', { class: 'ghost', onclick: () => adminSetEmail(p.username || name, () => { profiles.delete(key(name)); openProfile(name); m.close(); }) }, '\u2709\uFE0F Set email'));
-      if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => m.close()) }, 'Delete account'));
+      if (serverApi >= 7) btns.push(h('button', { class: 'ghost', onclick: () => renameUser(p.username || name, true, () => close()) }, 'Rename'));
+      if (serverApi >= 15) btns.push(h('button', { class: 'ghost', onclick: () => adminSetEmail(p.username || name, () => { profiles.delete(key(name)); openProfile(name); }) }, '✉️ Set email'));
+      if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => close()) }, 'Delete account'));
     }
-    m.box.replaceChildren(
+    const c = state.counts, n = state.posts.total;
+    titles.replaceChildren(nameEl(p.username || name, 'b'),
+      h('span', null, n == null ? '@' + (p.username || name) : `${n} post${n === 1 ? '' : 's'}`));
+    head.replaceChildren(
       h('div', { class: 'banner', style: `background:${BANNERS[p.banner] || colorFor(name, 80)}` }),
       h('div', { class: 'inner' },
         big,
@@ -1875,31 +1956,154 @@ async function openProfile(name) {
           h('span', { class: 'dotsm' + (p.online ? ' on' : '') }),
           tame(p.status) || (p.online ? 'Online' : 'Offline')),
         p.game && h('div', { class: 'pgame' }, '\u{1F3AE} Playing ', h('b', null, p.game)),
-        isBlocked(name) && h('div', { class: 'pmeta' }, '\u{1F6AB} You\u2019ve blocked them. They can\u2019t add or message you.'),
-        serverApi >= 34 && m._counts && h('div', { class: 'pfollow' },
-          h('span', null, h('b', null, String(m._counts.followers)), m._counts.followers === 1 ? ' follower' : ' followers'),
-          h('span', null, h('b', null, String(m._counts.following)), ' following'),
+        isBlocked(name) && h('div', { class: 'pmeta' }, '\u{1F6AB} You’ve blocked them. They can’t add or message you.'),
+        serverApi >= 34 && c && h('div', { class: 'pfollow' },
+          n != null && h('span', null, h('b', null, String(n)), n === 1 ? ' post' : ' posts'),
+          h('span', null, h('b', null, String(c.followers)), c.followers === 1 ? ' follower' : ' followers'),
+          h('span', null, h('b', null, String(c.following)), ' following'),
           !isMe && rel === 'friend' && h('span', { class: 'ptag' }, '\u{1F91D} Friends'),
           !isMe && rel === 'incoming' && h('span', { class: 'ptag' }, 'Follows you')),
-        badgeRow(p, m._badges),
+        badgeRow(p, state.badges),
         p.bio && h('div', { class: 'pbio' }, tame(p.bio)),
         p.created && h('div', { class: 'pmeta' }, 'Joined ' + new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })),
         h('div', { class: 'btns' }, btns)));
+  }
+
+  // ---- their posts and Shorts
+  function paintTabs() {
+    const tab = (kind, label) => {
+      const t = state[kind];
+      return h('button', { role: 'tab', class: state.tab === kind ? 'on' : null, 'aria-selected': String(state.tab === kind), onclick: () => setTab(kind) },
+        label, t.total != null && h('span', { class: 'n' }, String(t.total)));
+    };
+    tabs.replaceChildren(tab('posts', 'Posts'), serverApi >= 22 && tab('shorts', shortsIcon + ' Shorts'));
+  }
+  function paintFoot() {
+    const t = state[state.tab], mine = me && key(name) === key(me.name);
+    foot.replaceChildren(
+      isBlocked(name) || state.blocked ? '' :
+      t.loading || (!t.list && !t.error) ? h('span', { class: 'spinner' }) :
+      t.error ? t.error :
+      !t.list.length ? (state.tab === 'shorts' ? (mine ? 'Your Shorts show up here.' : 'No Shorts yet.') : (mine ? 'Your posts show up here.' : 'No posts yet.')) : '');
+  }
+  function setTab(kind) {
+    if (state.tab === kind) return;
+    state.tab = kind;
+    grid.className = 'pgrid ' + kind;
+    grid.replaceChildren(...(state[kind].list || []).map(tile));
+    paintTabs(); paintFoot();
+  }
+  const seen = new IntersectionObserver(entries => entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    seen.unobserve(e.target);
+    const img = e.target.querySelector('img[data-img]');
+    if (img) loadMedia('global', img.dataset.img).then(src => { img.src = src; }).catch(() => img.remove());
+  }), { root: scroller, rootMargin: '300px' });
+  function tile(m) {
+    const r = m.r || {}, likes = (r[HEART] || []).length;
+    const pic = m.vd ? posterUrl(m.vd.id) : m.proj && m.proj.vd ? posterUrl(m.proj.vd.id) : null;
+    const img = m.img && !m.vo && !m.vd;
+    const label = m.vd ? '' : m.proj ? '\u{1F9EA} ' + (m.proj.title || 'Project') + (m.text ? ' · ' + m.text : '')
+      : m.em ? '\u{1F517} ' + (m.text || m.em.u || 'A link') : m.pl ? '\u{1F4CA} ' + (m.text || 'Poll')
+      : m.sh ? '\u{1F4EE} ' + (m.text || 'Shared a post') : m.vo ? '\u{1F3A4} Voice' : m.text || '';
+    const media = !!(pic || img);
+    const el = h('button', { type: 'button', class: 'tile' + (media ? ' media' : '') + (!media && label.length <= 60 ? ' short' : ''),
+      'aria-label': (m.vd ? 'Short' : 'Post') + (m.text ? ': ' + m.text.slice(0, 80) : ''),
+      onclick: () => {
+        if (m.vd) { if (shortsOpen) shortsOpen.close(); openShorts(m.id, { list: state.shorts.list, by: name }); } // their Shorts, over this page
+        else { close(); openPost(m.id, false, true); }
+      } },
+      pic && h('img', { src: pic, alt: '', loading: 'lazy' }),
+      img && h('img', { alt: '', 'data-img': m.img }),
+      !media && h('div', { class: 'ttext' }, tame(label)),
+      (likes > 0 || m.cc > 0) && h('div', { class: 'tstat' },
+        likes > 0 && [icon(ICON_HEART, { fill: 'currentColor', stroke: 'none' }), String(likes)],
+        m.cc > 0 && [icon(ICON_COMMENT, { fill: 'currentColor', stroke: 'none' }), String(m.cc)]));
+    if (img) seen.observe(el);
+    return el;
+  }
+  async function loadPosts(kind, more) {
+    const t = state[kind];
+    if (serverApi < 36 || t.loading || isBlocked(name)) return;
+    t.loading = true; t.error = '';
+    if (state.tab === kind) paintFoot();
+    let d;
+    try { d = await api('userPosts', { username: name, kind, ...(more && t.list && t.list.length && { before: t.list[t.list.length - 1].id }) }); }
+    catch (e) { d = { ok: false, error: 'Could not reach the server' }; }
+    t.loading = false;
+    if (profileOpen !== state) return;
+    if (!d.ok) t.error = d.error || 'Couldn’t load their posts';
+    else {
+      if (!more || !t.list) t.list = [];
+      t.list.push(...d.posts);
+      t.more = d.more;
+      state.blocked = !!d.blocked;
+      state.posts.total = d.counts.posts; state.shorts.total = d.counts.shorts;
+      if (state.tab === kind) { if (!more) grid.replaceChildren(); grid.append(...d.posts.map(tile)); }
+      paintTabs(); renderHead();
+    }
+    if (state.tab === kind) paintFoot();
+  }
+  scroller.addEventListener('scroll', () => {
+    const t = state[state.tab];
+    if (t.more && !t.loading && scroller.scrollTop + scroller.clientHeight > scroller.scrollHeight - 600) loadPosts(state.tab, true);
+  }, { passive: true });
+
+  // ---- who they are: always a fresh copy, plus their badges and follow numbers
+  async function loadCounts() {
+    if (serverApi < 34) return;
+    const c = await api('followCounts', { username: name }).catch(() => null);
+    if (c && c.ok && profileOpen === state) { state.counts = c; renderHead(); }
+  }
+  async function loadInfo() {
+    try {
+      const [d, b] = await Promise.all([api('profiles', { names: [name] }),
+        serverApi >= 12 ? api('badges', { username: name }) : Promise.resolve(null), loadCounts()]);
+      if (b && b.ok) state.badges = b;
+      if (d.ok) storeProfiles(d.profiles);
+      if (profileOpen === state) renderHead();
+    } catch (e) {}
+  }
+  // Keep it right if your friends, their profile or blocking change while it's open.
+  let was = [st, profileVer, isBlocked(name)];
+  const watch = setInterval(() => {
+    if (profileOpen !== state) return clearInterval(watch);
+    const now = [st, profileVer, isBlocked(name)];
+    if (now.every((x, i) => x === was[i])) return;
+    const blockChanged = now[2] !== was[2];
+    was = now;
+    renderHead();
+    if (blockChanged) { // blocked: their posts go; unblocked: they come back
+      ['posts', 'shorts'].forEach(k => { state[k].list = null; state[k].more = false; });
+      grid.replaceChildren(); state.blocked = false;
+      loadPosts('posts'); loadPosts('shorts'); paintFoot();
+    }
+  }, 700);
+  const onKey = e => {
+    if (e.key !== 'Escape' || !isTopPage(view) || document.querySelector('.overlay')) return;
+    if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return;
+    e.stopImmediatePropagation();
+    close();
   };
-  render();
-  // Keep the buttons right if your friends change while it's open.
-  const stWatch = setInterval(() => { if (!m.overlay.isConnected) clearInterval(stWatch); else if (m._st !== st) { m._st = st; render(); } }, 700);
-  m._st = st;
-  // Always get a fresh copy when opening someone's profile, plus their badges.
-  try {
-    const [d, b, c] = await Promise.all([api('profiles', { names: [name] }),
-      serverApi >= 12 ? api('badges', { username: name }) : Promise.resolve(null),
-      serverApi >= 34 ? api('followCounts', { username: name }) : Promise.resolve(null)]);
-    if (b && b.ok) m._badges = b;
-    if (c && c.ok) m._counts = c;
-    if (d.ok) storeProfiles(d.profiles);
-    if (m.overlay.isConnected) render();
-  } catch (e) {}
+  document.addEventListener('keydown', onKey, true);
+  function close() {
+    if (profileOpen !== state) return;
+    profileOpen = null;
+    clearInterval(watch);
+    seen.disconnect();
+    document.removeEventListener('keydown', onKey, true);
+    view.remove();
+    document.body.classList.remove('profile-open');
+    if (shortsOpen && shortsOpen.current && isTopPage(document.getElementById('shorts'))) shortsOpen.current.play().catch(() => {}); // the Short underneath carries on
+    log.querySelectorAll('.vshot').forEach(b => { feedVideos.unobserve(b); feedVideos.observe(b); });
+    syncAddress();
+  }
+
+  grid.className = 'pgrid posts';
+  renderHead(); paintTabs(); paintFoot();
+  syncAddress();
+  loadInfo();
+  loadPosts('posts'); loadPosts('shorts');
 }
 
 // ---------- profile flair ----------
@@ -2376,10 +2580,10 @@ function pushSync() {
 }
 
 // ---------- links ----------
-// ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>, ?short=<Short id>; opened once
-// you're logged in. Notifications' ?go= and ?dm= are tidied away; a post's or Short's link stays
-// in the address bar, which then follows you as you scroll (syncAddress).
-let pendingLink = /[?&](go|dm|post|short)=/.test(location.search) ? location.search : '';
+// ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>, ?short=<Short id>, ?u=<username>
+// (a profile); opened once you're logged in. Notifications' ?go= and ?dm= are tidied away; the
+// others stay in the address bar, which then follows you as you scroll (syncAddress).
+let pendingLink = /[?&](go|dm|post|short|u)=/.test(location.search) ? location.search : '';
 if (/[?&](go|dm)=/.test(pendingLink)) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
 // Refreshing on a post comes back to it as it was, without opening its comments like a link does.
 let linkReloaded = !!pendingLink && (performance.getEntriesByType('navigation')[0] || {}).type === 'reload';
@@ -2390,20 +2594,22 @@ function openLink(search) {
   pendingLink = '';
   const quiet = linkReloaded;
   linkReloaded = false;
-  const go = q.get('go'), dm = q.get('dm'), post = Number(q.get('post')), short = Number(q.get('short'));
+  const go = q.get('go'), dm = q.get('dm'), post = Number(q.get('post')), short = Number(q.get('short')), u = q.get('u');
   if (go === 'friends') { if (isPhone()) mtab('friends'); else document.body.classList.add('side-open'); }
   else if (go && (go === 'global' || st.convos.some(c => c.id === go))) switchTo(go);
   else if (dm) openDm(dm);
   else if (short) openShorts(short);
   else if (post) openPost(post, !quiet);
+  else if (u) openProfile(u);
 }
 
-// The address bar names the post or Short you're on, like YouTube's, so refreshing (or copying
-// the address) comes back to it. Chats and the other phone tabs leave it plain.
+// The address bar names the post, Short or profile you're on, like YouTube's, so refreshing (or
+// copying the address) comes back to it. Chats and the other phone tabs leave it plain.
 function syncAddress() {
   if (pendingLink || !me) return; // still on the way to the one it names
   let q = '';
-  if (shortsOpen) {
+  if (profileOpen && isTopPage(profileOpen.el)) q = '?u=' + encodeURIComponent(profileOpen.username());
+  else if (shortsOpen) {
     const id = shortsOpen.at();
     if (!id) return; // still loading
     q = '?short=' + id;
@@ -2710,7 +2916,7 @@ function start() {
   if (!instant) showLoading();
   switchTo(openId);
   if (instant) { renderSide(); renderHeader(); updateComposer(); updateTitle(); }
-  if (instant && link.get('short')) openLink(pendingLink); // Shorts straight away, not after the first poll
+  if (instant && (link.get('short') || link.get('u'))) openLink(pendingLink); // straight away, not after the first poll
 }
 
 // ---------- instant startup ----------
@@ -2992,7 +3198,7 @@ function renderSide() {
     return fresh(h('button', {
       class: 'row' + (c.id === openId && !shortsOpen ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
       'data-at': c.type === 'dm' ? label : null,
-      onclick: () => { if (shortsOpen) shortsOpen.close(); switchTo(c.id); },
+      onclick: () => { if (profileOpen) profileOpen.close(); if (shortsOpen) shortsOpen.close(); switchTo(c.id); },
     }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, convoTitle(c), streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
       isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
       notifyLevel(c.id) === 'mentions' && h('span', { class: 'muteicon', title: 'Mentions only' }, '@'),
@@ -3176,6 +3382,7 @@ function rememberChat() {
 
 function switchTo(id) {
   if (shortsOpen && id !== openId) shortsOpen.close(); // going somewhere else (redraws of this chat leave it be)
+  if (profileOpen && id !== openId) profileOpen.close();
   if (id !== 'global') setView('chat');
   else if (mview === 'chat') setView('feed');
   rememberChat();
@@ -3661,7 +3868,7 @@ let shortsSound = (() => { try { return JSON.parse(localStorage.getItem('chat_pr
 const feedVideos = new IntersectionObserver(entries => entries.forEach(e => {
   const v = e.target.querySelector('video');
   if (!v) return;
-  if (e.isIntersecting && e.intersectionRatio >= 0.6 && !shortsOpen) { // not behind Shorts
+  if (e.isIntersecting && e.intersectionRatio >= 0.6 && !shortsOpen && !profileOpen) { // not behind Shorts or a profile
     if (!v.src) v.src = v.dataset.src;
     v.play().catch(() => {});
   } else v.pause();
@@ -3742,12 +3949,13 @@ function openShortMaker(file) {
 
 // The player. Phones: full screen above the tab bar. Computers: where the feed goes, beside the
 // sidebar. Opens on `startId` if given; otherwise a For you mix, liked ones first more often.
+// From someone's profile, `from` is { list, by }: their Shorts in order, over their profile.
 let shortsOpen = null;
-async function openShorts(startId) {
+async function openShorts(startId, from) {
   if (shortsOpen || serverApi < 22) return;
   const desk = !isPhone();
   rollShortsIcon();
-  if (desk && openId !== 'global') switchTo('global'); // nothing sits open (and gets marked read) underneath
+  if (desk && openId !== 'global' && !from) switchTo('global'); // nothing sits open (and gets marked read) underneath
   const track = h('div', { class: 'strack' });
   const soundBtn = h('button', { class: desk ? 'iconbtn' : null, title: 'Sound on/off', 'aria-label': 'Sound on or off' });
   const paintSound = () => { soundBtn.textContent = shortsSound ? '\u{1F50A}' : '\u{1F507}'; };
@@ -3756,7 +3964,7 @@ async function openShorts(startId) {
   const view = h('div', { id: 'shorts', class: desk ? 'desk' : null, role: desk ? 'region' : 'dialog', 'aria-label': 'Idiocy Shorts' }, track,
     h('div', { class: 'stop' },
       !desk && h('button', { title: 'Close', 'aria-label': 'Close', onclick: () => close() }, '\u2715'),
-      h('div', { class: 'titles' }, h('b', null, desk ? 'Idiocy Shorts' : shortsIcon + ' Shorts'), h('div', { class: 'ssub' }, 'Short videos from everyone')),
+      h('div', { class: 'titles' }, h('b', null, desk ? 'Idiocy Shorts' : shortsIcon + ' Shorts'), h('div', { class: 'ssub' }, from ? 'Shorts by ' + displayName(from.by) : 'Short videos from everyone')),
       soundBtn,
       desk ? h('button', { class: 'ghost', onclick: post }, shortsIcon + ' Post a Short')
         : h('button', { title: 'Post a Short', 'aria-label': 'Post a Short', onclick: post }, '+')));
@@ -3764,16 +3972,17 @@ async function openShorts(startId) {
   (desk ? document.querySelector('main') : document.body).append(view);
   document.body.classList.add('shorts-open');
   document.documentElement.style.setProperty('--mtabh', ($('mtabs').offsetHeight || 64) + 'px');
-  const state = { list: [], last: null, current: null, close: () => close(), at: () => { const s = state.current && state.current.closest('.slide'); return s && s._m.id; } };
+  const state = { list: [], last: null, current: null, from, close: () => close(), at: () => { const s = state.current && state.current.closest('.slide'); return s && s._m.id; } };
   shortsOpen = state;
   $('shortsrow').classList.toggle('on', desk);
   document.querySelectorAll('#feedrow .row.on, #convos .row.on').forEach(r => r.classList.remove('on'));
   renderSide(); // Idiocy Shorts is the one highlighted now
   log.querySelectorAll('.vshot video').forEach(v => v.pause()); // the feed's videos wait
   const onKey = e => {
+    if (!isTopPage(view)) return; // a profile is open over it
     if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return; // typing
     if (document.querySelector('.overlay')) return; // a pop-up is open: the keys are its
-    if (e.key === 'Escape') close();
+    if (e.key === 'Escape') { e.stopImmediatePropagation(); close(); } // just this, not a profile under it too
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); track.scrollBy({ top: (e.key === 'ArrowDown' ? 1 : -1) * track.clientHeight, behavior: 'smooth' }); }
     else if (e.key === 'm') soundBtn.click();
   };
@@ -3805,7 +4014,7 @@ async function openShorts(startId) {
       syncAddress();
       if (!v.src) v.src = v.dataset.src;
       v.muted = !shortsSound;
-      v.play().catch(() => { v.muted = true; shortsSound = false; paintSound(); v.play().catch(() => {}); });
+      if (isTopPage(view)) v.play().catch(() => { v.muted = true; shortsSound = false; paintSound(); v.play().catch(() => {}); });
       const next = e.target.nextElementSibling && e.target.nextElementSibling.querySelector('video');
       if (next && !next.src) { next.preload = 'auto'; next.src = next.dataset.src; }
       if (!e.target.nextElementSibling || !e.target.nextElementSibling.nextElementSibling) more(); // keep going
@@ -3813,7 +4022,8 @@ async function openShorts(startId) {
   }), { root: track, threshold: [0, 0.7] });
 
   let d;
-  try { d = await api('shorts', {}); } catch (e) { d = { ok: false, error: 'Could not reach the server' }; }
+  if (from) d = { ok: true, shorts: from.list.slice() };
+  else try { d = await api('shorts', {}); } catch (e) { d = { ok: false, error: 'Could not reach the server' }; }
   if (shortsOpen !== state) return;
   track.replaceChildren();
   if (!d.ok) { track.append(h('div', { class: 'sempty' }, h('div', null, d.error || 'Couldn\u2019t load Shorts'))); return; }
@@ -3827,7 +4037,9 @@ async function openShorts(startId) {
   // First: the one you tapped (if any), then a mix where liked Shorts come up more.
   const start = startId && state.list.find(m => m.id === startId);
   if (startId && !start) toast('Couldn\u2019t find that Short. It may have been deleted.');
-  const order = weightedOrder(state.list.filter(m => m !== start), postScore);
+  const at = state.list.indexOf(start);
+  const order = from ? [...state.list.slice(at + 1), ...state.list.slice(0, Math.max(0, at))] // theirs, in order from that one
+    : weightedOrder(state.list.filter(m => m !== start), postScore);
   [start, ...order].filter(Boolean).forEach(addSlide);
   function more(n = 5) {
     if (track.children.length > 300) return;
@@ -3901,7 +4113,7 @@ function pickShort() {
 }
 $('postshort').onclick = pickShort;
 $('shortfile').onchange = () => { const f = $('shortfile').files[0]; $('shortfile').value = ''; openShortMaker(f); };
-$('shortsrow').onclick = () => openShorts();
+$('shortsrow').onclick = () => { if (profileOpen) profileOpen.close(); openShorts(); }; // Shorts may be under the profile already
 $('projectsrow').onclick = () => openProjects();
 
 // Comments on a Short, in a pop-up over the player.
@@ -4193,8 +4405,8 @@ async function sendComment(postEl, input) {
 
 // Jump to a post in the feed (e.g. from a "commented on your post" notification), with its
 // comments open unless `comments` is false.
-async function openPost(id, comments = true) {
-  const el = await revealMessage('global', id, !comments);
+async function openPost(id, comments = true, flash = comments) {
+  const el = await revealMessage('global', id, !flash);
   syncAddress();
   if (!el || !comments) return;
   if (!el._cmts) toggleComments(el, false);
@@ -4328,9 +4540,16 @@ const paintPostPrompt = () => { $('posttext').placeholder = isPhone() ? 'What id
 paintPostPrompt();
 matchMedia('(max-width: 720px)').addEventListener('change', () => {
   setView(mview); paintPostPrompt();
-  if (shortsOpen) { const at = shortsOpen.at(); shortsOpen.close(); openShorts(at); } // full screen on phones, beside the sidebar on computers
+  // Shorts and profiles: full screen on phones, beside the sidebar on computers. Whichever was on top stays on top.
+  const shorts = shortsOpen && { at: shortsOpen.at(), from: shortsOpen.from }, prof = profileOpen && { name: profileOpen.name, top: isTopPage(profileOpen.el) };
+  if (profileOpen) profileOpen.close();
+  if (shortsOpen) shortsOpen.close();
+  if (prof && !prof.top) openProfile(prof.name);
+  if (shorts) openShorts(shorts.at, shorts.from);
+  if (prof && prof.top) openProfile(prof.name);
 });
 function mtab(t) {
+  if (profileOpen) { profileOpen.close(); if (t === mview && !shortsOpen) return; } // a tab leaves someone's profile
   if (t === 'shorts') { openShorts(); return; } // a full-screen player, not a screen of its own
   if (shortsOpen) { shortsOpen.close(); if (t === mview) return; } // another tab: leave Shorts and go there
   if (t === 'feed' && mview === 'feed') { feedToTop(); return; } // tapping Feed again: back to the top
@@ -4435,6 +4654,7 @@ function jumpTo(id) { revealMessage(openId, id); }
 
 // Opens a chat and shows one message in it, loading older messages until it's there.
 async function revealMessage(convoId, id, quiet) {
+  if (profileOpen) profileOpen.close();
   if (shortsOpen) shortsOpen.close();
   if (openId !== convoId) switchTo(convoId);
   if (convoId === 'global' && isPhone() && mview !== 'feed') setView('feed'); // phones: the Feed tab
