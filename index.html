@@ -2375,19 +2375,45 @@ function pushSync() {
   }, 800);
 }
 
-// ---------- links from notifications ----------
-// ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>; opened once you're logged in.
-let pendingLink = /[?&](go|dm|post)=/.test(location.search) ? location.search : '';
-if (pendingLink) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+// ---------- links ----------
+// ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>, ?short=<Short id>; opened once
+// you're logged in. Notifications' ?go= and ?dm= are tidied away; a post's or Short's link stays
+// in the address bar, which then follows you as you scroll (syncAddress).
+let pendingLink = /[?&](go|dm|post|short)=/.test(location.search) ? location.search : '';
+if (/[?&](go|dm)=/.test(pendingLink)) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+// Refreshing on a post comes back to it as it was, without opening its comments like a link does.
+let linkReloaded = !!pendingLink && (performance.getEntriesByType('navigation')[0] || {}).type === 'reload';
+let feedFirst = null; // the post the feed opens on, from the address bar
 function openLink(search) {
   const q = new URLSearchParams(search || '');
   if (!me || !st) { pendingLink = search; return; }
   pendingLink = '';
-  const go = q.get('go'), dm = q.get('dm'), post = Number(q.get('post'));
+  const quiet = linkReloaded;
+  linkReloaded = false;
+  const go = q.get('go'), dm = q.get('dm'), post = Number(q.get('post')), short = Number(q.get('short'));
   if (go === 'friends') { if (isPhone()) mtab('friends'); else document.body.classList.add('side-open'); }
   else if (go && (go === 'global' || st.convos.some(c => c.id === go))) switchTo(go);
   else if (dm) openDm(dm);
-  else if (post) openPost(post);
+  else if (short) openShorts(short);
+  else if (post) openPost(post, !quiet);
+}
+
+// The address bar names the post or Short you're on, like YouTube's, so refreshing (or copying
+// the address) comes back to it. Chats and the other phone tabs leave it plain.
+function syncAddress() {
+  if (pendingLink || !me) return; // still on the way to the one it names
+  let q = '';
+  if (shortsOpen) {
+    const id = shortsOpen.at();
+    if (!id) return; // still loading
+    q = '?short=' + id;
+  } else if (isFeed() && !(isPhone() && mview !== 'feed')) {
+    const p = restingPost([...log.querySelectorAll('.msg.post:not(.pending)')].filter(c => c._m));
+    if (!p) return; // loading, or between posts
+    q = '?post=' + p._m.id;
+  }
+  if (location.search === q) return;
+  try { history.replaceState(history.state, '', location.pathname + q + location.hash); } catch (e) {}
 }
 
 async function showInviteBanner() {
@@ -2672,11 +2698,19 @@ function start() {
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
   if (isPhone()) { openId = 'global'; setView('chats'); } // phones open on the chat list
+  // Opened on a post or a Short (a link, or refreshing on one): the feed, with that post first.
+  const link = new URLSearchParams(pendingLink);
+  if (link.get('post') || link.get('short')) {
+    openId = 'global';
+    feedFirst = Number(link.get('post')) || null;
+    if (feedFirst && isPhone()) setView('feed');
+  }
   // Show what we knew last time straight away; the first poll then brings it up to date.
   const instant = restoreSnapshot();
   if (!instant) showLoading();
   switchTo(openId);
   if (instant) { renderSide(); renderHeader(); updateComposer(); updateTitle(); }
+  if (instant && link.get('short')) openLink(pendingLink); // Shorts straight away, not after the first poll
 }
 
 // ---------- instant startup ----------
@@ -3179,6 +3213,8 @@ function switchTo(id) {
   renderSide();
   renderHeader();
   updateComposer();
+  if (id !== 'global') feedFirst = null;
+  syncAddress();
   pollNow();
 }
 
@@ -3752,6 +3788,7 @@ async function openShorts(startId) {
     document.body.classList.remove('shorts-open');
     $('shortsrow').classList.remove('on');
     renderSide();
+    syncAddress();
     log.querySelectorAll('.vshot').forEach(b => { feedVideos.unobserve(b); feedVideos.observe(b); }); // the feed's videos carry on
   }
   soundBtn.onclick = () => {
@@ -3765,6 +3802,7 @@ async function openShorts(startId) {
     const v = e.target.querySelector('video');
     if (e.isIntersecting && e.intersectionRatio >= 0.7) {
       state.current = v;
+      syncAddress();
       if (!v.src) v.src = v.dataset.src;
       v.muted = !shortsSound;
       v.play().catch(() => { v.muted = true; shortsSound = false; paintSound(); v.play().catch(() => {}); });
@@ -3788,6 +3826,7 @@ async function openShorts(startId) {
   }
   // First: the one you tapped (if any), then a mix where liked Shorts come up more.
   const start = startId && state.list.find(m => m.id === startId);
+  if (startId && !start) toast('Couldn\u2019t find that Short. It may have been deleted.');
   const order = weightedOrder(state.list.filter(m => m !== start), postScore);
   [start, ...order].filter(Boolean).forEach(addSlide);
   function more(n = 5) {
@@ -3917,7 +3956,7 @@ function shortMenu(slide, closePlayer) {
 
 // Sharing a post: send it to friends and groups (it arrives as a card that opens the post), copy
 // a link straight to it, or use the phone's own share menu.
-const postLink = id => INVITE_BASE + '?post=' + id;
+const postLink = m => INVITE_BASE + (m.vd ? '?short=' : '?post=') + m.id; // a Short's opens in Shorts
 function sharePost(m) {
   if (!m || !m.id) return;
   const chats = (st ? st.convos : []).filter(c => c.type === 'dm' || c.type === 'group')
@@ -3953,11 +3992,11 @@ function sharePost(m) {
     renderSide();
   };
   const copy = h('button', { class: 'ghost', onclick: async () => {
-    try { await navigator.clipboard.writeText(postLink(m.id)); toast('\u{1F517} Link copied'); md.close(); }
-    catch (e) { prompt('Copy this link:', postLink(m.id)); }
+    try { await navigator.clipboard.writeText(postLink(m)); toast('\u{1F517} Link copied'); md.close(); }
+    catch (e) { prompt('Copy this link:', postLink(m)); }
   } }, '\u{1F517} Copy link');
   const more = navigator.share && h('button', { class: 'ghost', onclick: async () => {
-    try { await navigator.share({ title: `${displayName(m.name)}\u2019s post on Idiocy`, text: (m.text || '').slice(0, 100), url: postLink(m.id) }); md.close(); }
+    try { await navigator.share({ title: `${displayName(m.name)}\u2019s post on Idiocy`, text: (m.text || '').slice(0, 100), url: postLink(m) }); md.close(); }
     catch (e) {}
   } }, '\u{1F4E4} More\u2026');
   const md = modal('sharesheet', h('h2', null, '\u{1F4EE} Share post'), search, list, note,
@@ -4152,10 +4191,12 @@ async function sendComment(postEl, input) {
   }
 }
 
-// Jump to a post in the feed (e.g. from a "commented on your post" notification).
-async function openPost(id) {
-  const el = await revealMessage('global', id);
-  if (!el) return;
+// Jump to a post in the feed (e.g. from a "commented on your post" notification), with its
+// comments open unless `comments` is false.
+async function openPost(id, comments = true) {
+  const el = await revealMessage('global', id, !comments);
+  syncAddress();
+  if (!el || !comments) return;
   if (!el._cmts) toggleComments(el, false);
   else loadComments(el);
 }
@@ -4280,6 +4321,7 @@ function setView(v) {
   const list = v === 'chats' || v === 'friends' || v === 'you', phone = isPhone();
   document.querySelector('main').inert = phone && list;
   document.querySelector('aside').inert = phone && !list;
+  syncAddress();
 }
 // The feed's post box asks a shorter version on phones, where it's narrower.
 const paintPostPrompt = () => { $('posttext').placeholder = isPhone() ? 'What idiotic idea have you had?' : 'What idiotic idea have you thought of?'; };
@@ -4392,8 +4434,10 @@ $('replyx').onclick = () => setReply(null);
 function jumpTo(id) { revealMessage(openId, id); }
 
 // Opens a chat and shows one message in it, loading older messages until it's there.
-async function revealMessage(convoId, id) {
+async function revealMessage(convoId, id, quiet) {
+  if (shortsOpen) shortsOpen.close();
   if (openId !== convoId) switchTo(convoId);
+  if (convoId === 'global' && isPhone() && mview !== 'feed') setView('feed'); // phones: the Feed tab
   const myEpoch = epoch;
   const started = Date.now();
   while (Date.now() - started < 20000) {
@@ -4401,8 +4445,8 @@ async function revealMessage(convoId, id) {
     const el = log.querySelector(`.msg[data-id="${id}"]`);
     if (el) {
       // An instant jump: a smooth scroll near the top would be cut short by older messages loading in.
-      el.scrollIntoView({ block: 'center' });
-      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+      el.scrollIntoView({ block: isFeed() ? 'start' : 'center' }); // the feed rests with a post at the top
+      if (!quiet) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
       return el;
     }
     if (openRev !== null && !olderLoading && !olderMore) break; // all loaded, and it isn't there
@@ -5861,12 +5905,15 @@ function rankFeed() {
   restOn = null;
   const posts = [...log.children].filter(c => c.classList.contains('post') && !c.classList.contains('pending') && c._m);
   posts.splice(0, posts.length, ...weightedOrder(posts, p => postScore(p._m)));
+  const first = feedFirst ? posts.findIndex(p => p._m.id === feedFirst) : -1;
+  if (first > 0) posts.unshift(...posts.splice(first, 1)); // opened on a post: that one first
   const frag = document.createDocumentFragment();
   posts.forEach(p => frag.append(p));
   let at = feedTop();
   while (at && at.classList && at.classList.contains('pending')) at = at.nextSibling;
   log.insertBefore(frag, at || null);
   paintFeedEnd();
+  requestAnimationFrame(syncAddress);
 }
 // Once every post has loaded: "You're all caught up". Then the feed keeps going, mixing
 // earlier posts back in (liked ones more often).
@@ -5950,6 +5997,8 @@ function feedSettled() {
   const cur = restingPost(posts), was = restOn;
   restOn = cur;
   if (!cur) return;
+  if (feedFirst && cur._m.id !== feedFirst) feedFirst = null; // moved on from the one it opened on
+  syncAddress();
   const at = posts.indexOf(cur), below = posts.length - 1 - at;
   if (below < AHEAD && olderMore && !olderLoading) loadOlder(); // load older posts before you get there
   if (below < AHEAD) topUpFeed();
