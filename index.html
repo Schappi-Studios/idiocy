@@ -651,7 +651,7 @@
   .stk { font-weight: 600; font-size: .9em; margin-left: 4px; white-space: nowrap; }
 
   /* ---------- stories ---------- */
-  #storybar { display: flex; gap: 12px; overflow-x: auto; padding: 4px 8px 10px; scrollbar-width: none; }
+  #storybar { display: flex; gap: 12px; overflow-x: auto; padding: 8px 8px 10px; scrollbar-width: none; }
   #storybar::-webkit-scrollbar { display: none; }
   #storybar.hidden { display: none; }
   .story { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 62px; flex-shrink: 0; border: 0; background: none; cursor: pointer; color: var(--text); padding: 0; }
@@ -797,8 +797,6 @@
   @keyframes burst { 0% { transform: scale(0); opacity: 0; } 15% { transform: scale(1.2); opacity: 1; } 30% { transform: scale(.95); }
     45%, 80% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.1) translateY(-14px); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { .burst { animation-duration: .01s; } .post.ig .pfoot .pact.like.pop svg { animation: none; } }
-  /* Stories at the top of the feed (phones) */
-  #feedstories { display: none; }
   /* the end of the feed */
   .feedend { flex: none; text-align: center; padding: 36px 20px 44px; color: var(--muted); }
   .feedend .big { font-size: 42px; line-height: 1; }
@@ -808,12 +806,6 @@
     #log.feed { padding: 0 0 16px; gap: 10px; background: var(--bg); }
     #log.feed > * { max-width: none; }
     .msg.post.ig { border: 0; border-radius: 0; box-shadow: none; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    /* The stories row is the first thing in the feed, so it scrolls away with the posts. */
-    #log.feed #feedstories:not(.hidden) {
-      display: flex; gap: 14px; overflow-x: auto; padding: 10px 14px 8px; background: var(--panel); border-bottom: 1px solid var(--border);
-      scrollbar-width: none; flex: none;
-    }
-    #log.feed #feedstories::-webkit-scrollbar { display: none; }
     /* One post per screen: edge to edge, no gaps. */
     #log.feed { gap: 0; padding: 0 0 16px; scroll-padding-top: 0; }
     #log.feed > .msg.post.ig { height: var(--feedh, 600px); }
@@ -828,7 +820,7 @@
   #log.feed { scroll-snap-type: y mandatory; gap: 0; scrollbar-width: none; } /* no scroll bar: it goes on forever both ways */
   #log.feed::-webkit-scrollbar { display: none; }
   #log.feed.nosnap { scroll-snap-type: none; } /* while comments are open */
-  #log.feed > #feedstories, #log.feed > .msg.post.ig, #log.feed > .feedend { scroll-snap-align: start; scroll-snap-stop: always; }
+  #log.feed > .msg.post.ig, #log.feed > .feedend { scroll-snap-align: start; scroll-snap-stop: always; }
   #log.feed > .msg.post.ig { height: var(--feedh, 600px); display: flex; flex-direction: column; border-top: 0; }
   #log.feed > .msg.post.ig.cmtopen { height: auto; min-height: var(--feedh, 600px); }
   #log.feed > .msg.post.ig > * { flex: none; }
@@ -1619,11 +1611,11 @@
     <div id="myou"></div>
     <div class="sec chats">
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
-      <div id="storybar" class="hidden" aria-label="Stories"></div>
       <div id="msearch"><input type="search" placeholder="Search" autocomplete="off" aria-label="Search chats"><button type="button" class="ghost hidden" id="msgsearch"></button></div>
       <div id="feedrow"></div>
       <button type="button" class="row sidelink hidden" id="shortsrow"><span class="avatar icon">🎬</span><span class="label">Idiocy Shorts</span></button>
       <button type="button" class="row sidelink hidden" id="projectsrow"><span class="avatar icon">🧪</span><span class="label">Idiocy Projects</span></button>
+      <div id="storybar" class="hidden" aria-label="Stories"></div>
       <div id="convos"></div>
     </div>
     <div class="sec friends">
@@ -1671,7 +1663,7 @@
       </div>
       <div class="bar"><span id="cstatus"></span><span id="cctrls" style="display:contents"></span></div>
     </div>
-    <div id="log"><div id="feedstories" class="hidden" aria-label="Stories"></div></div>
+    <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
       <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What idiotic idea have you thought of?"></textarea><button type="button" class="emojibtn hidden" id="postemoji" title="Your custom emojis" aria-label="Your custom emojis">😀</button><button class="primary" id="postbtn" type="button">Post</button><button type="button" id="postcammini" title="Take photo" aria-label="Take photo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button></div>
@@ -1739,7 +1731,6 @@ const POLL_HIDDEN = 10000;
 
 const $ = id => document.getElementById(id);
 const log = $('log'), textEl = $('text');
-const feedStories = $('feedstories'); // kept by reference: it moves in and out of the feed
 const feedEndEl = h('div', { class: 'feedend' },
   h('div', { class: 'big' }, '\u2728'), h('b', null, 'You\u2019re all caught up'), h('span', { class: 'fe-sub' }, 'Here\u2019s more from earlier \u2193'));
 
@@ -3567,7 +3558,7 @@ function placeInFeed(el, where) {
 function clearLog() {
   clearInterval(chatLoadTimer);
   log.classList.remove('nosnap');
-  log.replaceChildren(...(isFeed() ? [feedStories] : [])); // the feed starts with the stories row
+  log.replaceChildren();
   shown.clear();
   lastId = 0;
   restOn = null;
@@ -5711,8 +5702,7 @@ function markStorySeen(name, id) {
 }
 
 function renderStories() {
-  // The chat list's story row, and the same row at the top of the feed on phones.
-  for (const bar of [$('storybar'), feedStories]) fillStoryBar(bar);
+  fillStoryBar($('storybar')); // the story row, just above the chats
 }
 function fillStoryBar(bar) {
   bar.classList.toggle('hidden', serverApi < 11 || !me);
@@ -6119,11 +6109,9 @@ function sys(text, isErr) {
   return el;
 }
 
-// Where new things go at the top of the feed: just under the stories row.
+// Where new things go at the top of the feed.
 function feedTop() {
-  let n = log.firstChild;
-  while (n && n === feedStories) n = n.nextSibling;
-  return n;
+  return log.firstChild;
 }
 
 // ---------- feed order ----------
@@ -6305,7 +6293,7 @@ log.addEventListener('wheel', e => {
 }, { passive: false });
 // Slides to the next (1) or previous (-1) post.
 function stepFeed(dir) {
-  const stops = [...log.children].filter(c => c.matches('.msg.post.ig, .feedend') || (c === feedStories && c.offsetHeight));
+  const stops = [...log.children].filter(c => c.matches('.msg.post.ig, .feedend'));
   const top = log.getBoundingClientRect().top + (parseFloat(getComputedStyle(log).scrollPaddingTop) || 0);
   let i = stepTo && stepTo.isConnected ? stops.indexOf(stepTo) : -1; // still sliding: carry on from where it's going
   if (i < 0) stops.forEach((el, k) => { if (el.getBoundingClientRect().top <= top + 2) i = k; });
