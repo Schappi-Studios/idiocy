@@ -1327,10 +1327,37 @@
     body.shorts-open #shorts .sicons { bottom: 84px; }
   }
   body.shorts-open #toast { z-index: 960; }
+  /* Computers: Shorts opens where the feed goes, beside the sidebar, with a header like a chat's. */
+  #shorts.desk { position: absolute; z-index: 40; display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
+  #shorts.desk .stop { position: static; order: -1; flex: none; min-height: 56px; padding: 10px 16px; gap: 10px; background: var(--panel); border-bottom: 1px solid var(--border); }
+  #shorts.desk .stop .titles b { display: block; font-size: 16px; text-shadow: none; }
+  #shorts.desk .stop .ssub { color: var(--muted); font-size: 12px; }
+  #shorts.desk .stop .iconbtn { width: 42px; height: 36px; border-radius: 10px; background: none; border: 1px solid var(--border); font-size: 17px; }
+  #shorts.desk .stop .iconbtn:hover { border-color: var(--accent); }
+  #shorts.desk .stop .ghost { width: auto; height: auto; border-radius: 10px; background: var(--panel); color: var(--text); border: 1px solid var(--border); font-size: 14px; }
+  #shorts.desk .strack { position: relative; inset: auto; flex: 1; min-height: 0; }
+  #shorts.desk .slide { align-items: center; padding: 14px 0; box-sizing: border-box; overflow: visible; }
+  #shorts.desk .sframe { width: auto; aspect-ratio: 9 / 16; max-width: calc(100% - 170px); border-radius: 14px; }
+  #shorts.desk .slide.wide .sframe { height: auto; aspect-ratio: var(--ar, 16 / 9); width: min(100% - 170px, 760px); max-height: 100%; }
+  #shorts.desk .sframe video { border-radius: 14px; }
+  #shorts.desk .sframe::after { border-radius: 0 0 14px 14px; }
+  #shorts.desk .scap { right: 14px; bottom: 16px; }
+  #shorts.desk .sframe { color: #fff; } /* words on the video stay white */
+  /* Like, comment, share and more sit beside the video, in round buttons. */
+  #shorts.desk .sicons { left: calc(100% + 14px); right: auto; bottom: 0; gap: 14px; }
+  #shorts.desk .sicons button { color: var(--text); text-shadow: none; font-size: 12.5px; }
+  #shorts.desk .sicons svg, #shorts.desk .sicons .smore { width: 24px; height: 24px; padding: 12px; box-sizing: content-box; border-radius: 50%; background: var(--panel-2); filter: none; }
+  #shorts.desk .sicons .smore { display: grid; place-items: center; }
+  #shorts.desk .sicons button:hover svg, #shorts.desk .sicons button:hover .smore { background: var(--hover); }
+  #shorts.desk .sicons .on { color: #ff3040; }
+  #shorts.desk .sempty .big { line-height: 1; }
+  #shortsrow.on { background: var(--panel-2); }
   #shorts .strack { position: absolute; inset: 0; overflow-y: auto; scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none; }
   #shorts .strack::-webkit-scrollbar { display: none; }
   #shorts .slide { position: relative; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; display: flex; justify-content: center; overflow: hidden; }
   #shorts .sframe { position: relative; height: 100%; width: min(100%, calc(100dvh * 9 / 16)); background: #000; touch-action: manipulation; }
+  #shorts:not(.desk) .stop .titles { flex: 1; }
+  #shorts:not(.desk) .stop .ssub { display: none; }
   #shorts .sframe video { width: 100%; height: 100%; object-fit: cover; display: block; }
   #shorts .slide.wide .sframe video { object-fit: contain; }
   #shorts .sframe::after { content: ''; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent, rgba(0, 0, 0, .6)); pointer-events: none; }
@@ -2974,7 +3001,7 @@ document.addEventListener('pointercancel', releaseSide, true);
 
 function renderSide() {
   if (!st || !me) return;
-  const sig = JSON.stringify([st, latest, openId, read, me, profileVer, picVer, prefs.muted, prevVer, Math.floor(Date.now() / 60000), streaks, stories, storySeenVer, serverApi]);
+  const sig = JSON.stringify([st, latest, openId, read, me, profileVer, picVer, prefs.muted, prevVer, Math.floor(Date.now() / 60000), streaks, stories, storySeenVer, serverApi, !!shortsOpen]);
   if (sig === sideSig) return;
   // Rebuilding the list mid-tap swaps the button under your finger, and the phone
   // then drops the tap. Wait until the finger's lifted.
@@ -3001,9 +3028,9 @@ function renderSide() {
     const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : h('div', { class: 'avatar icon' }, '#');
     const unread = isUnread(c.id);
     return fresh(h('button', {
-      class: 'row' + (c.id === openId ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
+      class: 'row' + (c.id === openId && !shortsOpen ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
       'data-at': c.type === 'dm' ? label : null,
-      onclick: () => switchTo(c.id),
+      onclick: () => { if (shortsOpen) shortsOpen.close(); switchTo(c.id); },
     }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, convoTitle(c), streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
       isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
       notifyLevel(c.id) === 'mentions' && h('span', { class: 'muteicon', title: 'Mentions only' }, '@'),
@@ -3184,6 +3211,7 @@ function rememberChat() {
 }
 
 function switchTo(id) {
+  if (shortsOpen && id !== openId) shortsOpen.close(); // going somewhere else (redraws of this chat leave it be)
   if (id !== 'global') setView('chat');
   else if (mview === 'chat') setView('feed');
   rememberChat();
@@ -3658,13 +3686,23 @@ function wireDoubleTap(el, box, single) {
 const MEDIA_BASE = (() => { try { return new URL(API_URL).origin; } catch (e) { return ''; } })();
 const videoUrl = id => `${MEDIA_BASE}/v/${id}.mp4`;
 const posterUrl = id => `${MEDIA_BASE}/v/${id}.jpg`;
+// One time in ten, Shorts are 🩳 instead of 🎬: picked when Idiocy opens and each time you open Shorts.
+// In the feed, one Short in ten is always a 🩳 one.
+let shortsIcon = '\u{1F3AC}';
+function rollShortsIcon() {
+  shortsIcon = Math.random() < 0.1 ? '\u{1FA73}' : '\u{1F3AC}';
+  $('shortsrow').querySelector('.avatar').textContent = shortsIcon;
+  $('postshort').textContent = shortsIcon + ' Short';
+}
+rollShortsIcon();
+const shortIcon = id => [...String(id)].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 1000003, 7) % 10 === 0 ? '\u{1FA73}' : '\u{1F3AC}';
 let shortsSound = (() => { try { return JSON.parse(localStorage.getItem('chat_prefs') || '{}').shortsSound !== false; } catch (e) { return true; } })();
 
 // A Short in the feed: plays silently while it's on screen; tap to open it in Shorts.
 const feedVideos = new IntersectionObserver(entries => entries.forEach(e => {
   const v = e.target.querySelector('video');
   if (!v) return;
-  if (e.isIntersecting && e.intersectionRatio >= 0.6) {
+  if (e.isIntersecting && e.intersectionRatio >= 0.6 && !shortsOpen) { // not behind Shorts
     if (!v.src) v.src = v.dataset.src;
     v.play().catch(() => {});
   } else v.pause();
@@ -3679,7 +3717,7 @@ function videoBlock(m) {
     sound.textContent = v.muted ? '\u{1F507}' : '\u{1F50A}';
     if (!v.muted) v.play().catch(() => {});
   } }, '\u{1F507}');
-  const box = h('div', { class: 'shot vshot' }, v, h('span', { class: 'vbadge' }, '\u{1F3AC} ' + fmtDur(m.vd.s)), sound);
+  const box = h('div', { class: 'shot vshot' }, v, h('span', { class: 'vbadge' }, shortIcon(m.id) + ' ' + fmtDur(m.vd.s)), sound);
   box.style.aspectRatio = String(Math.min(1.91, Math.max(0.8, (m.vd.w || 9) / (m.vd.h || 16))));
   feedVideos.observe(box);
   return box;
@@ -3712,7 +3750,7 @@ function openShortMaker(file) {
   const post = h('button', { class: 'primary' }, 'Post Short');
   const cancel = h('button', { class: 'ghost', onclick: () => close() }, 'Cancel');
   const left = shortsLeft();
-  const md = modal('shortmake', h('h2', null, '\u{1F3AC} New Short'), preview, cap, h('div', { class: 'upbar' }, bar), note,
+  const md = modal('shortmake', h('h2', null, shortsIcon + ' New Short'), preview, cap, h('div', { class: 'upbar' }, bar), note,
     left !== Infinity && h('div', { class: 'upnote' }, `${left} of ${me.shorts.limit} Shorts left today`),
     h('div', { class: 'btns' }, cancel, post));
   const close = () => { md.close(); URL.revokeObjectURL(url); };
@@ -3730,8 +3768,9 @@ function openShortMaker(file) {
       const d = await act('send', { convo: 'global', text: cap.value.trim(), video: up.vid });
       if (!d) throw new Error('');
       close();
-      toast('\u{1F3AC} Your Short is up!');
-      if (openId !== 'global') switchTo('global');
+      toast(shortsIcon + ' Your Short is up!');
+      if (shortsOpen) { shortsOpen.close(); openShorts(d.message && d.message.id); } // watching Shorts: see yours first
+      else if (openId !== 'global') switchTo('global');
       pollNow();
     } catch (e) {
       post.disabled = cancel.disabled = cap.disabled = false;
@@ -3742,40 +3781,55 @@ function openShortMaker(file) {
   };
 }
 
-// The full-screen player. Opens on `startId` if given; otherwise a For you mix, liked ones first more often.
+// The player. Phones: full screen above the tab bar. Computers: where the feed goes, beside the
+// sidebar. Opens on `startId` if given; otherwise a For you mix, liked ones first more often.
 let shortsOpen = null;
 async function openShorts(startId) {
   if (shortsOpen || serverApi < 22) return;
+  const desk = !isPhone();
+  rollShortsIcon();
+  if (desk && openId !== 'global') switchTo('global'); // nothing sits open (and gets marked read) underneath
   const track = h('div', { class: 'strack' });
-  const soundBtn = h('button', { title: 'Sound on/off', 'aria-label': 'Sound on or off' });
+  const soundBtn = h('button', { class: desk ? 'iconbtn' : null, title: 'Sound on/off', 'aria-label': 'Sound on or off' });
   const paintSound = () => { soundBtn.textContent = shortsSound ? '\u{1F50A}' : '\u{1F507}'; };
   paintSound();
-  const view = h('div', { id: 'shorts', role: 'dialog', 'aria-label': 'Idiocy Shorts' }, track,
+  const post = () => { if (!desk) close(); pickShort(); };
+  const view = h('div', { id: 'shorts', class: desk ? 'desk' : null, role: desk ? 'region' : 'dialog', 'aria-label': 'Idiocy Shorts' }, track,
     h('div', { class: 'stop' },
-      h('button', { title: 'Close', 'aria-label': 'Close', onclick: () => close() }, '\u2715'),
-      h('b', null, '\u{1F3AC} Shorts'),
+      !desk && h('button', { title: 'Close', 'aria-label': 'Close', onclick: () => close() }, '\u2715'),
+      h('div', { class: 'titles' }, h('b', null, desk ? 'Idiocy Shorts' : shortsIcon + ' Shorts'), h('div', { class: 'ssub' }, 'Short videos from everyone')),
       soundBtn,
-      h('button', { title: 'Post a Short', 'aria-label': 'Post a Short', onclick: () => { close(); pickShort(); } }, '+')));
+      desk ? h('button', { class: 'ghost', onclick: post }, shortsIcon + ' Post a Short')
+        : h('button', { title: 'Post a Short', 'aria-label': 'Post a Short', onclick: post }, '+')));
   track.append(h('div', { class: 'sload' }, h('span', { class: 'spinner' })));
-  document.body.append(view);
+  (desk ? document.querySelector('main') : document.body).append(view);
   document.body.classList.add('shorts-open');
   document.documentElement.style.setProperty('--mtabh', ($('mtabs').offsetHeight || 64) + 'px');
-  const state = { list: [], last: null, current: null, close: () => close() };
+  const state = { list: [], last: null, current: null, close: () => close(), at: () => { const s = state.current && state.current.closest('.slide'); return s && s._m.id; } };
   shortsOpen = state;
+  $('shortsrow').classList.toggle('on', desk);
+  document.querySelectorAll('#convos .row.on').forEach(r => r.classList.remove('on'));
+  renderSide(); // Idiocy Shorts is the one highlighted now
+  log.querySelectorAll('.vshot video').forEach(v => v.pause()); // the feed's videos wait
   const onKey = e => {
+    if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return; // typing
+    if (document.querySelector('.overlay, .storyview')) return; // a pop-up or story is open: the keys are its
     if (e.key === 'Escape') close();
     else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); track.scrollBy({ top: (e.key === 'ArrowDown' ? 1 : -1) * track.clientHeight, behavior: 'smooth' }); }
     else if (e.key === 'm') soundBtn.click();
   };
-  document.addEventListener('keydown', onKey);
+  document.addEventListener('keydown', onKey, true); // before Esc closes the pop-ups, so it can tell one was open
   function close() {
     if (shortsOpen !== state) return;
     shortsOpen = null;
-    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onKey, true);
     seen.disconnect();
     track.querySelectorAll('video').forEach(v => { v.pause(); v.removeAttribute('src'); v.load(); });
     view.remove();
     document.body.classList.remove('shorts-open');
+    $('shortsrow').classList.remove('on');
+    renderSide();
+    log.querySelectorAll('.vshot').forEach(b => { feedVideos.unobserve(b); feedVideos.observe(b); }); // the feed's videos carry on
   }
   soundBtn.onclick = () => {
     shortsSound = !shortsSound;
@@ -3804,9 +3858,9 @@ async function openShorts(startId) {
   if (!d.ok) { track.append(h('div', { class: 'sempty' }, h('div', null, d.error || 'Couldn\u2019t load Shorts'))); return; }
   state.list = d.shorts;
   if (!state.list.length) {
-    track.append(h('div', { class: 'sempty' }, h('div', { class: 'big' }, '\u{1F3AC}'), h('b', null, 'No Shorts yet'),
+    track.append(h('div', { class: 'sempty' }, h('div', { class: 'big' }, shortsIcon), h('b', null, 'No Shorts yet'),
       h('div', null, 'Be the first! Post a video up to a minute long.'),
-      h('div', null, h('button', { class: 'primary', onclick: () => { close(); pickShort(); } }, 'Post a Short'))));
+      h('div', null, h('button', { class: 'primary', onclick: post }, 'Post a Short'))));
     return;
   }
   // First: the one you tapped (if any), then a mix where liked Shorts come up more.
@@ -3845,7 +3899,7 @@ async function openShorts(startId) {
     const frame = h('div', { class: 'sframe' }, v, paused,
       h('div', { class: 'sicons' }, likeBtn, cBtn,
         h('button', { title: 'Share', onclick: () => sharePost(slide._m) }, icon(ICON_SHARE), h('span', { class: 'vh' }, 'Share')),
-        h('button', { title: 'More', onclick: () => shortMenu(slide, close) }, h('span', { style: 'font-size:26px;line-height:1' }, '\u22EF'))),
+        h('button', { title: 'More', onclick: () => shortMenu(slide, close) }, h('span', { class: 'smore', style: 'font-size:26px;line-height:1' }, '\u22EF'))),
       h('div', { class: 'scap' },
         h('div', { class: 'sname', onclick: () => openProfile(m.name) }, avatar(m.name, { click: false }), nameEl(m.name), h('span', { class: 'when' }, '\u2022 ' + ago(m.time))),
         m.text && h('div', { class: 'stext', onclick: e => e.currentTarget.classList.toggle('open') }, tame(m.text))));
@@ -3865,6 +3919,7 @@ async function openShorts(startId) {
         if (v.paused) { v.play().catch(() => {}); paused.classList.add('hidden'); } else { v.pause(); paused.classList.remove('hidden'); }
       }, 300);
     };
+    if (slide.classList.contains('wide')) frame.style.setProperty('--ar', `${m.vd.w} / ${m.vd.h}`);
     slide.append(frame);
     paint();
     track.append(slide);
@@ -4306,7 +4361,10 @@ function setView(v) {
 // The feed's post box asks a shorter version on phones, where it's narrower.
 const paintPostPrompt = () => { $('posttext').placeholder = isPhone() ? 'What idiotic idea have you had?' : 'What idiotic idea have you thought of?'; };
 paintPostPrompt();
-matchMedia('(max-width: 720px)').addEventListener('change', () => { setView(mview); paintPostPrompt(); });
+matchMedia('(max-width: 720px)').addEventListener('change', () => {
+  setView(mview); paintPostPrompt();
+  if (shortsOpen) { const at = shortsOpen.at(); shortsOpen.close(); openShorts(at); } // full screen on phones, beside the sidebar on computers
+});
 function mtab(t) {
   if (t === 'shorts') { openShorts(); return; } // a full-screen player, not a screen of its own
   if (shortsOpen) { shortsOpen.close(); if (t === mview) return; } // another tab: leave Shorts and go there
