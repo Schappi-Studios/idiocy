@@ -1206,7 +1206,7 @@
     .sec { padding: 4px 8px; }
     #convos .row { gap: 12px; padding: 10px 10px; border-radius: 14px; }
     #convos .row .avatar { width: 50px; height: 50px; font-size: 19px; }
-    #convos .row.global { display: none; }
+    #feedrow { display: none; } /* phones have the Feed tab */
     #convos .row .label { display: flex; flex-direction: column; gap: 2px; }
     #convos .row .nm { font-size: 17px; font-weight: 600; }
     #convos .row .prev { display: block; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1621,6 +1621,7 @@
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
       <div id="storybar" class="hidden" aria-label="Stories"></div>
       <div id="msearch"><input type="search" placeholder="Search" autocomplete="off" aria-label="Search chats"><button type="button" class="ghost hidden" id="msgsearch"></button></div>
+      <div id="feedrow"></div>
       <button type="button" class="row sidelink hidden" id="shortsrow"><span class="avatar icon">🎬</span><span class="label">Idiocy Shorts</span></button>
       <button type="button" class="row sidelink hidden" id="projectsrow"><span class="avatar icon">🧪</span><span class="label">Idiocy Projects</span></button>
       <div id="convos"></div>
@@ -3023,7 +3024,7 @@ function renderSide() {
 
   const convos = st.convos.slice().sort((a, b) =>
     a.type === 'global' ? -1 : b.type === 'global' ? 1 : (latest[b.id] || 0) - (latest[a.id] || 0));
-  $('convos').replaceChildren(...convos.map(c => {
+  const rows = convos.map(c => {
     const label = convoLabel(c);
     const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : h('div', { class: 'avatar icon' }, '#');
     const unread = isUnread(c.id);
@@ -3036,7 +3037,10 @@ function renderSide() {
       notifyLevel(c.id) === 'mentions' && h('span', { class: 'muteicon', title: 'Mentions only' }, '@'),
       h('span', { class: 'when' }, ago(latest[c.id])),
       unread && h('span', { class: 'dot' })), 'c:' + c.id);
-  }));
+  });
+  // Global feed sits above Idiocy Shorts and Idiocy Projects; the chats come after them.
+  $('feedrow').replaceChildren(...rows.filter(r => r.classList.contains('global')));
+  $('convos').replaceChildren(...rows.filter(r => !r.classList.contains('global')));
 
   const reqs = [];
   wantProfiles(st.incoming); // for their names
@@ -3808,7 +3812,7 @@ async function openShorts(startId) {
   const state = { list: [], last: null, current: null, close: () => close(), at: () => { const s = state.current && state.current.closest('.slide'); return s && s._m.id; } };
   shortsOpen = state;
   $('shortsrow').classList.toggle('on', desk);
-  document.querySelectorAll('#convos .row.on').forEach(r => r.classList.remove('on'));
+  document.querySelectorAll('#feedrow .row.on, #convos .row.on').forEach(r => r.classList.remove('on'));
   renderSide(); // Idiocy Shorts is the one highlighted now
   log.querySelectorAll('.vshot video').forEach(v => v.pause()); // the feed's videos wait
   const onKey = e => {
