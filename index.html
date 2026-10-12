@@ -2044,7 +2044,7 @@ function openProfile(name) {
         serverApi >= 34 && c && h('div', { class: 'pfollow' },
           n != null && h('span', null, h('b', null, String(n)), n === 1 ? ' post' : ' posts'),
           h('span', null, h('b', null, String(c.followers)), c.followers === 1 ? ' follower' : ' followers'),
-          h('span', null, h('b', null, String(c.following)), ' following'),
+          !g && h('span', null, h('b', null, String(c.following)), ' following'), // organisations don't follow anyone
           !isMe && rel === 'friend' && h('span', { class: 'ptag' }, '\u{1F91D} Friends'),
           !isMe && rel === 'incoming' && h('span', { class: 'ptag' }, 'Follows you')),
         badgeRow(p, state.badges),
