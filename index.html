@@ -2057,7 +2057,7 @@ function openProfile(name) {
     };
     const g = (profileOf(name) || {}).org;
     state.members.total = g ? g.members.length : null;
-    tabs.replaceChildren(tab('posts', 'Posts'), serverApi >= 22 && tab('shorts', shortsIcon + ' Shorts'), g && tab('members', 'Members'));
+    tabs.replaceChildren(...[tab('posts', 'Posts'), serverApi >= 22 && tab('shorts', shortsIcon + ' Shorts'), g && tab('members', 'Members')].filter(Boolean));
   }
   function paintFoot() {
     const t = state[state.tab], mine = me && key(name) === key(me.name);
