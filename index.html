@@ -3237,12 +3237,12 @@ async function poll() {
       const gentle = d.reset && isFeed() && d.messages.length && !!log.querySelector('.msg.post:not(.pending)');
       if (gentle) {
         openRev = d.rev;
-        refreshFeed(d.messages);
+        refreshFeed(d.messages, 'full' in d ? d.full : d.messages.length >= 100);
       } else if (d.reset) {
         const sending = [...log.querySelectorAll('.pending')];
         clearLog();
         openRev = d.rev;
-        olderMore = d.messages.length >= 100; // the server keeps the latest 100; there may be more
+        olderMore = 'full' in d ? d.full : d.messages.length >= 100; // the server keeps the latest 100; there may be more
         if (!d.messages.length && !sending.length) sys(emptyText()).classList.add('empty');
         log.append(...sending);
       }
@@ -4128,8 +4128,8 @@ function openShortMaker(file) {
       if (!d) throw new Error('');
       close();
       toast(shortsIcon + ' Your Short is up!');
-      if (shortsOpen) { shortsOpen.close(); openShorts(d.message && d.message.id); } // watching Shorts: see yours first
-      else if (openId !== 'global') switchTo('global');
+      if (shortsOpen) shortsOpen.close();
+      openShorts(d.message && d.message.id); // see yours first, in Shorts (they're not in the feed)
       pollNow();
     } catch (e) {
       post.disabled = cancel.disabled = cap.disabled = false;
@@ -4933,6 +4933,17 @@ function jumpTo(id) { revealMessage(openId, id); }
 
 // Opens a chat and shows one message in it, loading older messages until it's there.
 async function revealMessage(convoId, id, quiet) {
+  // A Short isn't in the feed: it opens in Shorts (from a link, a notification, search or a shared card).
+  if (convoId === 'global' && serverApi >= 40 && !log.querySelector(`.msg[data-id="${id}"]`)) {
+    let d = null;
+    try { d = await api('postKind', { id }); } catch (e) {}
+    if (d && d.ok && d.short) {
+      if (profileOpen) profileOpen.close();
+      if (shortsOpen) shortsOpen.close();
+      openShorts(Number(id));
+      return null;
+    }
+  }
   if (profileOpen) profileOpen.close();
   if (shortsOpen) shortsOpen.close();
   if (openId !== convoId) switchTo(convoId);
@@ -6564,9 +6575,10 @@ function stepFeed(dir) {
 
 // Told to reload the feed (a post was deleted, or the server restarted): take out what's
 // gone, update the rest and add anything new, all without moving the post you're on.
-function refreshFeed(msgs) {
+function refreshFeed(msgs, full) {
+  msgs = msgs.filter(m => !m.vd); // Shorts are in Idiocy Shorts, not the feed
   const ids = new Set(msgs.map(m => m.id));
-  const from = msgs.length >= 100 ? Math.min(...ids) : -Infinity; // posts older than these weren't sent
+  const from = full && msgs.length ? Math.min(...ids) : -Infinity; // posts older than these weren't sent
   keepPlace(() => {
     log.querySelectorAll('.msg.post:not(.pending)').forEach(el => {
       const id = Number(el.dataset.id);
@@ -6575,7 +6587,7 @@ function refreshFeed(msgs) {
     msgs.forEach(m => shown.has(m.id) ? updateMessage(m) : addMessage(m, 'top'));
   });
   lastId = Math.max(lastId, ...msgs.map(m => m.id));
-  if (msgs.length < 100) olderMore = false;
+  if (!full) olderMore = false;
   paintFeedEnd();
 }
 // Each post fills the feed on phones; keep that size up to date (not while typing, when the keyboard is up).
@@ -6599,6 +6611,7 @@ function keepPlace(change) {
 }
 
 function renderBatch(msgs, animate) {
+  if (isFeed()) msgs = msgs.filter(m => !m.vd); // Shorts are in Idiocy Shorts, not the feed (a copy saved before then might have some)
   if (!msgs.length) return;
   if (!isFeed()) notePreview(openId, msgs[msgs.length - 1]);
   const stick = nearBottom();
