@@ -1282,6 +1282,56 @@
   #shorts.desk .sicons .on { color: #ff3040; }
   #shorts.desk .sempty .big { line-height: 1; }
   #shortsrow.on { background: var(--panel-2); }
+  /* Organisations: "Using Idiocy Studios" in the sidebar, the account switcher, "Posting as", "by Anna", members. */
+  #acctbtn { position: relative; }
+  #acctbtn.unread::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+  #orgbar { display: flex; align-items: center; gap: 8px; margin: 8px 12px 0; padding: 8px 8px 8px 12px; border-radius: 12px; background: var(--accent); color: #fff; font-size: 13px; }
+  #orgbar .obtext { flex: 1; min-width: 0; }
+  #orgbar .obtext > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #orgbar .obtext .st { color: rgba(255, 255, 255, .85); }
+  #orgbar .ghost { flex: none; color: #fff; border-color: rgba(255, 255, 255, .6); background: rgba(255, 255, 255, .12); }
+  #orgbar .ghost:hover { background: rgba(255, 255, 255, .25); border-color: #fff; }
+  #myou .ocount { margin-left: auto; min-width: 20px; padding: 1px 6px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 700; text-align: center; box-sizing: border-box; }
+  .modal.accts .alist, .modal .alist { display: flex; flex-direction: column; gap: 4px; }
+  .row.acct { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; border: 1px solid transparent; border-radius: 12px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .row.acct:hover { background: var(--hover); }
+  .row.acct.on { background: var(--panel-2); border-color: var(--border); }
+  .row.acct .avatar { width: 40px; height: 40px; flex: none; }
+  .row.acct .label { flex: 1; min-width: 0; }
+  .row.acct .acheck { color: var(--accent); font-weight: 800; font-size: 18px; }
+  .row.acct > button { flex: none; }
+  #postas { display: flex; align-items: center; gap: 8px; padding: 0 2px 8px; color: var(--muted); font-size: 13px; }
+  #postas .pasbtn { display: flex; align-items: center; gap: 6px; max-width: 70%; padding: 3px 10px 3px 3px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+  #postas .pasbtn:hover { border-color: var(--accent); }
+  #postas .pasbtn .avatar { width: 22px; height: 22px; font-size: 11px; flex: none; }
+  #postas .pasbtn b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #postas .caret { color: var(--muted); font-size: 11px; }
+  .byline { color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .byline .byname { cursor: pointer; font-weight: 600; }
+  .byline .byname:hover { text-decoration: underline; }
+  .msg .head .byline { margin: 0 6px 0 2px; }
+  .cmt .bubble .byline { margin-left: 4px; }
+  #shorts .sname .byline { color: inherit; opacity: .8; }
+  .badge.orgbadge { background: var(--panel-2); color: var(--text); }
+  .profile .plink { cursor: pointer; }
+  .profile .plink:hover { text-decoration: underline; }
+  .pinvite { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 6px 0; padding: 12px 14px; border-radius: 14px; background: var(--panel-2); font-size: 14px; text-align: left; }
+  .pinvite > span:first-child { flex: 1 1 220px; }
+  .pinvite .btns { display: flex; gap: 8px; margin: 0 !important; }
+  #profilepage .pgrid.members { display: flex; flex-direction: column; gap: 0; padding: 8px 12px 24px; }
+  #profilepage .mrow { display: flex; align-items: center; gap: 12px; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+  #profilepage .mrow .avatar { width: 44px; height: 44px; flex: none; }
+  #profilepage .mrow .two { flex: 1; min-width: 0; }
+  #profilepage .mrow .ptag { padding: 2px 9px; border-radius: 999px; background: var(--panel-2); font-size: 12px; font-weight: 600; }
+  #profilepage .mrow .mbtns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  #profilepage .minvite { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; padding: 14px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
+  #profilepage .minvite .irow { display: flex; gap: 8px; }
+  #profilepage .minvite input { flex: 1; min-width: 0; }
+  #profilepage .mnote { padding: 16px 4px 4px; color: var(--muted); font-size: 13px; }
+  #profilepage .mdelete { align-self: flex-start; margin-top: 16px; }
+  .primary.danger { background: var(--danger); }
+  .modal.accts .hint, .modal.neworg .hint { color: var(--muted); font-size: 13px; }
+  .modal.neworg .field .hint { font-size: 12px; font-weight: 400; }
   /* Someone's profile page. Phones: full screen above the tab bar. Computers: where the feed goes,
      beside the sidebar. Shorts opened from it go on top (same level, added later). */
   #profilepage { position: fixed; inset: 0 0 var(--mtabh, 64px); z-index: 900; display: flex; flex-direction: column; background: var(--bg); color: var(--text); }
@@ -1581,6 +1631,9 @@
 <div class="a2hsbar hidden" role="button" tabindex="0"><img class="logo" alt=""><span class="a2text"><b>Get Idiocy on your home screen</b><span>It opens full screen, like an app</span></span><span class="a2go">How?</span><button type="button" class="a2x" title="Not now" aria-label="Not now">✕</button></div>
     <div class="me">
       <button class="who" id="mename" title="Your profile"></button>
+      <button class="iconbtn hidden" id="acctbtn" title="Switch account" aria-label="Switch account">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3l4 4-4 4"/><path d="M21 7H9"/><path d="M7 21l-4-4 4-4"/><path d="M3 17h12"/></svg>
+      </button>
       <button class="iconbtn hidden" id="adminbtn" title="Admin panel" aria-label="Admin panel">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </button>
@@ -1588,6 +1641,7 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68 1.65 1.65 0 0 0 10 3.17V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.26.6.84 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       </button>
     </div>
+    <div id="orgbar" class="hidden"></div>
     <div id="myou"></div>
     <div class="sec chats">
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
@@ -1645,6 +1699,7 @@
     <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
+      <div id="postas" class="hidden"></div>
       <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What idiotic idea have you thought of?"></textarea><button type="button" class="emojibtn hidden" id="postemoji" title="Your custom emojis" aria-label="Your custom emojis">😀</button><button class="primary" id="postbtn" type="button">Post</button><button type="button" id="postcammini" title="Take photo" aria-label="Take photo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button></div>
       <div class="fbact" id="fbact">
         <button type="button" class="iconbtn" id="postimg" title="Add a picture" aria-label="Add a picture">
@@ -1720,7 +1775,16 @@ const store = {
 };
 
 let token = store.get('chat_token');
-let me = null;          // { name, role }
+// Using an organisation: its @, sent as `as` with every request (see apiRaw). Kept on this device.
+// A notification for one opens Idiocy using it (?as=<its @>; ?as= on its own: as you).
+let actingAs = store.get('chat_as') || '';
+(() => {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('as') || !token) return;
+  actingAs = q.get('as') || '';
+  if (actingAs) store.set('chat_as', actingAs); else store.del('chat_as');
+})();
+let me = null;          // { name, role, actor (who's really using an organisation), orgs, orgInvites }
 let st = null;          // friends, requests, convos
 let uv = null;          // version of st the server last sent
 let latest = {};        // newest message id per chat
@@ -1898,6 +1962,7 @@ function openProfile(name) {
     name, el: view, close: () => close(), username,
     counts: null, badges: null, tab: 'posts',
     posts: { list: null, more: false, loading: false }, shorts: { list: null, more: false, loading: false },
+    members: { total: null }, // an organisation's people
   };
   (desk ? document.querySelector('main') : document.body).append(view);
   document.body.classList.add('profile-open');
@@ -1917,7 +1982,12 @@ function openProfile(name) {
     const big = avatar(p.username || name, { dot: true, click: false });
     big.classList.add('big');
     const btns = [];
-    if (isMe) btns.push(h('button', { class: 'primary', onclick: () => openEditProfile() }, 'Edit profile'));
+    const g = p.org, home = homeName(), inIt = g && g.members.some(n => key(n) === key(home));
+    if (g) wantProfiles(g.members.concat(g.invited || [])); // their names
+    if (g && inIt && !isMe) btns.push(h('button', { class: 'primary', onclick: () => useAccount(p.username || name) }, '\u{1F3E2} Use ' + displayName(name)));
+    if (isMe) btns.push(h('button', { class: 'primary', onclick: () => openEditProfile() }, 'Edit profile'),
+      me.actor ? h('button', { class: 'ghost', onclick: () => useAccount('') }, 'Switch back to you')
+        : serverApi >= 37 && h('button', { class: 'ghost', onclick: () => openNewOrg() }, '\u{1F3E2} New organisation'));
     else if (rel === 'friend') btns.push(
       h('button', { class: 'primary', onclick: () => { close(); openDm(p.username || name); } }, 'Message'),
       h('button', { class: 'ghost', onclick: () => { if (confirm(unfollowQuestion(name))) then(() => unfollowUser(name))(); } }, 'Unfollow'));
@@ -1949,6 +2019,7 @@ function openProfile(name) {
         big,
         fullName(p) && h('div', { class: 'pfull' }, fullName(p)),
         h('div', { class: 'pname' + (p.role === 'admin' ? ' admin-name' : '') }, fullName(p) ? '@' + (p.username || name) : p.username || name, p.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
+          g && h('span', { class: 'badge orgbadge' }, '\u{1F3E2} ORGANISATION'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           !p.verified && p.username && me && me.role === 'admin' && serverApi >= 15 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: 'No verified email' }, 'NO EMAIL')),
@@ -1957,6 +2028,14 @@ function openProfile(name) {
           tame(p.status) || (p.online ? 'Online' : 'Offline')),
         p.game && h('div', { class: 'pgame' }, '\u{1F3AE} Playing ', h('b', null, p.game)),
         isBlocked(name) && h('div', { class: 'pmeta' }, '\u{1F6AB} You’ve blocked them. They can’t add or message you.'),
+        g && g.invitedYou && h('div', { class: 'pinvite' },
+          h('span', null, nameEl(g.owner, 'b'), ' invited you to help run ', nameEl(p.username || name, 'b'), '. You’d post as it and answer its messages, and everyone would see it was you.'),
+          h('span', { class: 'btns' },
+            h('button', { class: 'primary', onclick: () => respondOrg(p.username || name, true, () => { profiles.delete(key(name)); loadInfo(); }) }, 'Join'),
+            h('button', { class: 'ghost', onclick: () => respondOrg(p.username || name, false, () => { profiles.delete(key(name)); loadInfo(); }) }, 'No thanks'))),
+        g && h('div', { class: 'pmeta' }, 'Run by ', ...g.members.slice(0, 3).flatMap((n, i) => [i ? ', ' : '', nameEl(n, 'b', { class: 'plink', onclick: () => openProfile(n) })]),
+          g.members.length > 3 ? ` and ${g.members.length - 3} more` : ''),
+        !g && p.orgs && p.orgs.length > 0 && h('div', { class: 'pmeta' }, '\u{1F3E2} Part of ', ...p.orgs.flatMap((n, i) => [i ? ', ' : '', nameEl(n, 'b', { class: 'plink', onclick: () => openProfile(n) })])),
         serverApi >= 34 && c && h('div', { class: 'pfollow' },
           n != null && h('span', null, h('b', null, String(n)), n === 1 ? ' post' : ' posts'),
           h('span', null, h('b', null, String(c.followers)), c.followers === 1 ? ' follower' : ' followers'),
@@ -1976,10 +2055,13 @@ function openProfile(name) {
       return h('button', { role: 'tab', class: state.tab === kind ? 'on' : null, 'aria-selected': String(state.tab === kind), onclick: () => setTab(kind) },
         label, t.total != null && h('span', { class: 'n' }, String(t.total)));
     };
-    tabs.replaceChildren(tab('posts', 'Posts'), serverApi >= 22 && tab('shorts', shortsIcon + ' Shorts'));
+    const g = (profileOf(name) || {}).org;
+    state.members.total = g ? g.members.length : null;
+    tabs.replaceChildren(tab('posts', 'Posts'), serverApi >= 22 && tab('shorts', shortsIcon + ' Shorts'), g && tab('members', 'Members'));
   }
   function paintFoot() {
     const t = state[state.tab], mine = me && key(name) === key(me.name);
+    if (state.tab === 'members') return foot.replaceChildren();
     foot.replaceChildren(
       isBlocked(name) || state.blocked ? '' :
       t.loading || (!t.list && !t.error) ? h('span', { class: 'spinner' }) :
@@ -1990,8 +2072,59 @@ function openProfile(name) {
     if (state.tab === kind) return;
     state.tab = kind;
     grid.className = 'pgrid ' + kind;
-    grid.replaceChildren(...(state[kind].list || []).map(tile));
+    if (kind === 'members') { grid.replaceChildren(); paintMembers(true); }
+    else grid.replaceChildren(...(state[kind].list || []).map(tile));
     paintTabs(); paintFoot();
+  }
+
+  // ---- an organisation's people: the owner invites, removes and hands it over; anyone in it can leave
+  let membersSig = '';
+  function paintMembers(force) {
+    const p = profileOf(name) || {}, g = p.org;
+    if (state.tab !== 'members') return;
+    if (!g) return setTab('posts');
+    const home = homeName(), owner = key(g.owner) === key(home), inIt = g.members.some(n => key(n) === key(home));
+    const sig = JSON.stringify([g, home, actingAs]);
+    if (sig === membersSig && !force) return; // don't wipe the invite box while someone types in it
+    membersSig = sig;
+    const org = p.username || name;
+    const run = async (action, data, okMsg, after) => {
+      const d = await act(action, { org, ...data });
+      if (!d) return;
+      if (okMsg) toast(okMsg);
+      profiles.delete(key(name));
+      if (after) after(d); else loadInfo();
+    };
+    const person = (n, ...extra) => h('div', { class: 'mrow' },
+      avatar(n), h('span', { class: 'two' }, nameEl(n, 'b', { class: 'plink', onclick: () => openProfile(n) }), h('span', { class: 'st' }, '@' + n)), ...extra);
+    const input = h('input', { placeholder: 'Their @', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Who to invite' });
+    const invite = owner && h('form', { class: 'minvite', onsubmit: e => {
+      e.preventDefault();
+      const who = input.value.trim().replace(/^@/, '');
+      if (who) run('orgInvite', { username: who }, `Invited ${who}. They’ll get a notification.`);
+    } }, h('b', null, 'Invite someone to help run it'), h('span', { class: 'irow' }, input, h('button', { class: 'primary', type: 'submit' }, 'Invite')));
+    grid.replaceChildren(
+      invite || '',
+      ...g.members.map(n => {
+        const isOwner = key(n) === key(g.owner), self = key(n) === key(home);
+        return person(n,
+          isOwner ? h('span', { class: 'ptag' }, 'Owner') : self ? h('span', { class: 'ptag' }, 'You') : '',
+          h('span', { class: 'mbtns' },
+            owner && !self && h('button', { class: 'ghost', onclick: () => {
+              if (confirm(`Make ${displayName(n)} the owner of ${displayName(name)}?\n\nThey’ll be the one who invites and removes people, and who can delete it. You stay in it.`)) run('orgOwner', { username: n }, `${displayName(n)} owns it now`);
+            } }, 'Make owner'),
+            owner && !self && h('button', { class: 'ghost danger', onclick: () => {
+              if (confirm(`Remove ${displayName(n)} from ${displayName(name)}?`)) run('orgRemove', { username: n }, `${displayName(n)} was removed`);
+            } }, 'Remove'),
+            !owner && self && h('button', { class: 'ghost danger', onclick: () => {
+              if (confirm(`Leave ${displayName(name)}?\n\nYou won’t be able to post as it or see its messages any more. What you posted as it stays.`))
+                run('orgRemove', { username: home }, `You left ${displayName(name)}`, () => { if (key(actingAs) === key(org)) useAccount(''); else { pollNow(); loadInfo(); } });
+            } }, 'Leave')));
+      }),
+      ...(g.invited || []).map(n => person(n, h('span', { class: 'ptag' }, 'Invited'),
+        owner && h('span', { class: 'mbtns' }, h('button', { class: 'ghost', onclick: () => run('orgRemove', { username: n }, 'Invite taken back') }, 'Take back')))),
+      inIt && h('div', { class: 'mnote' }, 'Everyone in it can post as it, follow people as it and answer its messages. Posts say who in it wrote them.'),
+      owner && h('button', { class: 'ghost danger mdelete', onclick: () => deleteOrg(org) }, 'Delete ' + displayName(name)));
   }
   const seen = new IntersectionObserver(entries => entries.forEach(e => {
     if (!e.isIntersecting) return;
@@ -2061,7 +2194,7 @@ function openProfile(name) {
         serverApi >= 12 ? api('badges', { username: name }) : Promise.resolve(null), loadCounts()]);
       if (b && b.ok) state.badges = b;
       if (d.ok) storeProfiles(d.profiles);
-      if (profileOpen === state) renderHead();
+      if (profileOpen === state) { renderHead(); paintTabs(); paintMembers(); }
     } catch (e) {}
   }
   // Keep it right if your friends, their profile or blocking change while it's open.
@@ -2072,7 +2205,7 @@ function openProfile(name) {
     if (now.every((x, i) => x === was[i])) return;
     const blockChanged = now[2] !== was[2];
     was = now;
-    renderHead();
+    renderHead(); paintTabs(); paintMembers();
     if (blockChanged) { // blocked: their posts go; unblocked: they come back
       ['posts', 'shorts'].forEach(k => { state[k].list = null; state[k].more = false; });
       grid.replaceChildren(); state.blocked = false;
@@ -2231,7 +2364,8 @@ function openEditProfile() {
   paintSwatches();
   const game = h('input', { maxlength: 30, placeholder: 'e.g. Slope, Minecraft, Retro Bowl' });
   game.value = p.game || '';
-  const first = h('input', { maxlength: 20, autocomplete: 'given-name' }), last = h('input', { maxlength: 20, autocomplete: 'family-name' });
+  const isOrg = me.role === 'org', ownsIt = isOrg && (me.orgs || []).some(o => o.owner && key(o.name) === key(me.name));
+  const first = h('input', { maxlength: isOrg ? 40 : 20, autocomplete: isOrg ? 'organization' : 'given-name' }), last = h('input', { maxlength: 20, autocomplete: 'family-name' });
   first.value = p.first || '';
   last.value = p.last || '';
 
@@ -2241,8 +2375,8 @@ function openEditProfile() {
 
   const m = modal('scroll',
     h('h2', null, 'Edit profile'),
-    serverApi >= 7 && h('div', { class: 'toggle' },
-      h('span', null, 'Your @', h('div', { class: 'hint', style: 'color:var(--muted);font-size:13px' }, '@' + me.name)),
+    serverApi >= 7 && (!isOrg || ownsIt) && h('div', { class: 'toggle' },
+      h('span', null, isOrg ? 'Its @' : 'Your @', h('div', { class: 'hint', style: 'color:var(--muted);font-size:13px' }, '@' + me.name)),
       h('button', { class: 'ghost', type: 'button', onclick: () => renameUser(me.name, false, () => m.close()) }, 'Change')),
     h('form', {
       style: 'display:flex;flex-direction:column;gap:12px',
@@ -2255,8 +2389,8 @@ function openEditProfile() {
         if (d) { storeProfiles(d.profiles); toast('Profile saved'); m.close(); }
       },
     },
-      serverApi >= 24 && h('div', { class: 'sutwo' },
-        h('label', null, 'First name', first), h('label', null, 'Last name (optional)', last)),
+      serverApi >= 24 && (isOrg ? h('label', { class: 'field' }, 'Its name', first) : h('div', { class: 'sutwo' },
+        h('label', null, 'First name', first), h('label', null, 'Last name (optional)', last))),
       h('div', { class: 'avrow' }, preview, file,
         h('button', { class: 'ghost', type: 'button', onclick: () => file.click() }, 'Upload picture'),
         h('button', { class: 'ghost', type: 'button', onclick: () => { pic = ''; paintPreview(); } }, 'Remove')),
@@ -2264,14 +2398,14 @@ function openEditProfile() {
       h('div', { class: 'chips' }, STATUS_PRESETS.map(t =>
         h('button', { class: 'ghost', type: 'button', onclick: () => { status.value = t; } }, t)),
         h('button', { class: 'ghost', type: 'button', onclick: () => { status.value = ''; } }, 'Clear')),
-      h('label', { class: 'field' }, h('span', null, 'About me ', bioCount), bio),
+      h('label', { class: 'field' }, h('span', null, isOrg ? 'About it ' : 'About me ', bioCount), bio),
       serverApi >= 12 && h('label', { class: 'field' }, '\u{1F3AE} Currently playing', game),
       serverApi >= 12 && h('div', { class: 'field' }, 'Banner', swatches),
       h('div', { class: 'btns' },
         h('button', { class: 'ghost', type: 'button', onclick: () => m.close() }, 'Cancel'),
         save)),
-    h('h3', null, 'Change password'),
-    h('form', {
+    !isOrg && h('h3', null, 'Change password'),
+    !isOrg && h('form', {
       style: 'display:flex;flex-direction:column;gap:8px',
       onsubmit: async e => {
         e.preventDefault();
@@ -2320,11 +2454,13 @@ async function api(action, data) {
 async function apiRaw(action, data) {
   // A plain string body is sent as text/plain, which avoids a CORS preflight
   // (Apps Script can't answer those).
+  const as = data && 'as' in data ? data.as : actingAs; // data.as: just this once (posting as someone else)
   const res = await fetch(API_URL, {
     method: 'POST',
-    body: JSON.stringify({ action, token, ...data }),
+    body: JSON.stringify({ action, token, ...(actingAs && { as: actingAs }), ...data }),
   });
   const d = await res.json();
+  if (!d.ok && d.home && as && as === actingAs) useAccount('', d.error); // not part of it any more
   if (d.moved && d.moved !== API_URL && /^https:\/\/[^\s/]+/.test(d.moved)) {
     try { localStorage.setItem('chat_api', d.moved); } catch (e) {}
     location.reload();
@@ -2866,32 +3002,42 @@ function showAuth(msg) {
   showInviteBanner();
 }
 
-function signOut(msg) {
-  dropPushDevice(null);
+// Forgets the account this page was showing: on logging out, and on switching to or from an organisation.
+function forgetAccount() {
   if (call) endCall(true);
   if (gcall) leaveGroupCall(true);
-  token = null;
-  store.del('chat_token');
   store.del(SNAP_KEY);        // the saved chat list and feed
   store.del('chat_prev');     // last-message previews in the chat list
   Object.keys(previews).forEach(k => delete previews[k]);
   clearTimeout(pollTimer);
   me = st = uv = read = null;
-  knownNames.clear();
   pingTop = null;
   groupPicCache.clear();
   chatCache.clear();
   openRev = null; // so nothing from this account can be remembered for the next one
   clearLog();
-  profiles.clear();
-  updateTitle();
   latest = {};
   sideSig = '';
+}
+
+function signOut(msg) {
+  dropPushDevice(null);
+  if (profileOpen) profileOpen.close();
+  forgetAccount();
+  token = null;
+  store.del('chat_token');
+  actingAs = '';
+  store.del('chat_as');
+  postAs = null;
+  knownNames.clear();
+  profiles.clear();
+  updateTitle();
   hideLoading(true);
   showAuth(msg);
 }
 
 $('mename').onclick = () => { if (me) openProfile(me.name); };
+$('acctbtn').onclick = () => openAccounts();
 
 async function logOut() {
   const t = token;
@@ -2931,14 +3077,14 @@ function saveSnapshot(force) {
   const feed = openId === 'global' && openRev
     ? { msgs: [...log.querySelectorAll('.msg:not(.pending):not(.again)')].map(el => el._m).filter(m => m && m.id).slice(0, 60), rev: openRev, eMax }
     : chatCache.get('global');
-  const snap = { v: 2, tok: token.slice(-12), me, st, latest, api: serverApi, settings, streaks, feed: feed || null, names: Object.fromEntries(knownNames) };
+  const snap = { v: 2, tok: token.slice(-12), as: actingAs, me, st, latest, api: serverApi, settings, streaks, feed: feed || null, names: Object.fromEntries(knownNames) };
   try { store.set(SNAP_KEY, JSON.stringify(snap)); } catch (e) {}
 }
 function restoreSnapshot() {
   let snap;
   try { snap = JSON.parse(store.get(SNAP_KEY) || 'null'); } catch (e) {}
   // v1 copies were saved before the move to the new server and may hold "[unreadable message]".
-  if (!snap || snap.v !== 2 || !token || snap.tok !== token.slice(-12)) return false; // another account's, old, or none
+  if (!snap || snap.v !== 2 || !token || snap.tok !== token.slice(-12) || (snap.as || '') !== actingAs) return false; // another account's, old, or none
   me = snap.me; st = snap.st; latest = snap.latest || {};
   serverApi = snap.api || 0; settings = snap.settings || settings;
   streaks = snap.streaks || {};
@@ -3018,12 +3164,14 @@ async function poll() {
   polling = true;
   const myEpoch = epoch;
   const myGen = stateGen;
+  const myAs = actingAs;
   try {
     const d = await api('poll', {
       open: openId, after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop, vis: document.visibilityState === 'visible' || undefined,
       ...(lastId && document.visibilityState === 'visible' && openRev !== null && !isFeed() && { read: lastId }), // for seen receipts
       k: me ? key(me.name) : undefined, known: st ? st.convos.map(c => c.id) : undefined, // lets the server batch its reads
     });
+    if (myAs !== actingAs || !token) return; // switched account while it was on its way
     if (!d.ok) {
       if (!d.auth && d.error !== lastError) { lastError = d.error; sys('Server error: ' + d.error, true); }
       hideLoading(); // so the error is visible
@@ -3183,6 +3331,7 @@ function renderSide() {
   };
 
   $('adminbtn').classList.toggle('hidden', me.role !== 'admin');
+  paintOrgBits();
   const mine = profileOf(me.name);
   $('mename').replaceChildren(avatar(me.name, { dot: true, click: false }),
     h('span', { class: 'two' },
@@ -3759,11 +3908,12 @@ function buildMessage(m, pending) {
   if (pending) time.append(h('span', { class: 'spinner' }), 'sending');
   else time.textContent = fmtTime(m.time);
 
-  const el = h('div', { class: 'msg' + (pending ? ' pending' : ''), 'data-user': key(m.name), 'data-time': m.time || Date.now() },
+  const el = h('div', { class: 'msg' + (pending ? ' pending' : ''), 'data-user': key(m.name) + (m.by ? ':' + key(m.by) : ''), 'data-time': m.time || Date.now() },
     avatar(m.name),
     h('div', { class: 'head' },
       nameEl(m.name, 'span', { class: 'name' + (m.admin ? ' admin-name' : ''), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }),
       m.admin && h('span', { class: 'badge' }, 'ADMIN'),
+      byLine(m),
       time, h('span', { class: 'edtag' })),
     h('div', { class: 'body' },
       m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, nameEl(m.rp.name, 'b'), tame(m.rp.text) || '[image]'),
@@ -3931,7 +4081,7 @@ function openShortMaker(file) {
       if (!up.ok) throw Object.assign(new Error(up.error || 'The upload didn\u2019t work'), { verify: verifyError(up.error) });
       if (me.shorts) me.shorts.used++; // until the next check-in says otherwise
       note.textContent = 'Posting\u2026';
-      const d = await act('send', { convo: 'global', text: cap.value.trim(), video: up.vid });
+      const d = await act('send', { convo: 'global', text: cap.value.trim(), video: up.vid, ...postAsData() });
       if (!d) throw new Error('');
       close();
       toast(shortsIcon + ' Your Short is up!');
@@ -4075,7 +4225,7 @@ async function openShorts(startId, from) {
         h('button', { title: 'Share', onclick: () => sharePost(slide._m) }, icon(ICON_SHARE), h('span', { class: 'vh' }, 'Share')),
         h('button', { title: 'More', onclick: () => shortMenu(slide, close) }, h('span', { class: 'smore', style: 'font-size:26px;line-height:1' }, '\u22EF'))),
       h('div', { class: 'scap' },
-        h('div', { class: 'sname', onclick: () => openProfile(m.name) }, avatar(m.name, { click: false }), nameEl(m.name), h('span', { class: 'when' }, '\u2022 ' + ago(m.time))),
+        h('div', { class: 'sname', onclick: () => openProfile(m.name) }, avatar(m.name, { click: false }), nameEl(m.name), byLine(m), h('span', { class: 'when' }, '\u2022 ' + ago(m.time))),
         m.text && h('div', { class: 'stext', onclick: e => e.currentTarget.classList.toggle('open') }, tame(m.text))));
     // One tap: pause or play. Two: like, with a big heart.
     let lastTap = 0, tapTimer = null;
@@ -4259,6 +4409,7 @@ function buildPost(m, pending) {
         h('div', { class: 'line' },
           nameEl(m.name, 'span', { class: 'name' + (m.admin ? ' admin-name' : ''), onclick: () => openProfile(m.name) }),
           m.admin && h('span', { class: 'badge' }, 'ADMIN'),
+          m.by && h('span', { class: 'sep' }, '\u2022'), byLine(m),
           h('span', { class: 'sep' }, '\u2022'), time, h('span', { class: 'edtag' })))),
     !media && body,
     shot,
@@ -4359,6 +4510,7 @@ function buildComment(postEl, c, pending) {
       h('div', { class: 'bubble' },
         nameEl(c.name, 'b', { class: c.admin ? 'admin-name' : '', style: `color:${colorFor(c.name)}`, onclick: () => openProfile(c.name) }),
         c.admin && h('span', { class: 'badge' }, 'ADMIN'),
+        byLine(c),
         richText(c.text || '', c.ce)),
       h('div', { class: 'meta' },
         pending ? 'sending\u2026' : fmtTime(c.time),
@@ -4381,7 +4533,7 @@ async function sendComment(postEl, input) {
   if (!text || !me) return;
   input.value = '';
   const list = postEl._cmts && postEl._cmts.firstElementChild;
-  const pending = buildComment(postEl, { name: me.name, admin: me.role === 'admin', text, ce: emojisIn(text) }, true);
+  const pending = buildComment(postEl, { name: me.name, by: me.actor, admin: me.role === 'admin', text, ce: emojisIn(text) }, true);
   if (list) { list.querySelectorAll('.shimmer, .muted').forEach(x => x.remove()); list.append(pending); }
   try {
     const d = await api('send', { convo: 'p:' + postEl._m.id, text, ...(emojisIn(text) && { emojis: emojisIn(text) }) });
@@ -4589,7 +4741,10 @@ function renderTabs() {
   if (mine.dataset.name !== me.name) mine.replaceWith(Object.assign(avatar(me.name, { click: false }), { id: 'mtabme' }));
   else paintAvatar(mine);
   $('myou').replaceChildren(
-    h('button', { onclick: () => openProfile(me.name) }, '\u{1F464}', ' Your profile'),
+    h('button', { onclick: () => openProfile(me.name) }, '\u{1F464}', me.actor ? ' Its profile' : ' Your profile'),
+    serverApi >= 37 && ((me.orgs || []).length || (me.orgInvites || []).length || me.actor
+      ? h('button', { onclick: openAccounts }, '\u{1F3E2}', ' Switch account', (me.orgInvites || []).length > 0 && h('span', { class: 'ocount' }, String(me.orgInvites.length)))
+      : h('button', { onclick: openNewOrg }, '\u{1F3E2}', ' New organisation')),
     serverApi >= 29 && h('button', { onclick: () => openProjects() }, '\u{1F9EA}', ' Your projects'),
     serverApi >= 21 && h('button', { onclick: openInvite }, '\u{1F517}', ' Invite friends'),
     h('button', { onclick: openSettings }, '\u2699\uFE0F', ' Settings'),
@@ -6400,8 +6555,9 @@ async function send(text, att, extra = {}) {
   btn.disabled = true;
   // Show the message right away while the server catches up.
   const rp = !isFeed() && replying ? replying : null;
+  const as = isFeed() ? postAsData() : {};
   const pending = buildMessage({
-    name: me ? me.name : '', admin: me && me.role === 'admin', text,
+    name: isFeed() ? postingAs() : me ? me.name : '', by: isFeed() ? postBy() : me && me.actor, admin: me && me.role === 'admin' && !('as' in as && as.as), text,
     ...(att && { img: 'local', local: att.data, w: att.w, h: att.h }),
     ...(rp && { rp: { id: rp.id, name: rp.name, text: (rp.text || '[image]').slice(0, 100) } }),
     ...(extra.poll && { pl: { o: extra.poll, v: {} } }),
@@ -6415,7 +6571,7 @@ async function send(text, att, extra = {}) {
   if (isFeed()) log.insertBefore(pending, feedTop()); else log.appendChild(pending); // newest first in the feed
   scrollDown();
   try {
-    const d = await api('send', { convo: openId, text, ...(emojisIn(text) && { emojis: emojisIn(text) }), ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
+    const d = await api('send', { convo: openId, text, ...as, ...(emojisIn(text) && { emojis: emojisIn(text) }), ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
       ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }), ...(extra.project && { project: extra.project.id }) });
     if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false; }
     if (sentTo !== 'global') notePreview(sentTo, d.message);
@@ -7378,8 +7534,8 @@ function handlePings(pings) {
   if (!pings.length) return;
   // Skip what you're already looking at (comments live inside the feed, so they always count).
   // Friend requests/accepts change the friends list: fetch it on the very next poll.
-  if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin')) { uv = null; pollNow(); }
-  const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' ||
+  if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' || p.kind === 'orginvite' || p.kind === 'orgjoin')) { uv = null; pollNow(); }
+  const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' || !p.convo ||
       !(p.convo === openId && !document.hidden))
     .filter(p => p.kind === 'removed' || !p.convo || (!isMuted(p.convo) && !(p.kind === 'group' && notifyLevel(p.convo) === 'mentions' && !forMe(p))));
   if (!shown.length) return;
@@ -7394,15 +7550,18 @@ function handlePings(pings) {
     : p.kind === 'friendreq' ? (serverApi >= 34 ? `${from} followed you. Follow them back to be friends!` : `${from} sent you a friend request`)
     : p.kind === 'friendaccept' ? (serverApi >= 34 ? `${from} followed you back. You\u2019re friends now! Click to say hi.` : `${from} accepted your friend request! Click to say hi.`)
     : p.kind === 'invitejoin' ? `\u{1F389} ${from} joined you with your invite link! Click to say hi.`
+    : p.kind === 'orginvite' ? `\u{1F3E2} ${p.text} invited you to help run ${from}. Click to see it.`
+    : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
     : `${from} ${where}: ${tame(p.text)}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
+    : p.kind === 'orginvite' ? openProfile(p.from) : p.kind === 'orgjoin' ? openProfile(p.text)
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && !prefs.push && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const plain = p.kind.startsWith('friend') || p.kind === 'removed' || p.kind === 'invitejoin';
+      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind === 'removed' || p.kind === 'invitejoin';
       const n = new Notification(plain ? text : `${from} ${where}`,
         { body: plain ? '' : tame(p.text), icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
@@ -7529,11 +7688,14 @@ function openSettings() {
   paintBlocked();
   const md = modal('',
     h('h2', null, 'Settings'),
+    me && me.actor && h('div', { class: 'pinvite' },
+      h('span', null, '\u{1F3E2} You\u2019re using ', h('b', null, displayName(me.name)), '. Your email, password and account are here when you switch back to you.'),
+      h('span', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => { md.close(); useAccount(''); } }, 'Switch back'))),
     h('div', { class: 'toggle' }, h('span', null, 'Theme', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Auto matches your device')), theme),
     serverApi >= 19 && h('label', { class: 'toggle' }, h('span', null, 'Read receipts', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Show people when you\u2019ve seen their messages. Turning this off hides theirs from you too.')), rcpt),
     h('label', { class: 'toggle' }, h('span', null, 'Ping sound', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'For DMs, group messages and @mentions')), sound),
     serverApi >= 6 && h('label', { class: 'toggle' }, h('span', null, 'Call ringtone', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Ringing when someone calls you, and while you call someone')), ringBox),
-    serverApi >= 13 && emailSection(() => { md.close(); openSettings(); }),
+    serverApi >= 13 && !(me && me.actor) && emailSection(() => { md.close(); openSettings(); }),
     serverApi >= 12 && st && st.blocked && st.blocked.length > 0 && h('div', null,
       h('div', { style: 'font-weight:600;margin:4px 0' }, '\u{1F6AB} Blocked accounts'), blockedList),
     h('label', { class: 'toggle' }, h('span', null, 'Hide swear words', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Shows them as **** instead. Just for you.')), hideSw),
@@ -7545,7 +7707,7 @@ function openSettings() {
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
       h('button', { class: 'primary', onclick: () => md.close() }, 'Done')),
-    serverApi >= 5 && me && me.role !== 'admin' && h('button', {
+    serverApi >= 5 && me && me.role !== 'admin' && !me.actor && h('button', {
       class: 'ghost danger', style: 'align-self:flex-start;font-size:12px', onclick: () => { md.close(); openDeleteMyAccount(); },
     }, 'Delete my account'));
 }
@@ -7568,7 +7730,9 @@ async function renameUser(name, asAdmin, done) {
     ? 'Your new @ (3-20 letters, numbers, _ or -, no spaces).\nYour messages, friends and chats all move over. You can change it once an hour.'
     : `New @ for ${name}:`, self ? '' : name.replace(/\s+/g, ''));
   if (typed == null || !typed.trim() || typed.trim() === name) return;
-  const d = self ? await act('renameMe', { username: typed.trim() }) : await act('adminRename', { username: name, newName: typed.trim() });
+  // Renaming the organisation you're using: carry on using it (before act() polls with its old @).
+  const keep = d => { if (actingAs && key(actingAs) === key(name)) { actingAs = d.username; store.set('chat_as', actingAs); } };
+  const d = self ? await act('renameMe', { username: typed.trim() }, keep) : await act('adminRename', { username: name, newName: typed.trim() }, keep);
   if (!d) return;
   if (self || key(name) === key(me.name)) me.name = d.username;
   profiles.delete(key(name));
@@ -7578,6 +7742,155 @@ async function renameUser(name, asAdmin, done) {
   renderSide();
   renderHeader();
   if (done) done();
+}
+
+// ---------- organisations ----------
+// An organisation is an account several people run (its own name, picture, posts, followers and
+// DMs). Members switch to it from their own login: the whole page then shows it, and everything
+// they do is as it, saying "by" them. The feed box can also post as it without switching.
+const homeName = () => (me ? me.actor || me.name : ''); // you, even while you're using an organisation
+
+function useAccount(name, msg) {
+  name = name || '';
+  const home = homeName();
+  if (key(name) === key(actingAs) && me) { if (msg) toast(msg); return; }
+  actingAs = name;
+  if (name) store.set('chat_as', name); else store.del('chat_as');
+  postAs = null;
+  if (profileOpen) profileOpen.close();
+  if (shortsOpen) shortsOpen.close();
+  document.querySelectorAll('.overlay').forEach(o => o.remove());
+  forgetAccount();
+  openId = 'global';
+  start();
+  toast(msg || (name ? `\u{1F3E2} You’re using ${displayName(name)}. Everything you do is as it.` : `Back to you${home ? ', ' + displayName(home) : ''}`));
+}
+
+// The sidebar's "Using Idiocy Studios" bar, the switch-account button, and "Posting as" on the feed box.
+function paintOrgBits() {
+  if (!me) return;
+  const orgs = me.orgs || [], invites = me.orgInvites || [];
+  const bar = $('orgbar');
+  bar.classList.toggle('hidden', !me.actor);
+  if (me.actor) bar.replaceChildren(
+    h('span', { class: 'two obtext' }, nameEl(me.name, 'b'), h('span', { class: 'st' }, '\u{1F3E2} Using it as ', nameEl(me.actor))),
+    h('button', { type: 'button', class: 'ghost', onclick: () => useAccount('') }, 'Switch back'));
+  const btn = $('acctbtn');
+  btn.classList.toggle('hidden', !orgs.length && !invites.length && !me.actor);
+  btn.classList.toggle('unread', invites.length > 0);
+  paintPostAs();
+}
+
+function openAccounts() {
+  if (!me) return;
+  const home = homeName(), orgs = me.orgs || [], invites = me.orgInvites || [];
+  const row = (n, sub, current, go) => h('button', { type: 'button', class: 'row acct' + (current ? ' on' : ''), onclick: () => { md.close(); if (!current) go(); } },
+    avatar(n, { click: false }), h('span', { class: 'label two' }, nameEl(n, 'b'), h('span', { class: 'st' }, sub)),
+    current && h('span', { class: 'acheck', 'aria-label': 'Using now' }, '✓'));
+  const md = modal('accts',
+    h('h2', null, 'Switch account'),
+    h('div', { class: 'hint' }, 'Using an organisation, you post as it, follow people as it and answer its messages. Everyone sees who in it posted.'),
+    h('div', { class: 'alist' },
+      row(home, '@' + home + ' · you', !actingAs, () => useAccount('')),
+      ...orgs.map(o => row(o.name, '@' + o.name + ' · ' + (o.owner ? 'owner' : 'member'), key(o.name) === key(actingAs), () => useAccount(o.name)))),
+    invites.length > 0 && h('div', { class: 'sec-head' }, 'Invites'),
+    invites.length > 0 && h('div', { class: 'alist' }, ...invites.map(n => h('div', { class: 'row acct' },
+      avatar(n), h('span', { class: 'label two' }, nameEl(n, 'b'), h('span', { class: 'st' }, 'wants you to help run it')),
+      h('button', { type: 'button', class: 'primary', onclick: () => respondOrg(n, true, () => { md.close(); openAccounts(); }) }, 'Join'),
+      h('button', { type: 'button', class: 'ghost', onclick: () => respondOrg(n, false, () => { md.close(); openAccounts(); }) }, 'No thanks')))),
+    h('div', { class: 'btns', style: 'justify-content:space-between' },
+      h('button', { type: 'button', class: 'ghost', onclick: () => { md.close(); openNewOrg(); } }, '\u{1F3E2} New organisation'),
+      h('button', { type: 'button', class: 'primary', onclick: () => md.close() }, 'Done')));
+}
+
+async function respondOrg(name, accept, done) {
+  const d = await act('orgRespond', { org: name, accept });
+  if (!d) return null;
+  if (me) {
+    me.orgInvites = (me.orgInvites || []).filter(n => key(n) !== key(name));
+    if (accept && !(me.orgs || []).some(o => key(o.name) === key(name))) me.orgs = (me.orgs || []).concat([{ name: d.username || name, owner: false }]);
+    paintOrgBits(); renderTabs();
+  }
+  toast(accept ? `\u{1F389} You’re part of ${displayName(name)}! Switch to it to post as it.` : 'Invite turned down');
+  if (done) done();
+  return d;
+}
+
+function openNewOrg() {
+  const name = h('input', { maxlength: 40, placeholder: 'e.g. Schappi Studios', autocomplete: 'off' });
+  const at = h('input', { maxlength: 20, placeholder: 'schappistudios', autocapitalize: 'off', autocomplete: 'off', spellcheck: 'false' });
+  let typedAt = false;
+  name.oninput = () => { if (!typedAt) at.value = name.value.replace(/[^A-Za-z0-9_-]/g, '').toLowerCase().slice(0, 20); };
+  at.oninput = () => { typedAt = !!at.value; };
+  const md = modal('neworg',
+    h('h2', null, '\u{1F3E2} New organisation'),
+    h('div', { class: 'hint' }, 'An account for a team, club or company that a few people run together. It gets its own name, picture, posts, Shorts, followers and messages, and you can invite people to help run it.'),
+    h('form', {
+      style: 'display:flex;flex-direction:column;gap:12px',
+      onsubmit: async e => {
+        e.preventDefault();
+        const d = await act('orgCreate', { as: '', first: name.value, username: at.value.trim() });
+        if (!d) return;
+        md.close();
+        useAccount(d.username, `\u{1F389} ${name.value.trim()} is ready, and you’re using it now. Give it a picture, then invite people!`);
+        openProfile(d.username);
+      },
+    },
+      h('label', { class: 'field' }, 'Its name', name),
+      h('label', { class: 'field' }, 'Its @', at, h('span', { class: 'hint' }, '3-20 letters, numbers, _ or -. People find it by this.')),
+      h('div', { class: 'btns' },
+        h('button', { class: 'ghost', type: 'button', onclick: () => md.close() }, 'Cancel'),
+        h('button', { class: 'primary', type: 'submit' }, 'Make it'))));
+  name.focus();
+}
+
+function deleteOrg(org) {
+  const pass = h('input', { type: 'password', placeholder: 'Your password', autocomplete: 'current-password' });
+  const md = modal('',
+    h('h2', null, `Delete ${displayName(org)}?`),
+    h('p', null, 'Its posts, Shorts, comments, messages and followers all go, and it can\u2019t be undone. Nobody in it loses their own account.'),
+    h('form', { style: 'display:flex;flex-direction:column;gap:12px', onsubmit: async e => {
+      e.preventDefault();
+      const d = await act('orgDelete', { org, password: pass.value });
+      if (!d) return;
+      md.close();
+      profiles.delete(key(org));
+      if (profileOpen) profileOpen.close();
+      if (key(actingAs) === key(org)) useAccount('', `${displayName(org)} was deleted`);
+      else { if (me) me.orgs = (me.orgs || []).filter(o => key(o.name) !== key(org)); paintOrgBits(); toast(`${displayName(org)} was deleted`); }
+    } },
+      h('label', { class: 'field' }, 'Type your password to confirm', pass),
+      h('div', { class: 'btns' },
+        h('button', { class: 'ghost', type: 'button', onclick: () => md.close() }, 'Cancel'),
+        h('button', { class: 'primary danger', type: 'submit' }, 'Delete it'))));
+  pass.focus();
+}
+
+// "by Anna" on what an organisation posts, so everyone knows who in it said it.
+const byLine = m => m.by && h('span', { class: 'byline', title: `${displayName(m.by)} posted this for ${displayName(m.name)}` },
+  'by ', nameEl(m.by, 'span', { class: 'byname', onclick: e => { e.stopPropagation(); openProfile(m.by); } }));
+
+// Posting from the feed box as someone else: you, or one of your organisations. null: whoever you're using.
+let postAs = null;
+const postingAs = () => (postAs && me ? postAs : me ? me.name : '');
+const postAsData = () => (postAs && me && key(postAs) !== key(me.name) ? { as: key(postAs) === key(homeName()) ? '' : postAs } : {});
+const postBy = () => (key(postingAs()) === key(homeName()) ? undefined : homeName()); // for showing it straight away
+function paintPostAs() {
+  const el = $('postas');
+  const who = me ? [homeName(), ...(me.orgs || []).map(o => o.name)] : [];
+  if (postAs && !who.some(n => key(n) === key(postAs))) postAs = null;
+  el.classList.toggle('hidden', who.length < 2 || serverApi < 37);
+  const cur = postingAs(), sig = who.join() + '|' + cur;
+  if (el.dataset.sig === sig) return;
+  el.dataset.sig = sig;
+  el.replaceChildren(h('span', null, 'Posting as'),
+    h('button', { type: 'button', class: 'pasbtn', title: 'Choose who this posts as', onclick: () => {
+      const md = modal('accts', h('h2', null, 'Post as…'),
+        h('div', { class: 'alist' }, ...who.map(n => h('button', { type: 'button', class: 'row acct' + (key(n) === key(cur) ? ' on' : ''),
+          onclick: () => { md.close(); postAs = key(n) === key(me.name) ? null : n; paintPostAs(); } },
+          avatar(n, { click: false }), h('span', { class: 'label two' }, nameEl(n, 'b'), h('span', { class: 'st' }, key(n) === key(homeName()) ? 'you' : 'organisation')),
+          key(n) === key(cur) && h('span', { class: 'acheck' }, '✓')))));
+    } }, avatar(cur, { click: false }), nameEl(cur, 'b'), h('span', { class: 'caret', 'aria-hidden': 'true' }, '▾')));
 }
 
 // ---------- deleting accounts ----------
