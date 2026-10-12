@@ -1988,13 +1988,18 @@ function openProfile(name) {
     if (isMe) btns.push(h('button', { class: 'primary', onclick: () => openEditProfile() }, 'Edit profile'),
       me.actor ? h('button', { class: 'ghost', onclick: () => useAccount('') }, 'Switch back to you')
         : serverApi >= 37 && h('button', { class: 'ghost', onclick: () => openNewOrg() }, '\u{1F3E2} New organisation'));
-    else if (rel === 'friend') btns.push(
+    else if (orgMe()) { // an organisation doesn't follow anyone; it messages the people who follow it
+      if (rel === 'incoming') btns.push(
+        h('button', { class: 'primary', onclick: () => { close(); openDm(p.username || name); } }, 'Message'),
+        h('button', { class: 'ghost', onclick: then(() => removeFollower(name)) }, 'Remove follower'));
+    } else if (rel === 'friend') btns.push(
       h('button', { class: 'primary', onclick: () => { close(); openDm(p.username || name); } }, 'Message'),
       h('button', { class: 'ghost', onclick: () => { if (confirm(unfollowQuestion(name))) then(() => unfollowUser(name))(); } }, 'Unfollow'));
     else if (rel === 'incoming') btns.push(
       h('button', { class: 'primary', onclick: then(() => respond(name, true), () => toast(`\u{1F389} You and ${displayName(name)} follow each other, so you’re friends now!`)) }, 'Follow back'),
       h('button', { class: 'ghost', onclick: then(() => respond(name, false)) }, 'Remove follower'));
     else if (rel === 'outgoing') btns.push(
+      canMessage(name) && h('button', { class: 'primary', onclick: () => { close(); openDm(p.username || name); } }, 'Message'), // an organisation you follow
       h('button', { class: 'ghost', title: 'Unfollow', onclick: then(() => unfollowUser(name)) }, '✓ Following'));
     else if (!isBlocked(name)) btns.push(h('button', { class: 'primary', onclick: then(() => requestFriend(name), d => toast(followToast(d))) }, 'Follow'));
     if (!isMe && serverApi >= 12 && p.role !== 'admin') btns.push(isBlocked(name)
@@ -2123,7 +2128,7 @@ function openProfile(name) {
       }),
       ...(g.invited || []).map(n => person(n, h('span', { class: 'ptag' }, 'Invited'),
         owner && h('span', { class: 'mbtns' }, h('button', { class: 'ghost', onclick: () => run('orgRemove', { username: n }, 'Invite taken back') }, 'Take back')))),
-      inIt && h('div', { class: 'mnote' }, 'Everyone in it can post as it, follow people as it and answer its messages. Posts say who in it wrote them.'),
+      inIt && h('div', { class: 'mnote' }, 'Everyone in it can post as it, message its followers and answer its messages. Posts say who in it wrote them.'),
       owner && h('button', { class: 'ghost danger mdelete', onclick: () => deleteOrg(org) }, 'Delete ' + displayName(name)));
   }
   const seen = new IntersectionObserver(entries => entries.forEach(e => {
@@ -2781,6 +2786,7 @@ async function redeemPendingInvite() {
       store.del(INVITE_KEY);
       $('invitebanner').classList.add('hidden');
       if (d.self) toast('That\u2019s your own invite link. Share it with your friends!');
+      else if (d.follows) { uv = null; pollNow(); toast(d.already ? `You already follow ${displayName(d.username)}` : `You’re following ${displayName(d.username)} now. You can message each other.`, false, () => openProfile(d.username)); }
       else if (d.already) toast(`You and ${displayName(d.username)} are already friends`);
       else { uv = null; pollNow(); toast(`\u{1F389} You and ${displayName(d.username)} are friends now! Tap to say hi.`, false, () => openDm(d.username)); }
     } else if (!d.auth && !verifyError(d.error)) {
@@ -3233,7 +3239,7 @@ async function poll() {
     loadGroupPics();
     saveSnapshot();
     maybeShowNews();
-    $('invitebtn').classList.toggle('hidden', serverApi < 21);
+    $('invitebtn').classList.toggle('hidden', serverApi < 21 || orgMe());
     $('mtabshorts').classList.toggle('hidden', serverApi < 22);
     $('shortsrow').classList.toggle('hidden', serverApi < 22);
     $('projectsrow').classList.toggle('hidden', serverApi < 29);
@@ -3358,29 +3364,37 @@ function renderSide() {
   $('feedrow').replaceChildren(...rows.filter(r => r.classList.contains('global')));
   $('convos').replaceChildren(...rows.filter(r => !r.classList.contains('global')));
 
-  const reqs = [];
+  const reqs = [], asOrg = orgMe();
   wantProfiles(st.incoming); // for their names
+  document.querySelector('aside .sec.friends .sec-head').textContent = asOrg ? 'Followers' : 'Friends';
+  $('addfriend').classList.toggle('hidden', asOrg);
   // People who follow you (follow them back and you're friends), then people you follow.
-  st.incoming.forEach(n => reqs.push(fresh(h('div', { class: 'req' },
+  // An organisation just has its followers, listed below like friends.
+  if (!asOrg) st.incoming.forEach(n => reqs.push(fresh(h('div', { class: 'req' },
     h('b', null, displayName(n)), ' follows you',
     h('div', { class: 'actions' },
       h('button', { class: 'primary', style: 'padding:4px 12px', onclick: async () => { const d = await respond(n, true); if (d && d.status) toast(followToast(d)); } }, 'Follow back'),
       h('button', { class: 'ghost', onclick: () => respond(n, false) }, 'Remove'))), 'i:' + key(n))));
-  st.outgoing.forEach(n => reqs.push(fresh(h('div', { class: 'row', onclick: () => openProfile(n) },
+  if (!asOrg) st.outgoing.forEach(n => reqs.push(fresh(h('div', { class: 'row', onclick: () => openProfile(n) },
     avatar(n), h('span', { class: 'label' }, displayName(n), h('span', { class: 'muted' }, 'following')),
     h('button', { class: 'x', title: 'Unfollow', onclick: e => { e.stopPropagation(); unfollowUser(n); } }, '✕')), 'o:' + key(n))));
   $('requests').replaceChildren(...reqs);
 
-  $('friends').replaceChildren(...(st.friends.length
-    ? st.friends.slice().sort((a, b) => displayName(a).localeCompare(displayName(b))).map(n => fresh(h('div', { class: 'row', onclick: () => openDm(n) },
+  const people = asOrg ? st.incoming : st.friends;
+  $('friends').replaceChildren(...(people.length
+    ? people.slice().sort((a, b) => displayName(a).localeCompare(displayName(b))).map(n => fresh(h('div', { class: 'row', onclick: () => openDm(n) },
         avatar(n, { dot: true }),
         h('span', { class: 'label two' }, h('b', { style: 'font-weight:500', class: profileOf(n) && profileOf(n).role === 'admin' ? 'admin-name' : null }, displayName(n)),
           profileOf(n) && (profileOf(n).status || profileOf(n).game) && h('span', { class: 'st' }, tame(profileOf(n).status) || '\u{1F3AE} ' + tame(profileOf(n).game))),
-        h('button', {
+        h('button', asOrg ? {
+          class: 'x', title: 'Remove follower',
+          onclick: e => { e.stopPropagation(); if (confirm(`Remove ${displayName(n)} as a follower? It can’t message them unless they follow it again.`)) removeFollower(n); },
+        } : {
           class: 'x', title: 'Unfollow',
           onclick: e => { e.stopPropagation(); if (confirm(unfollowQuestion(n))) unfollowUser(n); },
-        }, '✕')), 'f:' + key(n)))
-    : [h('div', { class: 'muted' }, 'No friends yet. Follow people, and when they follow you back you\u2019re friends!')]));
+        }, '✕')), (asOrg ? 'F:' : 'f:') + key(n)))
+    : [h('div', { class: 'muted' }, asOrg ? 'No followers yet. When people follow it, they show up here and you can message them.'
+      : 'No friends yet. Follow people, and when they follow you back you\u2019re friends!')]));
   seenRows = seen;
   renderTabs();
   filterChats();
@@ -3619,6 +3633,7 @@ async function openDm(name) {
 
 const followToast = d => d.status === 'friends'
   ? `\u{1F389} You and ${displayName(d.username)} follow each other, so you\u2019re friends now!`
+  : (profileOf(d.username) || {}).role === 'org' ? `You\u2019re following ${displayName(d.username)}. You can message each other now.`
   : serverApi >= 34 ? `You\u2019re following ${displayName(d.username)}. If they follow you back, you\u2019ll be friends.` : `Friend request sent to ${displayName(d.username)}`;
 $('addfriend').addEventListener('submit', async e => {
   e.preventDefault();
@@ -4679,7 +4694,7 @@ function setView(v) {
   mview = v;
   document.body.classList.remove('m-chats', 'm-feed', 'm-friends', 'm-you', 'm-chat');
   document.body.classList.add('m-' + v);
-  $('mtitle').textContent = v === 'friends' ? 'Friends' : v === 'you' ? 'You' : 'Chats';
+  $('mtitle').textContent = v === 'friends' ? (orgMe() ? 'Followers' : 'Friends') : v === 'you' ? 'You' : 'Chats';
   document.querySelectorAll('#mtabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === v));
   // The off-screen one can't be tabbed into or read out.
   const list = v === 'chats' || v === 'friends' || v === 'you', phone = isPhone();
@@ -4736,7 +4751,7 @@ function renderTabs() {
   };
   badge('chats', st.convos.filter(c => c.type !== 'global' && isUnread(c.id)).length);
   badge('feed', isUnread('global') ? 1 : 0, true);
-  badge('friends', st.incoming.length);
+  badge('friends', orgMe() ? 0 : st.incoming.length); // an organisation's followers aren't waiting for anything
   const mine = $('mtabme');
   if (mine.dataset.name !== me.name) mine.replaceWith(Object.assign(avatar(me.name, { click: false }), { id: 'mtabme' }));
   else paintAvatar(mine);
@@ -7749,6 +7764,9 @@ async function renameUser(name, asAdmin, done) {
 // DMs). Members switch to it from their own login: the whole page then shows it, and everything
 // they do is as it, saying "by" them. The feed box can also post as it without switching.
 const homeName = () => (me ? me.actor || me.name : ''); // you, even while you're using an organisation
+const orgMe = () => !!(me && me.role === 'org'); // using one: it doesn't follow anyone, but can message its followers
+// Who you can message: friends, plus (between an organisation and its followers) st.dms
+const canMessage = n => !!st && (has(st.friends, n) || has(st.dms || [], n));
 
 function useAccount(name, msg) {
   name = name || '';
@@ -7778,6 +7796,9 @@ function paintOrgBits() {
   const btn = $('acctbtn');
   btn.classList.toggle('hidden', !orgs.length && !invites.length && !me.actor);
   btn.classList.toggle('unread', invites.length > 0);
+  $('newgroup').classList.toggle('hidden', orgMe()); // groups are made from friends, and organisations have none
+  $('mnew').classList.toggle('hidden', orgMe());
+  if (mview === 'friends') $('mtitle').textContent = orgMe() ? 'Followers' : 'Friends';
   paintPostAs();
 }
 
@@ -7789,7 +7810,7 @@ function openAccounts() {
     current && h('span', { class: 'acheck', 'aria-label': 'Using now' }, '✓'));
   const md = modal('accts',
     h('h2', null, 'Switch account'),
-    h('div', { class: 'hint' }, 'Using an organisation, you post as it, follow people as it and answer its messages. Everyone sees who in it posted.'),
+    h('div', { class: 'hint' }, 'Using an organisation, you post as it, message its followers and answer its messages. Everyone sees who in it posted.'),
     h('div', { class: 'alist' },
       row(home, '@' + home + ' · you', !actingAs, () => useAccount('')),
       ...orgs.map(o => row(o.name, '@' + o.name + ' · ' + (o.owner ? 'owner' : 'member'), key(o.name) === key(actingAs), () => useAccount(o.name)))),
