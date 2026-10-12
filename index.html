@@ -817,6 +817,33 @@
   .embedmaker .emfile, .projedit .emfile { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .capbox { resize: vertical; min-height: 64px; } /* captions keep their line breaks */
   /* Sharing posts */
+  /* A Short's public link, in its Share sheet */
+  .sharesheet .publink { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .sharesheet .publink .hint { margin: 0; }
+  .sharesheet .publink .linkrow { display: flex; gap: 8px; }
+  .sharesheet .publink .linkrow input { flex: 1; min-width: 0; font-size: 13px; }
+  .sharesheet .publink .linkbtn { align-self: flex-start; color: var(--danger); }
+  /* A public link opened without an account: just that Short */
+  #pubshort { position: fixed; inset: 0; z-index: 60; background: #000; color: #fff; display: flex; flex-direction: column; }
+  #pubshort .pstop { display: flex; align-items: center; gap: 8px; padding: calc(10px + env(safe-area-inset-top)) 14px 10px; }
+  #pubshort .pstop .psbrand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; margin-right: auto; }
+  #pubshort .pstop .psbrand img { width: 28px; height: 28px; border-radius: 7px; }
+  #pubshort .pstop button { padding: 8px 14px; }
+  #pubshort .pstop .ghost { background: rgba(255,255,255,.12); color: #fff; border-color: transparent; }
+  #pubshort .psbox { flex: 1; min-height: 0; width: min(100%, 560px); margin: 0 auto; position: relative; display: flex; align-items: center; justify-content: center; }
+  #pubshort video { width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #pubshort .pssound { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,.55); color: #fff; border: 0; border-radius: 999px; padding: 7px 12px; font-size: 14px; }
+  #pubshort .psinfo { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 16px 14px; background: linear-gradient(transparent, rgba(0,0,0,.75)); pointer-events: none; }
+  #pubshort .psby { display: flex; align-items: center; gap: 10px; }
+  #pubshort .psby .av { width: 38px; height: 38px; border-radius: 50%; object-fit: cover; flex: none; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #fff; }
+  #pubshort .psby b { display: block; }
+  #pubshort .psby span { font-size: 13px; opacity: .8; }
+  #pubshort .pscap { margin-top: 8px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 6.5em; overflow: hidden; }
+  #pubshort .pscta { display: flex; align-items: center; gap: 12px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: #111; }
+  #pubshort .pscta span { flex: 1; font-size: 14px; opacity: .9; }
+  #pubshort .psgone { text-align: center; padding: 20px; opacity: .9; }
+  #pubshort .psgone .big { font-size: 48px; }
+  #auth .pubback { margin: -4px 0 10px; align-self: flex-start; }
   .sharesheet .sharelist { display: flex; flex-direction: column; gap: 4px; max-height: 42vh; overflow-y: auto; margin: 0 -4px; padding: 0 4px; }
   .sharesheet .sharepick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid transparent; border-radius: 12px; background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
   .sharesheet .sharepick:hover { background: var(--hover); }
@@ -2724,7 +2751,7 @@ function pushSync() {
 // ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>, ?short=<Short id>, ?u=<username>
 // (a profile); opened once you're logged in. Notifications' ?go= and ?dm= are tidied away; the
 // others stay in the address bar, which then follows you as you scroll (syncAddress).
-let pendingLink = /[?&](go|dm|post|short|u)=/.test(location.search) ? location.search : '';
+let pendingLink = /[?&](go|dm|post|short|u|v)=/.test(location.search) ? location.search : '';
 if (/[?&](go|dm)=/.test(pendingLink)) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
 // Refreshing on a post comes back to it as it was, without opening its comments like a link does.
 let linkReloaded = !!pendingLink && (performance.getEntriesByType('navigation')[0] || {}).type === 'reload';
@@ -2735,13 +2762,14 @@ function openLink(search) {
   pendingLink = '';
   const quiet = linkReloaded;
   linkReloaded = false;
-  const go = q.get('go'), dm = q.get('dm'), post = Number(q.get('post')), short = Number(q.get('short')), u = q.get('u');
+  const go = q.get('go'), dm = q.get('dm'), post = Number(q.get('post')), short = Number(q.get('short')), u = q.get('u'), v = q.get('v');
   if (go === 'friends') { if (isPhone()) mtab('friends'); else document.body.classList.add('side-open'); }
   else if (go && (go === 'global' || st.convos.some(c => c.id === go))) switchTo(go);
   else if (dm) openDm(dm);
   else if (short) openShorts(short);
   else if (post) openPost(post, !quiet);
   else if (u) openProfile(u);
+  else if (v) openPublicLink(v); // a public link, opened logged in
 }
 
 // The address bar names the post, Short or profile you're on, like YouTube's, so refreshing (or
@@ -4377,9 +4405,90 @@ function sharePost(m) {
     catch (e) {}
   } }, '\u{1F4E4} More\u2026');
   const md = modal('sharesheet', h('h2', null, '\u{1F4EE} Share post'), search, list, note,
-    h('div', { class: 'btns' }, copy, more, h('span', { style: 'flex:1' }), send));
+    h('div', { class: 'btns' }, copy, more, h('span', { style: 'flex:1' }), send),
+    m.vd && serverApi >= 39 && publicLinkBox(m)); // a Short: a link anyone can open
   if (!isPhone()) search.focus();
 }
+// ---------- public links to Shorts ----------
+// Anyone who can see a Short can make a link to it that works without an Idiocy account
+// (?v=<code>). Whoever posted it can turn that off. Opened logged in, it's just the Short in Shorts.
+const publicCode = (/[?&]v=([a-z0-9]{8,20})(?:&|$)/i.exec(location.search) || [])[1] || '';
+const publicLinkOf = code => INVITE_BASE + '?v=' + code;
+async function openPublicLink(code) {
+  const d = await api('publicShort', { code });
+  if (d && d.ok) openShorts(d.short.id);
+  else toast((d && d.error) || 'That link didn\u2019t work', true);
+}
+function publicLinkBox(m) {
+  const box = h('div', { class: 'publink' }, h('span', { class: 'spinner' }));
+  const paint = d => {
+    if (!d) return box.replaceChildren(h('div', { class: 'hint' }, 'Couldn\u2019t check its public link.'));
+    const kids = [h('div', null, h('b', null, '\u{1F30D} Public link'),
+      h('div', { class: 'hint' }, 'Anyone with it can watch this Short, even without an Idiocy account.'))];
+    if (d.code) {
+      const url = publicLinkOf(d.code);
+      const input = h('input', { readonly: '', value: url, 'aria-label': 'Public link', onfocus: e => e.target.select() });
+      kids.push(h('div', { class: 'linkrow' }, input,
+        h('button', { class: 'primary', onclick: async () => { try { await navigator.clipboard.writeText(url); toast('\u{1F30D} Public link copied'); } catch (e) { input.select(); } } }, 'Copy'),
+        navigator.share && h('button', { class: 'ghost', onclick: () => navigator.share({ title: `${displayName(m.name)}\u2019s Short on Idiocy`, url }).catch(() => {}) }, 'Share\u2026')));
+    } else if (d.off && !d.own) kids.push(h('div', { class: 'hint' }, `${displayName(m.name)} turned off public links for this Short.`));
+    else kids.push(h('button', { class: 'ghost', style: 'align-self:flex-start', onclick: async () => { const r = await act('publicLink', { post: m.id, make: true }); if (r) paint(r); } },
+      d.off ? '\u{1F30D} Turn public links back on' : '\u{1F30D} Make a public link'));
+    if (d.code && d.canTurnOff) kids.push(h('button', { class: 'linkbtn', onclick: async () => {
+      if (!confirm('Turn off public links for this Short? The link stops working, and nobody else can make one.')) return;
+      if (await act('publicLinkOff', { post: m.id, off: true })) paint(Object.assign({}, d, { code: null, off: true }));
+    } }, d.own ? 'Turn off public links' : 'Turn off public links (admin)'));
+    box.replaceChildren(...kids);
+  };
+  act('publicLink', { post: m.id }).then(paint);
+  return box;
+}
+// Opened without an account: the Short on its own, with a way into Idiocy.
+async function showPublicShort(code) {
+  $('app').classList.add('hidden');
+  $('auth').classList.add('hidden');
+  const old = $('pubshort');
+  if (old) old.remove();
+  const box = h('div', { class: 'psbox' }, h('span', { class: 'spinner' }));
+  const toAuth = mode => {
+    view.querySelectorAll('video').forEach(v => v.pause());
+    view.remove();
+    showAuth();
+    document.querySelector(`#auth .tabs button[data-mode="${mode}"]`).click();
+    const card = document.querySelector('#auth .card');
+    if (!card.querySelector('.pubback')) card.prepend(h('button', { type: 'button', class: 'linkbtn pubback', onclick: () => showPublicShort(code) }, '\u2190 Back to the Short'));
+  };
+  const view = h('div', { id: 'pubshort' },
+    h('div', { class: 'pstop' },
+      h('span', { class: 'psbrand' }, h('img', { src: INVITE_BASE + 'icon-192.png', alt: '' }), 'Idiocy'),
+      h('button', { class: 'ghost', onclick: () => toAuth('login') }, 'Log in'),
+      h('button', { class: 'primary', onclick: () => toAuth('register') }, 'Join')),
+    box,
+    h('div', { class: 'pscta' }, h('span', null, 'Watch more Shorts and chat with your friends on Idiocy.'),
+      h('button', { class: 'primary', onclick: () => toAuth('register') }, 'Join Idiocy')));
+  document.body.append(view);
+  let d;
+  try { d = await api('publicShort', { code }); } catch (e) { d = { error: 'Couldn\u2019t reach Idiocy. Check your internet.' }; }
+  if (!d || !d.ok) {
+    box.replaceChildren(h('div', { class: 'psgone' }, h('div', { class: 'big' }, '\u{1F3AC}'), h('p', null, (d && d.error) || 'This Short isn\u2019t available any more')));
+    return;
+  }
+  const s = d.short, rude = t => starRude(String(t || '')); // out in public: swears are starred out
+  document.title = `${s.name}\u2019s Short on Idiocy`;
+  const video = h('video', { src: videoUrl(s.vd.id), poster: posterUrl(s.vd.id), playsinline: '', loop: '', autoplay: '', preload: 'auto' });
+  video.muted = true; // so it can start by itself
+  const sound = h('button', { class: 'pssound', onclick: e => { e.stopPropagation(); video.muted = !video.muted; paintSound(); if (video.paused) video.play().catch(() => {}); } });
+  const paintSound = () => { sound.textContent = video.muted ? '\u{1F507} Tap for sound' : '\u{1F50A}'; };
+  paintSound();
+  video.onclick = () => { if (video.muted) { video.muted = false; paintSound(); } else if (video.paused) video.play().catch(() => {}); else video.pause(); };
+  const av = s.avatar ? h('img', { class: 'av', src: s.avatar, alt: '' }) : h('span', { class: 'av', style: `background:${colorFor(s.username)}` }, (s.name || s.username).slice(0, 1).toUpperCase());
+  box.replaceChildren(video, sound, h('div', { class: 'psinfo' },
+    h('div', { class: 'psby' }, av, h('div', null, h('b', null, rude(s.name)),
+      h('span', null, '@' + s.username + (s.org ? ' \u00b7 \u{1F3E2} organisation' : '') + (s.by ? ' \u00b7 by ' + rude(s.by) : '') + ' \u00b7 ' + ago(s.time)))),
+    s.text && h('div', { class: 'pscap' }, rude(s.text))));
+  video.play().catch(() => {});
+}
+
 // A shared post, in a chat: a card that opens it.
 const SHARE_KINDS = { photo: '\u{1F4F7} Photo', video: '\u{1F3AC} Short', poll: '\u{1F4CA} Poll', embed: '</> Embed', project: '\u{1F9EA} Project' };
 function shareCard(sh) {
@@ -8268,7 +8377,7 @@ document.addEventListener('keydown', e => {
 
 // ---------- start ----------
 document.querySelectorAll('img.logo').forEach(img => { img.src = $('favicon').href; });
-if (token) start(); else showAuth();
+if (token) start(); else if (publicCode) showPublicShort(publicCode); else showAuth();
 </script>
 </body>
 </html>
