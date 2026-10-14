@@ -2306,8 +2306,11 @@ const BANNERS = {
 };
 const EARLY_CUTOFF = Date.UTC(2026, 10, 1); // joined before 1 Nov 2026: an early member
 
+const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'); // 1st, 2nd, 11th...
+
 function badgeRow(p, b) {
   const list = [];
+  if (b && b.no) list.push(['\u{1F39F}️', `Member #${b.no}`, `The ${ordinal(b.no)} person to join Idiocy`]);
   const created = p.created || (b && b.created);
   if (created && created < EARLY_CUTOFF) list.push(['\u{1F331}', 'Early member', 'Joined Idiocy in its first days']);
   const years = created ? Math.floor((Date.now() - created) / (365 * 864e5)) : 0;
