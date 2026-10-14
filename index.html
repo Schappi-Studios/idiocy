@@ -2304,15 +2304,15 @@ const BANNERS = {
   fire: 'linear-gradient(135deg, #f12711, #f5af19)',
   sky: 'linear-gradient(135deg, #89f7fe, #66a6ff)',
 };
-const EARLY_CUTOFF = Date.UTC(2026, 10, 1); // joined before 1 Nov 2026: an early member
+const EARLY_MEMBERS = 100; // member numbers up to this are early members (organisations and test accounts have none)
 
 const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'); // 1st, 2nd, 11th...
 
 function badgeRow(p, b) {
   const list = [];
   if (b && b.no) list.push(['\u{1F39F}️', `Member #${b.no}`, `The ${ordinal(b.no)} person to join Idiocy`]);
+  if (b && b.no && b.no <= EARLY_MEMBERS) list.push(['\u{1F331}', 'Early member', `One of the first ${EARLY_MEMBERS} people to join Idiocy`]);
   const created = p.created || (b && b.created);
-  if (created && created < EARLY_CUTOFF) list.push(['\u{1F331}', 'Early member', 'Joined Idiocy in its first days']);
   const years = created ? Math.floor((Date.now() - created) / (365 * 864e5)) : 0;
   if (years >= 1) list.push(['\u{1F382}', `${years} year${years > 1 ? 's' : ''}`, 'On Idiocy for ' + years + (years > 1 ? ' years' : ' year')]);
   if (b && b.streak >= 3) list.push(['\u{1F525}', `${b.streak}-day streak`, 'Their best streak going right now']);
