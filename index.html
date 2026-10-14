@@ -1289,6 +1289,10 @@
   #shorts.desk .stop { position: static; order: -1; flex: none; min-height: 56px; padding: 10px 16px; gap: 10px; background: var(--panel); border-bottom: 1px solid var(--border); }
   #shorts.desk .stop .titles b { display: block; font-size: 16px; text-shadow: none; }
   #shorts.desk .stop .ssub { color: var(--muted); font-size: 12px; }
+  #shorts.desk .stop .stabs { padding: 3px; border-radius: 11px; background: var(--bg); border: 1px solid var(--border); }
+  #shorts.desk .stop .stabs button { height: 30px; border-radius: 8px; color: var(--muted); font-size: 14px; text-shadow: none; }
+  #shorts.desk .stop .stabs button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .14); }
+  #shorts.desk .stop .stabs button.on::after { display: none; }
   #shorts.desk .stop .iconbtn { width: 42px; height: 36px; border-radius: 10px; background: none; border: 1px solid var(--border); font-size: 17px; }
   #shorts.desk .stop .iconbtn:hover { border-color: var(--accent); }
   #shorts.desk .stop .ghost { width: auto; height: auto; border-radius: 10px; background: var(--panel); color: var(--text); border: 1px solid var(--border); font-size: 14px; }
@@ -1407,6 +1411,19 @@
   #shorts .sframe { position: relative; height: 100%; width: min(100%, calc(100dvh * 9 / 16)); background: #000; touch-action: manipulation; }
   #shorts:not(.desk) .stop .titles { flex: 1; }
   #shorts:not(.desk) .stop .ssub { display: none; }
+  #shorts .stabs { display: flex; gap: 2px; }
+  #shorts:not(.desk) .stabs { flex: 1; justify-content: center; }
+  #shorts .stop .stabs button { position: relative; width: auto; height: 38px; padding: 0 12px; border-radius: 19px; background: none; color: rgba(255, 255, 255, .72); font: inherit; font-size: 16px; font-weight: 800; white-space: nowrap; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+  #shorts:not(.desk) .stop > button { flex: none; }
+  @media (max-width: 370px) { /* small phones: the tabs and three buttons still fit on one line */
+    #shorts:not(.desk) .stop { gap: 6px; padding-left: 8px; padding-right: 8px; }
+    #shorts:not(.desk) .stop > button { width: 36px; height: 36px; font-size: 16px; }
+    #shorts .stop .stabs button { padding: 0 7px; font-size: 14px; }
+  }
+  #shorts .stop .stabs button.on { color: #fff; }
+  #shorts .stop .stabs button.on::after { content: ''; position: absolute; left: 32%; right: 32%; bottom: 3px; height: 3px; border-radius: 2px; background: currentColor; }
+  #shorts .sdot { display: inline-block; width: 7px; height: 7px; margin-left: 5px; border-radius: 50%; background: #ff3040; vertical-align: 3px; }
+  #shorts .slide.send { display: block; }
   #shorts .sframe video { width: 100%; height: 100%; object-fit: cover; display: block; }
   #shorts .slide.wide .sframe video { object-fit: contain; }
   #shorts .sframe::after { content: ''; position: absolute; inset: 55% 0 0; background: linear-gradient(transparent, rgba(0, 0, 0, .6)); pointer-events: none; }
@@ -4142,8 +4159,12 @@ function openShortMaker(file) {
 
 // The player. Phones: full screen above the tab bar. Computers: where the feed goes, beside the
 // sidebar. Opens on `startId` if given; otherwise a For you mix, liked ones first more often.
+// Its Following tab: just the Shorts of people you follow, newest first, until you've seen them all.
 // From someone's profile, `from` is { list, by }: their Shorts in order, over their profile.
 let shortsOpen = null;
+const follows = n => !!st && (has(st.friends, n) || has(st.outgoing || [], n));
+// The newest Short from people you follow that you've seen in Following (for the dot on the tab).
+const fseenKey = () => 'shorts_fseen_' + key(me.name);
 async function openShorts(startId, from) {
   if (shortsOpen || serverApi < 22) return;
   const desk = !isPhone();
@@ -4154,10 +4175,15 @@ async function openShorts(startId, from) {
   const paintSound = () => { soundBtn.textContent = shortsSound ? '\u{1F50A}' : '\u{1F507}'; };
   paintSound();
   const post = () => { if (!desk) close(); pickShort(); };
+  const tabbed = !from && !orgMe() && serverApi >= 34; // organisations don't follow anyone
+  const tabBtn = (tab, label) => h('button', { type: 'button', role: 'tab', 'data-tab': tab, onclick: () => showTab(tab) }, label);
+  const tabs = tabbed && h('div', { class: 'stabs', role: 'tablist', 'aria-label': 'Which Shorts' }, tabBtn('foryou', 'For you'), tabBtn('following', 'Following'));
+  const sub = h('div', { class: 'ssub' }, from ? 'Shorts by ' + displayName(from.by) : 'Short videos from everyone');
   const view = h('div', { id: 'shorts', class: desk ? 'desk' : null, role: desk ? 'region' : 'dialog', 'aria-label': 'Idiocy Shorts' }, track,
     h('div', { class: 'stop' },
       !desk && h('button', { title: 'Close', 'aria-label': 'Close', onclick: () => close() }, '\u2715'),
-      h('div', { class: 'titles' }, h('b', null, desk ? 'Idiocy Shorts' : shortsIcon + ' Shorts'), h('div', { class: 'ssub' }, from ? 'Shorts by ' + displayName(from.by) : 'Short videos from everyone')),
+      (desk || !tabbed) && h('div', { class: 'titles' }, h('b', null, desk ? 'Idiocy Shorts' : shortsIcon + ' Shorts'), sub),
+      tabs, // on phones, in place of the title
       soundBtn,
       desk ? h('button', { class: 'ghost', onclick: post }, shortsIcon + ' Post a Short')
         : h('button', { title: 'Post a Short', 'aria-label': 'Post a Short', onclick: post }, '+')));
@@ -4165,8 +4191,9 @@ async function openShorts(startId, from) {
   (desk ? document.querySelector('main') : document.body).append(view);
   document.body.classList.add('shorts-open');
   document.documentElement.style.setProperty('--mtabh', ($('mtabs').offsetHeight || 64) + 'px');
-  const state = { list: [], last: null, current: null, from, close: () => close(), at: () => { const s = state.current && state.current.closest('.slide'); return s && s._m.id; } };
+  const state = { list: [], last: null, current: null, from, tab: 'foryou', queue: null, close: () => close(), at: () => { const s = state.current && state.current.closest('.slide'); return s && s._m.id; } };
   shortsOpen = state;
+  paintTabs();
   $('shortsrow').classList.toggle('on', desk);
   document.querySelectorAll('#feedrow .row.on, #convos .row.on').forEach(r => r.classList.remove('on'));
   renderSide(); // Idiocy Shorts is the one highlighted now
@@ -4221,20 +4248,72 @@ async function openShorts(startId, from) {
   track.replaceChildren();
   if (!d.ok) { track.append(h('div', { class: 'sempty' }, h('div', null, d.error || 'Couldn\u2019t load Shorts'))); return; }
   state.list = d.shorts;
-  if (!state.list.length) {
-    track.append(h('div', { class: 'sempty' }, h('div', { class: 'big' }, shortsIcon), h('b', null, 'No Shorts yet'),
-      h('div', null, 'Be the first! Post a video up to a minute long.'),
-      h('div', null, h('button', { class: 'primary', onclick: post }, 'Post a Short'))));
-    return;
-  }
+  paintTabs();
   // First: the one you tapped (if any), then a mix where liked Shorts come up more.
   const start = startId && state.list.find(m => m.id === startId);
   if (startId && !start) toast('Couldn\u2019t find that Short. It may have been deleted.');
-  const at = state.list.indexOf(start);
-  const order = from ? [...state.list.slice(at + 1), ...state.list.slice(0, Math.max(0, at))] // theirs, in order from that one
-    : weightedOrder(state.list.filter(m => m !== start), postScore);
-  [start, ...order].filter(Boolean).forEach(addSlide);
+  fill(start);
+  function fill(start) {
+    if (state.tab === 'following') {
+      state.queue = state.list.filter(m => !isMine(m) && follows(m.name)); // newest first
+      if (state.queue.length) { store.set(fseenKey(), String(state.queue[0].id)); paintTabs(); }
+      else {
+        const none = !st.friends.length && !(st.outgoing || []).length;
+        track.append(h('div', { class: 'sempty' }, h('div', { class: 'big' }, none ? '\u{1F465}' : shortsIcon),
+          h('b', null, none ? 'Follow people to see their Shorts here' : 'Nobody you follow has posted a Short yet'),
+          h('div', null, none ? 'Tap someone\u2019s name on a Short to see their profile and follow them.' : 'When they do, they\u2019ll be here.'),
+          h('div', null, h('button', { class: 'primary', onclick: () => showTab('foryou') }, 'Watch For you'))));
+        return;
+      }
+      return more();
+    }
+    if (!state.list.length) {
+      track.append(h('div', { class: 'sempty' }, h('div', { class: 'big' }, shortsIcon), h('b', null, 'No Shorts yet'),
+        h('div', null, 'Be the first! Post a video up to a minute long.'),
+        h('div', null, h('button', { class: 'primary', onclick: post }, 'Post a Short'))));
+      return;
+    }
+    const at = state.list.indexOf(start);
+    const order = from ? [...state.list.slice(at + 1), ...state.list.slice(0, Math.max(0, at))] // theirs, in order from that one
+      : weightedOrder(state.list.filter(m => m !== start), postScore);
+    [start, ...order].filter(Boolean).forEach(addSlide);
+  }
+  function paintTabs() {
+    if (!tabs) return;
+    const newest = state.list.find(m => !isMine(m) && follows(m.name));
+    const unseen = !!newest && newest.id > Number(store.get(fseenKey()) || 0);
+    tabs.querySelectorAll('button').forEach(b => {
+      const on = b.dataset.tab === state.tab;
+      b.classList.toggle('on', on);
+      b.setAttribute('aria-selected', String(on));
+      const dot = b.dataset.tab === 'following' && unseen && !on;
+      if (dot !== !!b.querySelector('.sdot')) b.replaceChildren(b.dataset.tab === 'following' ? 'Following' : 'For you', ...(dot ? [h('span', { class: 'sdot', title: 'New from people you follow' })] : []));
+    });
+    sub.textContent = state.tab === 'following' ? 'From people you follow' : 'Short videos from everyone';
+  }
+  function showTab(tab) {
+    if (tab === state.tab) return track.scrollTo({ top: 0, behavior: 'smooth' }); // tapping it again: back to the top
+    state.tab = tab;
+    seen.disconnect();
+    track.querySelectorAll('video').forEach(v => { v.pause(); v.removeAttribute('src'); v.load(); });
+    track.replaceChildren();
+    track.scrollTop = 0;
+    state.current = state.last = state.queue = null;
+    paintTabs();
+    fill(null);
+  }
   function more(n = 5) {
+    if (state.tab === 'following') { // the next few, then a card at the end
+      if (!state.queue) return;
+      state.queue.splice(0, n).forEach(addSlide);
+      if (!state.queue.length) {
+        state.queue = null;
+        track.append(h('div', { class: 'slide send' }, h('div', { class: 'sempty' }, h('div', { class: 'big' }, '\u2705'), h('b', null, 'You\u2019re all caught up'),
+          h('div', null, 'That\u2019s every Short from people you follow.'),
+          h('div', null, h('button', { class: 'primary', onclick: () => showTab('foryou') }, 'Watch For you')))));
+      }
+      return;
+    }
     if (track.children.length > 300) return;
     for (let i = 0; i < n; i++) {
       const pool = state.list.length > 1 ? state.list.filter(m => m.id !== state.last) : state.list; // never the same one twice in a row
