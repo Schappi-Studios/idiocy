@@ -1080,6 +1080,13 @@
   .pbadges { display: flex; flex-wrap: wrap; gap: 6px; }
   .pbadge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
   button.pbadge.addbadge { border-style: dashed; background: none; color: var(--accent); cursor: pointer; font-family: inherit; }
+  .pbadge[data-tip] { cursor: help; -webkit-tap-highlight-color: transparent; }
+  .pbadge[data-tip]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bdpic { width: 1.4em; height: 1.4em; object-fit: contain; vertical-align: -0.38em; }
+  .btip { position: fixed; z-index: 3000; max-width: min(260px, calc(100vw - 16px)); padding: 8px 11px; border-radius: 10px;
+    background: var(--text); color: var(--panel); font-size: 13px; line-height: 1.35; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+    pointer-events: none; animation: btipin .12s ease-out; }
+  @keyframes btipin { from { opacity: 0; transform: translateY(3px); } }
   .badgeed .bdlist { display: flex; flex-direction: column; gap: 8px; }
   .badgeed .bdrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .badgeed .bdrow .bdabout { color: var(--muted); font-size: 12px; flex: 1; min-width: 0; }
@@ -1088,7 +1095,10 @@
   .badgeed .bdline { display: flex; align-items: center; gap: 8px; }
   .badgeed .bdline > input:last-child { flex: 1; min-width: 0; }
   .badgeed .bdemoji { width: 56px; flex: none; text-align: center; font-size: 18px; }
+  .badgeed .bdpicbox { align-self: stretch; display: flex; align-items: center; justify-content: center; padding: 0; background: var(--panel-2); border: 1px solid var(--border); border-radius: 12px; cursor: pointer; }
+  .badgeed .bdpicbox .bdpic { width: 28px; height: 28px; vertical-align: 0; }
   .badgeed .bdpick button { padding: 4px 8px; font-size: 18px; line-height: 1.2; }
+  .badgeed .bdpick .bdpic { width: 1.2em; height: 1.2em; vertical-align: -0.22em; }
   .badgeed h3 { margin: 6px 0 0; font-size: 15px; }
   .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; margin-top: 6px; }
   .swatch { height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; }
@@ -2317,12 +2327,18 @@ const BANNERS = {
 };
 const EARLY_MEMBERS = 100; // member numbers up to this are early members (organisations and test accounts have none)
 
-const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'); // 1st, 2nd, 11th...
+// Badge icons are emojis, or one of Idiocy's own pictures (there's no ostrich emoji). A badge
+// stores the picture's name ('~ostrich') where an emoji would go.
+const BADGE_PICS = { '~ostrich': 'data:image/png;base64,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' };
+const badgeIcon = e => BADGE_PICS[e] ? h('img', { class: 'bdpic', src: BADGE_PICS[e], alt: '' }) : e;
+const badgeBits = (e, t) => [badgeIcon(e), ' ' + t];
+// Ready-made badges for admins to give out.
+const BADGE_PRESETS = [{ e: '~ostrich', t: 'Ostrich', d: 'Did you know an ostrich’s eye is bigger than its brain?' }];
 
 // edited: after an admin gives or takes away a badge here (admins get a "+ Badge" button).
 function badgeRow(p, b, edited) {
   const list = [];
-  if (b && b.no) list.push(['\u{1F39F}️', `Member #${b.no}`, `The ${ordinal(b.no)} person to join Idiocy`]);
+  if (b && b.no) list.push(['\u{1F39F}️', `Member #${b.no}`, 'Idiocy looked deep within my soul and assigned me a number based on the order in which I joined.']);
   if (b && b.no && b.no <= EARLY_MEMBERS) list.push(['\u{1F331}', 'Early member', `One of the first ${EARLY_MEMBERS} people to join Idiocy`]);
   ((b && b.given) || []).forEach(g => list.push([g.e, g.t, g.d || 'Given by the Idiocy admins']));
   const created = p.created || (b && b.created);
@@ -2332,56 +2348,109 @@ function badgeRow(p, b, edited) {
   if (b && b.friends >= 10) list.push(['\u{1F465}', 'Popular', `${b.friends} friends`]);
   const canGive = !!edited && !!b && !!me && me.role === 'admin' && serverApi >= 41;
   if (!list.length && !canGive) return null;
-  return h('div', { class: 'pbadges' }, ...list.map(([icon, label, tip]) => h('span', { class: 'pbadge', title: tip }, icon + ' ' + label)),
+  return h('div', { class: 'pbadges' }, ...list.map(([icon, label, tip]) => h('span', {
+    class: 'pbadge', tabindex: 0, 'data-tip': tip, 'aria-label': `${label}: ${tip}`,
+    onpointerenter: e => { if (e.pointerType === 'mouse') showBadgeTip(e.currentTarget); },
+    onpointerleave: e => { if (e.pointerType === 'mouse') hideBadgeTip(); },
+    onfocus: e => showBadgeTip(e.currentTarget), onblur: () => hideBadgeTip(),
+    onclick: e => { // a tap (phones have no hover) shows it; another tap hides it
+      e.stopPropagation();
+      const el = e.currentTarget;
+      if (badgeTip && badgeTip.el === el && badgeTip.tapped) return hideBadgeTip();
+      showBadgeTip(el);
+      badgeTip.tapped = true;
+    },
+  }, badgeBits(icon, label))),
     canGive && h('button', { class: 'pbadge addbadge', title: 'Give them a badge (admins only)', onclick: () => openBadgeEditor(p.username, edited) }, '+ Badge'));
 }
+
+// What a badge is for, in a bubble above it (below if there's no room), kept on the screen.
+let badgeTip = null;
+function showBadgeTip(el) {
+  hideBadgeTip();
+  const tip = h('div', { class: 'btip', role: 'tooltip' }, el.dataset.tip);
+  document.body.append(tip);
+  const r = el.getBoundingClientRect(), w = tip.offsetWidth, ht = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2)) + 'px';
+  tip.style.top = (r.top - ht - 8 >= 8 ? r.top - ht - 8 : r.bottom + 8) + 'px';
+  // Gone with the badge (the profile redraws now and then).
+  badgeTip = { tip, el, tapped: false, watch: setInterval(() => { if (!el.isConnected) hideBadgeTip(); }, 300) };
+}
+function hideBadgeTip() {
+  if (!badgeTip) return;
+  clearInterval(badgeTip.watch);
+  badgeTip.tip.remove();
+  badgeTip = null;
+}
+document.addEventListener('click', hideBadgeTip);
+addEventListener('scroll', hideBadgeTip, true);
+addEventListener('resize', hideBadgeTip);
+addEventListener('keydown', e => { if (e.key === 'Escape') hideBadgeTip(); });
 
 // Admins: the badges someone's been given, and giving them another (an emoji, a name and, if you
 // like, what it's for). Badges already given to anyone come back with one tap. onChange(how many
 // they have now) runs after each change.
-const BADGE_EMOJIS = ['\u{1F3C5}', '⭐', '\u{1F3C6}', '\u{1F451}', '\u{1F48E}', '\u{1F3A8}', '\u{1F4BB}', '\u{1F3AE}', '\u{1F9EA}', '\u{1F6E0}️', '\u{1F4E3}', '❤️'];
+const BADGE_EMOJIS = ['\u{1F3C5}', '⭐', '\u{1F3C6}', '\u{1F451}', '\u{1F48E}', '\u{1F3A8}', '\u{1F4BB}', '\u{1F3AE}', '\u{1F9EA}', '\u{1F6E0}️', '\u{1F4E3}', '❤️', '~ostrich'];
 async function openBadgeEditor(username, onChange) {
   const list = h('div', { class: 'bdlist' }, h('div', { class: 'shimmer', style: 'height:36px;border-radius:999px' }));
   const used = h('div', { class: 'chips' });
   const emoji = h('input', { class: 'bdemoji', value: BADGE_EMOJIS[0], maxlength: 16, 'aria-label': 'Its emoji' });
+  // A picture icon instead of a typed emoji: shown in the emoji's place (tap it to type one again).
+  let pic = null;
+  const picBox = h('button', { type: 'button', class: 'bdemoji bdpicbox hidden', title: 'Type an emoji instead', onclick: () => setIcon('') });
+  const icon = () => pic || emoji.value.trim() || BADGE_EMOJIS[0];
   const name = h('input', { placeholder: 'Its name, e.g. Beta tester', maxlength: 24, 'aria-label': 'Its name' });
   const about = h('input', { placeholder: 'What it’s for (optional)', maxlength: 80, 'aria-label': 'What it’s for' });
   const preview = h('span', { class: 'pbadge' });
   const paintPreview = () => {
-    preview.textContent = (emoji.value.trim() || BADGE_EMOJIS[0]) + ' ' + (name.value.trim() || 'Badge');
+    preview.replaceChildren(...badgeBits(icon(), name.value.trim() || 'Badge'));
     preview.title = about.value.trim() || 'Given by the Idiocy admins';
   };
   [emoji, name, about].forEach(i => { i.oninput = paintPreview; });
+  const setIcon = e => {
+    pic = BADGE_PICS[e] ? e : null;
+    if (pic) picBox.replaceChildren(badgeIcon(pic));
+    else if (e) emoji.value = e;
+    emoji.classList.toggle('hidden', !!pic);
+    picBox.classList.toggle('hidden', !pic);
+    paintPreview();
+    if (!pic && !e) emoji.select();
+  };
   paintPreview();
-  const pick = e => { emoji.value = e; paintPreview(); };
   const paint = d => {
     list.replaceChildren(...(d.badges.length ? d.badges.map(g => h('div', { class: 'bdrow' },
-      h('span', { class: 'pbadge', title: g.d || 'Given by the Idiocy admins' }, g.e + ' ' + g.t),
+      h('span', { class: 'pbadge', title: g.d || 'Given by the Idiocy admins' }, badgeBits(g.e, g.t)),
       g.d && h('span', { class: 'bdabout' }, g.d),
       h('button', { class: 'ghost danger', onclick: async () => {
         if (!confirm(`Take the "${g.t}" badge away from ${displayName(d.username)}?`)) return;
         const d2 = await act('adminTakeBadge', { username: d.username, id: g.i });
         if (d2) { paint(d2); toast('Badge taken away'); if (onChange) onChange(d2.badges.length); }
       } }, 'Take away'))) : [h('div', { class: 'muted' }, 'No badges from admins yet.')]));
-    const have = new Set(d.badges.map(g => g.t.toLowerCase()));
-    const again = d.used.filter(u => !have.has(u.t.toLowerCase()));
+    // Ready-made ones first, then everything given to anyone before (not what they've got already).
+    const have = new Set(d.badges.map(g => g.t.toLowerCase())), seen = new Set();
+    const again = BADGE_PRESETS.concat(d.used).filter(u => {
+      const k = u.t.toLowerCase();
+      if (have.has(k) || seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
     used.replaceChildren(...again.map(u => h('button', { class: 'ghost', title: u.d || 'Given by the Idiocy admins', onclick: () => {
-      emoji.value = u.e; name.value = u.t; about.value = u.d; paintPreview(); name.focus();
-    } }, u.e + ' ' + u.t)));
+      name.value = u.t; about.value = u.d; setIcon(u.e); name.focus();
+    } }, badgeBits(u.e, u.t))));
     usedBox.classList.toggle('hidden', !again.length);
   };
-  const usedBox = h('div', { class: 'hidden' }, h('div', { class: 'hint' }, 'Given before (tap to fill it in):'), used);
+  const usedBox = h('div', null, h('div', { class: 'hint' }, 'Ready-made and given before (tap one to fill it in):'), used);
   const form = h('form', { class: 'bdform', onsubmit: async e => {
     e.preventDefault();
-    const d = await act('adminGiveBadge', { username, emoji: emoji.value.trim(), name: name.value.trim(), about: about.value.trim() });
+    const d = await act('adminGiveBadge', { username, emoji: icon(), name: name.value.trim(), about: about.value.trim() });
     if (!d) return;
     paint(d);
     toast(`Badge given to ${displayName(d.username)}`);
     name.value = ''; about.value = ''; paintPreview();
     if (onChange) onChange(d.badges.length);
   } },
-    h('div', { class: 'chips bdpick' }, ...BADGE_EMOJIS.map(e => h('button', { type: 'button', class: 'ghost', onclick: () => pick(e) }, e))),
-    h('div', { class: 'bdline' }, emoji, name),
+    h('div', { class: 'chips bdpick' }, ...BADGE_EMOJIS.map(e => h('button', { type: 'button', class: 'ghost', title: BADGE_PICS[e] ? e[1].toUpperCase() + e.slice(2) : null, onclick: () => setIcon(e) }, badgeIcon(e)))),
+    h('div', { class: 'bdline' }, emoji, picBox, name),
     about,
     h('div', { class: 'bdline' }, h('span', { class: 'hint' }, 'It’ll look like:'), preview),
     h('button', { class: 'primary', type: 'submit' }, 'Give badge'));
