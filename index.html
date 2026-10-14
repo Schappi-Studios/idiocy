@@ -1079,6 +1079,17 @@
   .profile .pgame { font-size: 14px; }
   .pbadges { display: flex; flex-wrap: wrap; gap: 6px; }
   .pbadge { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--border); }
+  button.pbadge.addbadge { border-style: dashed; background: none; color: var(--accent); cursor: pointer; font-family: inherit; }
+  .badgeed .bdlist { display: flex; flex-direction: column; gap: 8px; }
+  .badgeed .bdrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .badgeed .bdrow .bdabout { color: var(--muted); font-size: 12px; flex: 1; min-width: 0; }
+  .badgeed .bdrow button { margin-left: auto; padding: 4px 12px; }
+  .badgeed .bdform { display: flex; flex-direction: column; gap: 8px; }
+  .badgeed .bdline { display: flex; align-items: center; gap: 8px; }
+  .badgeed .bdline > input:last-child { flex: 1; min-width: 0; }
+  .badgeed .bdemoji { width: 56px; flex: none; text-align: center; font-size: 18px; }
+  .badgeed .bdpick button { padding: 4px 8px; font-size: 18px; line-height: 1.2; }
+  .badgeed h3 { margin: 6px 0 0; font-size: 15px; }
   .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; margin-top: 6px; }
   .swatch { height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; }
   .swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--panel) inset; }
@@ -2094,7 +2105,7 @@ function openProfile(name) {
           !g && h('span', null, h('b', null, String(c.following)), ' following'), // organisations don't follow anyone
           !isMe && rel === 'friend' && h('span', { class: 'ptag' }, '\u{1F91D} Friends'),
           !isMe && rel === 'incoming' && h('span', { class: 'ptag' }, 'Follows you')),
-        badgeRow(p, state.badges),
+        badgeRow(p, state.badges, loadInfo),
         p.bio && h('div', { class: 'pbio' }, tame(p.bio)),
         p.created && h('div', { class: 'pmeta' }, 'Joined ' + new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long', day: 'numeric' })),
         h('div', { class: 'btns' }, btns)));
@@ -2308,17 +2319,79 @@ const EARLY_MEMBERS = 100; // member numbers up to this are early members (organ
 
 const ordinal = n => n + (n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'); // 1st, 2nd, 11th...
 
-function badgeRow(p, b) {
+// edited: after an admin gives or takes away a badge here (admins get a "+ Badge" button).
+function badgeRow(p, b, edited) {
   const list = [];
   if (b && b.no) list.push(['\u{1F39F}️', `Member #${b.no}`, `The ${ordinal(b.no)} person to join Idiocy`]);
   if (b && b.no && b.no <= EARLY_MEMBERS) list.push(['\u{1F331}', 'Early member', `One of the first ${EARLY_MEMBERS} people to join Idiocy`]);
+  ((b && b.given) || []).forEach(g => list.push([g.e, g.t, g.d || 'Given by the Idiocy admins']));
   const created = p.created || (b && b.created);
   const years = created ? Math.floor((Date.now() - created) / (365 * 864e5)) : 0;
   if (years >= 1) list.push(['\u{1F382}', `${years} year${years > 1 ? 's' : ''}`, 'On Idiocy for ' + years + (years > 1 ? ' years' : ' year')]);
   if (b && b.streak >= 3) list.push(['\u{1F525}', `${b.streak}-day streak`, 'Their best streak going right now']);
   if (b && b.friends >= 10) list.push(['\u{1F465}', 'Popular', `${b.friends} friends`]);
-  if (!list.length) return null;
-  return h('div', { class: 'pbadges' }, ...list.map(([icon, label, tip]) => h('span', { class: 'pbadge', title: tip }, icon + ' ' + label)));
+  const canGive = !!edited && !!b && !!me && me.role === 'admin' && serverApi >= 41;
+  if (!list.length && !canGive) return null;
+  return h('div', { class: 'pbadges' }, ...list.map(([icon, label, tip]) => h('span', { class: 'pbadge', title: tip }, icon + ' ' + label)),
+    canGive && h('button', { class: 'pbadge addbadge', title: 'Give them a badge (admins only)', onclick: () => openBadgeEditor(p.username, edited) }, '+ Badge'));
+}
+
+// Admins: the badges someone's been given, and giving them another (an emoji, a name and, if you
+// like, what it's for). Badges already given to anyone come back with one tap. onChange(how many
+// they have now) runs after each change.
+const BADGE_EMOJIS = ['\u{1F3C5}', '⭐', '\u{1F3C6}', '\u{1F451}', '\u{1F48E}', '\u{1F3A8}', '\u{1F4BB}', '\u{1F3AE}', '\u{1F9EA}', '\u{1F6E0}️', '\u{1F4E3}', '❤️'];
+async function openBadgeEditor(username, onChange) {
+  const list = h('div', { class: 'bdlist' }, h('div', { class: 'shimmer', style: 'height:36px;border-radius:999px' }));
+  const used = h('div', { class: 'chips' });
+  const emoji = h('input', { class: 'bdemoji', value: BADGE_EMOJIS[0], maxlength: 16, 'aria-label': 'Its emoji' });
+  const name = h('input', { placeholder: 'Its name, e.g. Beta tester', maxlength: 24, 'aria-label': 'Its name' });
+  const about = h('input', { placeholder: 'What it’s for (optional)', maxlength: 80, 'aria-label': 'What it’s for' });
+  const preview = h('span', { class: 'pbadge' });
+  const paintPreview = () => {
+    preview.textContent = (emoji.value.trim() || BADGE_EMOJIS[0]) + ' ' + (name.value.trim() || 'Badge');
+    preview.title = about.value.trim() || 'Given by the Idiocy admins';
+  };
+  [emoji, name, about].forEach(i => { i.oninput = paintPreview; });
+  paintPreview();
+  const pick = e => { emoji.value = e; paintPreview(); };
+  const paint = d => {
+    list.replaceChildren(...(d.badges.length ? d.badges.map(g => h('div', { class: 'bdrow' },
+      h('span', { class: 'pbadge', title: g.d || 'Given by the Idiocy admins' }, g.e + ' ' + g.t),
+      g.d && h('span', { class: 'bdabout' }, g.d),
+      h('button', { class: 'ghost danger', onclick: async () => {
+        if (!confirm(`Take the "${g.t}" badge away from ${displayName(d.username)}?`)) return;
+        const d2 = await act('adminTakeBadge', { username: d.username, id: g.i });
+        if (d2) { paint(d2); toast('Badge taken away'); if (onChange) onChange(d2.badges.length); }
+      } }, 'Take away'))) : [h('div', { class: 'muted' }, 'No badges from admins yet.')]));
+    const have = new Set(d.badges.map(g => g.t.toLowerCase()));
+    const again = d.used.filter(u => !have.has(u.t.toLowerCase()));
+    used.replaceChildren(...again.map(u => h('button', { class: 'ghost', title: u.d || 'Given by the Idiocy admins', onclick: () => {
+      emoji.value = u.e; name.value = u.t; about.value = u.d; paintPreview(); name.focus();
+    } }, u.e + ' ' + u.t)));
+    usedBox.classList.toggle('hidden', !again.length);
+  };
+  const usedBox = h('div', { class: 'hidden' }, h('div', { class: 'hint' }, 'Given before (tap to fill it in):'), used);
+  const form = h('form', { class: 'bdform', onsubmit: async e => {
+    e.preventDefault();
+    const d = await act('adminGiveBadge', { username, emoji: emoji.value.trim(), name: name.value.trim(), about: about.value.trim() });
+    if (!d) return;
+    paint(d);
+    toast(`Badge given to ${displayName(d.username)}`);
+    name.value = ''; about.value = ''; paintPreview();
+    if (onChange) onChange(d.badges.length);
+  } },
+    h('div', { class: 'chips bdpick' }, ...BADGE_EMOJIS.map(e => h('button', { type: 'button', class: 'ghost', onclick: () => pick(e) }, e))),
+    h('div', { class: 'bdline' }, emoji, name),
+    about,
+    h('div', { class: 'bdline' }, h('span', { class: 'hint' }, 'It’ll look like:'), preview),
+    h('button', { class: 'primary', type: 'submit' }, 'Give badge'));
+  const md = modal('scroll badgeed', h('h2', null, `Badges for ${displayName(username)}`),
+    h('div', { class: 'hint' }, 'They show on their profile, after the ones everyone can earn.'),
+    list, h('h3', null, 'Give a badge'), form, usedBox,
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
+  const d = await act('adminBadges', { username });
+  if (!d) return md.close();
+  paint(d);
 }
 
 // ---------- blocking ----------
@@ -8287,6 +8360,7 @@ function openAdmin() {
       const search = h('input', { placeholder: 'Search users', value: query });
       search.oninput = () => { query = search.value; drawUsers(); };
       const list = h('div');
+      const badgesBtn = u => serverApi >= 41 && h('button', { class: 'ghost', title: 'Badges from admins on their profile', onclick: () => openBadgeEditor(u.username, n => { u.badges = n; drawUsers(); }) }, `\u{1F3C5} Badges${u.badges ? ' (' + u.badges + ')' : ''}`);
       const drawUsers = () => list.replaceChildren(...data.users
         .filter(u => u.username && key(u.username).includes(key(query)))
         .slice(0, 100)
@@ -8297,8 +8371,10 @@ function openAdmin() {
           u.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           serverApi >= 15 && (u.verified ? h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713') : h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
+          u.role === 'admin' && serverApi >= 41 && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, badgesBtn(u)), // admins get badges too
           u.role !== 'admin' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' },
             serverApi >= 15 && h('button', { class: 'ghost', onclick: () => adminSetEmail(u.username, load) }, '\u2709\uFE0F Set email'),
+            badgesBtn(u),
             serverApi >= 23 && u.shorts && h('button', {
               class: 'ghost', title: 'How many Shorts they can post a day. Click to change it.',
               onclick: async () => {
