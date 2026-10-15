@@ -1286,6 +1286,27 @@
     .acts button { padding: 6px 10px; font-size: 16px; }
     .reacts button { padding: 4px 10px; }
   }
+  /* ---------- looking around signed out ---------- */
+  .guestonly { display: none !important; }
+  body.guest .guestonly { display: revert !important; }
+  body.guest #mtabs .guestonly { display: flex !important; }
+  body.guest aside .me, body.guest #myou, body.guest #orgbar, body.guest aside .sec.chats .sec-head, body.guest #msearch,
+  body.guest #convos, body.guest #projectsrow, body.guest aside .sec.friends, body.guest #feedbox, body.guest .verifybar,
+  body.guest #searchbtn, body.guest #mtabs [data-tab="chats"], body.guest #mtabs [data-tab="friends"], body.guest #mtabs [data-tab="you"],
+  body.guest #mhead, body.guest #menu { display: none !important; }
+  .guestbox { margin: 8px 12px 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); display: flex; flex-direction: column; gap: 8px; }
+  .guestbox b { font-size: 15px; }
+  .guestbox p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .guestbox .btns { display: flex; gap: 8px; }
+  .guestbox .btns button { flex: 1; padding: 8px 10px; font-size: 14px; font-weight: 600; border-radius: 10px; }
+  #guestbar { display: none; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
+  #guestbar span { flex: 1; min-width: 0; }
+  #guestbar button { padding: 6px 12px; }
+  @media (max-width: 720px) { body.guest #guestbar { display: flex; } }
+  .cguest { width: 100%; margin-top: 6px; }
+  .pubback { margin-bottom: 4px; }
+  #lookaround { align-self: center; margin-top: 6px; }
+  body.guest .msg .acts { display: none !important; } /* report, edit, delete: nothing to do signed out */
   /* ---------- Idiocy Shorts ---------- */
   .vshot { position: relative; background: #000; }
   .vshot video { display: block; width: 100%; height: 100%; object-fit: cover; background: #000; }
@@ -1693,6 +1714,7 @@
       <div id="suerr" role="alert"></div>
       <button class="primary" type="submit" id="sugo">Continue</button>
     </form>
+    <button type="button" class="linkbtn" id="lookaround">👀 Just looking? See what’s on Idiocy</button>
   </div>
 </div>
 
@@ -1725,6 +1747,8 @@
       </button>
     </div>
     <div id="orgbar" class="hidden"></div>
+    <div class="guestbox guestonly"><b>You’re looking around Idiocy</b><p>Join to post, like, comment, follow people and chat with your friends.</p>
+      <div class="btns"><button class="ghost" type="button" data-auth="login">Log in</button><button class="primary" type="button" data-auth="register">Join</button></div></div>
     <div id="myou"></div>
     <div class="sec chats">
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
@@ -1779,6 +1803,7 @@
       </div>
       <div class="bar"><span id="cstatus"></span><span id="cctrls" style="display:contents"></span></div>
     </div>
+    <div id="guestbar"><span>👀 Looking around. Join to post, like and comment.</span><button class="ghost" type="button" data-auth="login">Log in</button><button class="primary" type="button" data-auth="register">Join</button></div>
     <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
@@ -1827,6 +1852,7 @@
     <button data-tab="shorts" class="hidden" id="mtabshorts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3.5"/><path d="M10.5 9.2v5.6l4.6-2.8z" fill="currentColor"/></svg>Shorts</button>
     <button data-tab="friends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Friends<span class="tb hidden"></span></button>
     <button data-tab="you"><span class="avatar" id="mtabme"></span>You</button>
+    <button data-tab="join" class="guestonly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Log in</button>
   </nav>
 </div>
 
@@ -1922,7 +1948,7 @@ function wantProfiles(names) {
     const p = profiles.get(key(n));
     if (!p || Date.now() - p.at > 60000) profileWanted.add(n);
   });
-  if (profileWanted.size && !profileTimer && token) profileTimer = setTimeout(fetchProfiles, 50);
+  if (profileWanted.size && !profileTimer && (token || guest)) profileTimer = setTimeout(fetchProfiles, 50);
 }
 
 async function fetchProfiles() {
@@ -2027,6 +2053,7 @@ const isTopPage = el => ![...document.querySelectorAll('#shorts, #profilepage')]
   .some(o => o !== el && (el.compareDocumentPosition(o) & Node.DOCUMENT_POSITION_FOLLOWING));
 const profileLink = n => INVITE_BASE + '?u=' + encodeURIComponent(n);
 function openProfile(name) {
+  if (guest) return askToJoin('see people\u2019s profiles');
   if (profileOpen) profileOpen.close();
   document.querySelectorAll('.overlay').forEach(o => o.remove()); // from a pop-up (comments, followers): the page, not behind it
   const desk = !isPhone();
@@ -2707,7 +2734,17 @@ async function api(action, data) {
   }
 }
 
+// Looking around signed out: these are asked for in their read-only guest versions; everything
+// else needs an account, so it isn't sent (act() asks them to join instead).
+let guest = false;
+const GUEST_API = { poll: 'guestPoll', older: 'guestOlder', comments: 'guestComments', image: 'guestImage', profiles: 'guestProfiles',
+  shorts: 'guestShorts', embedCode: 'guestEmbedCode', projectImage: 'guestProjectImage', projectCode: 'guestProjectCode', postKind: 'guestPostKind' };
+const NO_LOGIN_API = new Set(['login', 'register', 'signupStart', 'usernameFree', 'forgotStart', 'forgotReset', 'publicShort', 'inviteInfo']);
 async function apiRaw(action, data) {
+  if (guest && !token) {
+    if (GUEST_API[action]) action = GUEST_API[action];
+    else if (!NO_LOGIN_API.has(action)) return { ok: false, guest: true, error: 'Join Idiocy (or log in) to do that' };
+  }
   // A plain string body is sent as text/plain, which avoids a CORS preflight
   // (Apps Script can't answer those).
   const as = data && 'as' in data ? data.as : actingAs; // data.as: just this once (posting as someone else)
@@ -2772,6 +2809,7 @@ async function act(action, data, onOk, optimistic) {
   progress(1);
   try {
     const d = await api(action, data);
+    if (!d.ok && d.guest) { askToJoin(); return null; }
     if (!d.ok) {
       goneOnServer(d.error);
       if (verifyError(d.error)) openVerify();
@@ -2982,6 +3020,13 @@ let linkReloaded = !!pendingLink && (performance.getEntriesByType('navigation')[
 let feedFirst = null; // the post the feed opens on, from the address bar
 function openLink(search) {
   const q = new URLSearchParams(search || '');
+  if (guest && st && (q.get('short') || q.get('post'))) {
+    pendingLink = '';
+    linkReloaded = false;
+    if (Number(q.get('short'))) openShorts(Number(q.get('short')));
+    else openPost(Number(q.get('post')), false);
+    return;
+  }
   if (!me || !st) { pendingLink = search; return; }
   pendingLink = '';
   const quiet = linkReloaded;
@@ -2999,7 +3044,7 @@ function openLink(search) {
 // The address bar names the post, Short or profile you're on, like YouTube's, so refreshing (or
 // copying the address) comes back to it. Chats and the other phone tabs leave it plain.
 function syncAddress() {
-  if (pendingLink || !me) return; // still on the way to the one it names
+  if (pendingLink || (!me && !guest)) return; // still on the way to the one it names
   let q = '';
   if (profileOpen && isTopPage(profileOpen.el)) q = '?u=' + encodeURIComponent(profileOpen.username());
   else if (shortsOpen) {
@@ -3255,6 +3300,7 @@ $('signup').addEventListener('submit', async e => {
 function showAuth(msg) {
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
+  $('lookaround').classList.toggle('hidden', !!store.get(INVITE_KEY) || guest); // invited: sign up
   $('autherr').textContent = msg || '';
   if (!SCRIPT_URL) $('autherr').textContent = 'Set SCRIPT_URL in chat.html first.';
   showInviteBanner();
@@ -3304,7 +3350,67 @@ async function logOut() {
   try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'logout', token: t }) }); } catch (e) {}
 }
 
+// Signed out: the Global feed and Shorts, read-only, with ways to log in or join.
+function startGuest() {
+  guest = true;
+  document.body.classList.add('guest');
+  $('auth').classList.add('hidden');
+  document.querySelectorAll('#auth .pubback').forEach(b => b.remove());
+  $('app').classList.remove('hidden');
+  me = null; st = null; uv = null; latest = {};
+  st = { convos: [{ id: 'global', type: 'global', name: 'Global', members: [] }], friends: [], incoming: [], outgoing: [], dms: [], blocked: [], orgs: [], orgInvites: [] };
+  $('feedrow').replaceChildren(h('button', { class: 'row global on', onclick: () => { if (shortsOpen) shortsOpen.close(); switchTo('global'); } },
+    h('div', { class: 'avatar icon' }, '#'), h('span', { class: 'label' }, h('span', { class: 'nm' }, 'Global feed'), h('span', { class: 'prev' }, 'Posts from everyone'))));
+  const link = new URLSearchParams(pendingLink);
+  feedFirst = Number(link.get('post')) || null;
+  openId = 'global';
+  setView('feed');
+  switchTo('global');
+}
+// Logging in or joining from there: what was shown for nobody goes.
+function leaveGuest() {
+  document.querySelectorAll('#auth .guestback').forEach(b => b.remove());
+  if (!guest) return;
+  guest = false;
+  document.body.classList.remove('guest');
+  if (shortsOpen) shortsOpen.close();
+  clearTimeout(pollTimer);
+  me = st = uv = null;
+  latest = {};
+  chatCache.clear();
+  openRev = null;
+  clearLog();
+  profiles.clear();
+  sideSig = '';
+}
+// The log in / sign up screen, from looking around (with a way back).
+function toAuth(mode) {
+  if (shortsOpen) shortsOpen.close();
+  showAuth();
+  const tab = document.querySelector(`#auth .tabs button[data-mode="${mode}"]`);
+  if (tab) tab.click();
+  const card = document.querySelector('#auth .card');
+  if (guest && card && !card.querySelector('.pubback')) card.prepend(h('button', { type: 'button', class: 'linkbtn pubback guestback', onclick: () => {
+    card.querySelector('.guestback').remove();
+    $('auth').classList.add('hidden');
+    $('app').classList.remove('hidden');
+  } }, '\u2190 Back to looking around'));
+  $('lookaround').classList.toggle('hidden', guest || !!store.get(INVITE_KEY)); // the back button does that
+}
+function askToJoin(what) {
+  if (document.querySelector('.joinask')) return;
+  const md = modal('joinask', h('h2', null, 'Join Idiocy'),
+    h('p', { style: 'margin:0;color:var(--muted)' }, `You need an account to ${what || 'do that'}. It\u2019s free, and takes a minute.`),
+    h('div', { class: 'btns' },
+      h('button', { class: 'ghost', onclick: () => md.close() }, 'Not now'),
+      h('button', { class: 'ghost', onclick: () => { md.close(); toAuth('login'); } }, 'Log in'),
+      h('button', { class: 'primary', onclick: () => { md.close(); toAuth('register'); } }, 'Join')));
+}
+document.querySelectorAll('[data-auth]').forEach(b => { b.onclick = () => toAuth(b.dataset.auth); });
+$('lookaround').onclick = () => { if (guest) { $('auth').classList.add('hidden'); $('app').classList.remove('hidden'); } else startGuest(); };
+
 function start() {
+  leaveGuest();
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
   if (isPhone()) { openId = 'global'; setView('chats'); } // phones open on the chat list
@@ -3365,7 +3471,7 @@ const NEWS = { v: 24, title: 'New in Idiocy \u2728', items: [
   ['\u{1F3AC}', 'Idiocy Shorts', 'Swipe through short videos full-screen (the Shorts tab). Post your own with \u{1F3AC} Short: up to a minute long, 5 a day.'],
 ], olderV: 22 };
 function maybeShowNews() {
-  if (serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
+  if (!token || serverApi < NEWS.v || (prefs.news || 0) >= NEWS.v || document.querySelector('.overlay') || loading) return;
   // Missed the last update's pop-up too? Show those as well.
   const items = NEWS.items.concat((prefs.news || 0) < NEWS.olderV ? NEWS.older : []);
   prefs.news = NEWS.v;
@@ -3417,7 +3523,7 @@ function hideLoading(now) {
 
 // ---------- polling ----------
 async function poll() {
-  if (!token) return;
+  if (!token && !guest) return;
   if (polling) { pollAgain = true; return; }
   polling = true;
   const myEpoch = epoch;
@@ -3429,7 +3535,7 @@ async function poll() {
       ...(lastId && document.visibilityState === 'visible' && openRev !== null && !isFeed() && { read: lastId }), // for seen receipts
       k: me ? key(me.name) : undefined, known: st ? st.convos.map(c => c.id) : undefined, // lets the server batch its reads
     });
-    if (myAs !== actingAs || !token) return; // switched account while it was on its way
+    if (myAs !== actingAs || (!token && !guest)) return; // switched account while it was on its way
     if (!d.ok) {
       if (!d.auth && d.error !== lastError) { lastError = d.error; sys('Server error: ' + d.error, true); }
       hideLoading(); // so the error is visible
@@ -3495,9 +3601,9 @@ async function poll() {
     $('mtabshorts').classList.toggle('hidden', serverApi < 22);
     $('shortsrow').classList.toggle('hidden', serverApi < 22);
     $('projectsrow').classList.toggle('hidden', serverApi < 29);
-    if (store.get(INVITE_KEY)) redeemPendingInvite();
+    if (store.get(INVITE_KEY) && token) redeemPendingInvite();
     if (pendingLink) openLink(pendingLink);
-    pushSync();
+    if (token) pushSync();
     paintTip();
   } catch (e) {
     setStatus(false);
@@ -3515,7 +3621,7 @@ function schedule() {
   // (Following people who haven't followed back can last forever, so that doesn't speed polling up:
   // a follow-back comes as a ping, which refreshes the friends list straight away.)
   const busy = Date.now() - lastActivity < 30000 || (serverApi < 34 && st && (st.outgoing.length || st.incoming.length) > 0);
-  if (token) pollTimer = setTimeout(poll, document.hidden ? POLL_HIDDEN : busy ? POLL_BUSY : POLL_ACTIVE);
+  if (token || guest) pollTimer = setTimeout(poll, document.hidden ? POLL_HIDDEN : busy ? POLL_BUSY : POLL_ACTIVE);
 }
 
 function pollNow() {
@@ -4396,8 +4502,8 @@ async function openShorts(startId, from) {
   const soundBtn = h('button', { class: desk ? 'iconbtn' : null, title: 'Sound on/off', 'aria-label': 'Sound on or off' });
   const paintSound = () => { soundBtn.textContent = shortsSound ? '\u{1F50A}' : '\u{1F507}'; };
   paintSound();
-  const post = () => { if (!desk) close(); pickShort(); };
-  const tabbed = !from && !orgMe() && serverApi >= 34; // organisations don't follow anyone
+  const post = () => { if (guest) return askToJoin('post Shorts'); if (!desk) close(); pickShort(); };
+  const tabbed = !from && !orgMe() && !guest && serverApi >= 34; // organisations don't follow anyone (and signed out, nobody)
   const tabBtn = (tab, label) => h('button', { type: 'button', role: 'tab', 'data-tab': tab, onclick: () => showTab(tab) }, label);
   const tabs = tabbed && h('div', { class: 'stabs', role: 'tablist', 'aria-label': 'Which Shorts' }, tabBtn('foryou', 'For you'), tabBtn('following', 'Following'));
   const sub = h('div', { class: 'ssub' }, from ? 'Shorts by ' + displayName(from.by) : 'Short videos from everyone');
@@ -4599,6 +4705,7 @@ function shortsLeft() {
   return !q || q.limit == null ? Infinity : Math.max(0, q.limit - q.used);
 }
 function pickShort() {
+  if (guest) return askToJoin('post Shorts');
   if (serverApi < 22) return;
   if (shortsLeft() <= 0) {
     return toast(me.shorts.limit === 0 ? 'You can\u2019t post Shorts right now.' : `That\u2019s your ${me.shorts.limit} Shorts for today. More tomorrow!`, true);
@@ -4665,6 +4772,11 @@ function shortMenu(slide, closePlayer) {
 const postLink = m => INVITE_BASE + (m.vd ? '?short=' : '?post=') + m.id; // a Short's opens in Shorts
 function sharePost(m) {
   if (!m || !m.id) return;
+  if (guest) { // no chats to send it to: its link
+    const url = INVITE_BASE + '?post=' + m.id;
+    if (navigator.share && isPhone()) return navigator.share({ url }).catch(() => {});
+    return navigator.clipboard.writeText(url).then(() => toast('\u{1F517} Link copied'), () => prompt('Copy this link:', url));
+  }
   const chats = (st ? st.convos : []).filter(c => c.type === 'dm' || c.type === 'group')
     .sort((a, b) => (latest[b.id] || 0) - (latest[a.id] || 0));
   const chosen = new Set();
@@ -4766,7 +4878,9 @@ async function showPublicShort(code) {
       h('button', { class: 'primary', onclick: () => toAuth('register') }, 'Join')),
     box,
     h('div', { class: 'pscta' }, h('span', null, 'Watch more Shorts and chat with your friends on Idiocy.'),
+      h('button', { class: 'ghost', onclick: () => { view.querySelectorAll('video').forEach(v => v.pause()); view.remove(); pendingLink = shownId ? '?short=' + shownId : ''; startGuest(); } }, 'Watch more'),
       h('button', { class: 'primary', onclick: () => toAuth('register') }, 'Join Idiocy')));
+  let shownId = 0;
   document.body.append(view);
   let d;
   try { d = await api('publicShort', { code }); } catch (e) { d = { error: 'Couldn\u2019t reach Idiocy. Check your internet.' }; }
@@ -4775,6 +4889,7 @@ async function showPublicShort(code) {
     return;
   }
   const s = d.short, rude = t => starRude(String(t || '')); // out in public: swears are starred out
+  shownId = s.id;
   document.title = `${s.name}\u2019s Short on Idiocy`;
   const video = h('video', { src: videoUrl(s.vd.id), poster: posterUrl(s.vd.id), playsinline: '', loop: '', autoplay: '', preload: 'auto' });
   video.muted = true; // so it can start by itself
@@ -4902,13 +5017,14 @@ async function toggleComments(el, focus = true) {
   const input = h('input', { placeholder: 'Write a comment\u2026', maxlength: 300 });
   attachMentions(input);
   attachEmojiComplete(input);
-  const form = h('form', { class: 'cform', onsubmit: e => { e.preventDefault(); sendComment(el, input); } },
-    input, h('button', { class: 'primary', type: 'submit' }, 'Reply'));
+  const form = guest ? h('button', { class: 'ghost cguest', type: 'button', onclick: () => askToJoin('comment') }, 'Join Idiocy to comment')
+    : h('form', { class: 'cform', onsubmit: e => { e.preventDefault(); sendComment(el, input); } },
+      input, h('button', { class: 'primary', type: 'submit' }, 'Reply'));
   el._cmts = h('div', { class: 'comments enter' }, list, form);
   el.append(el._cmts);
   paintCommentCount(el);
   snapCheck();
-  if (focus) input.focus();
+  if (focus && !guest) input.focus();
   await loadComments(el);
 }
 
@@ -5029,7 +5145,7 @@ const starRude = text => text.replace(/\S+/g, tok => {
   const m = /^([^A-Za-z0-9@$]*)(.*?)([^A-Za-z0-9]*)$/.exec(tok);
   return m[2] && isRude(m[2]) ? m[1] + '*'.repeat(m[2].length) + m[3] : tok;
 });
-const tame = text => (text && prefs.hideSwears ? starRude(String(text)) : text);
+const tame = text => (text && (prefs.hideSwears || guest) ? starRude(String(text)) : text); // signed out it's public: always
 // After switching it on or off: redraw what's showing.
 function repaintTexts() {
   log.querySelectorAll('.msg').forEach(el => { if (el._m && !el._m.sys) { paintText(el); if (el._m.pl) paintPoll(el); } });
@@ -5134,6 +5250,7 @@ matchMedia('(max-width: 720px)').addEventListener('change', () => {
   if (prof && prof.top) openProfile(prof.name);
 });
 function mtab(t) {
+  if (t === 'join') return toAuth('login');
   if (profileOpen) { profileOpen.close(); if (t === mview && !shortsOpen) return; } // a tab leaves someone's profile
   if (t === 'shorts') { openShorts(); return; } // a full-screen player, not a screen of its own
   if (shortsOpen) { shortsOpen.close(); if (t === mview) return; } // another tab: leave Shorts and go there
@@ -5593,6 +5710,7 @@ function updateMessage(m) {
 
 async function toggleReaction(el, emoji) {
   closePicker();
+  if (guest) return askToJoin('like posts');
   const m = el._m;
   if (!m.id || !me) return;
   // Show it straight away, then settle on whatever the server says.
@@ -5615,6 +5733,7 @@ async function toggleReaction(el, emoji) {
 let pickerEl = null;
 function openPicker(btn, el) {
   closePicker();
+  if (guest) return askToJoin('react to posts');
   const rect = btn.getBoundingClientRect();
   const customs = h('span', { class: 'pcustom' });
   const paintCustoms = list => customs.replaceChildren(...list.map(e =>
@@ -5902,6 +6021,7 @@ function paintPoll(el) {
 }
 
 async function castVote(el, i) {
+  if (guest) return askToJoin('vote in polls');
   const m = el._m;
   if (!m.id || !me || el._busy) return;
   // Show it straight away, then settle on whatever the server says.
@@ -6036,6 +6156,7 @@ const embedIcon = what => /video|TikTok|Twitch|YouTube|GIPHY/.test(what || '') ?
 const linkKnown = new Map(), linkAsking = new Map();
 function linkCheck(src) {
   if (linkKnown.has(src)) return Promise.resolve(linkKnown.get(src));
+  if (guest && !token) return Promise.resolve({ frame: null, title: '' }); // it needs an account (it fetches other sites)
   if (!linkAsking.has(src)) {
     linkAsking.set(src, fetch(MEDIA_BASE + '/linkinfo', { method: 'POST', headers: { 'content-type': 'application/json', 'x-idiocy-token': token || '' }, body: JSON.stringify({ url: src }) })
       .then(r => r.json()).catch(() => null)
@@ -8750,7 +8871,7 @@ document.addEventListener('keydown', e => {
 
 // ---------- start ----------
 document.querySelectorAll('img.logo').forEach(img => { img.src = $('favicon').href; });
-if (token) start(); else if (publicCode) showPublicShort(publicCode); else showAuth();
+if (token) start(); else if (publicCode) showPublicShort(publicCode); else if (store.get(INVITE_KEY)) showAuth(); else startGuest();
 </script>
 </body>
 </html>
