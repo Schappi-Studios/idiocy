@@ -1649,7 +1649,7 @@
     </div>
     <div id="invitebanner" class="hidden"></div>
     <form id="authform">
-      <input id="auser" placeholder="Username" autocomplete="username" maxlength="20">
+      <input id="auser" placeholder="Username or email" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="100">
       <input id="apass" type="password" placeholder="Password" autocomplete="current-password">
       <div id="autherr"></div>
       <button type="button" class="linkbtn" id="forgotbtn" style="align-self:flex-start">Forgot password?</button>
@@ -6565,7 +6565,7 @@ function emailSection(refresh, startNow) {
 
 // Login screen: reset a forgotten password with a code sent to a verified email.
 function openForgot() {
-  const user = h('input', { placeholder: 'Your username', autocomplete: 'username', value: $('auser').value });
+  const user = h('input', { placeholder: 'Your username or email', autocomplete: 'username', autocapitalize: 'none', spellcheck: 'false', maxlength: 100, value: $('auser').value });
   const send = h('button', { class: 'primary' }, 'Send code');
   const md = modal('', h('h2', null, 'Forgot password'),
     h('div', { style: 'color:var(--muted);font-size:14px' }, 'If your account has a verified email, we\u2019ll send it a code.'), user, send);
@@ -6591,7 +6591,7 @@ function openForgot() {
     code.focus();
   };
   send.onclick = async () => {
-    if (!user.value.trim()) return toast('Enter your username', true);
+    if (!user.value.trim()) return toast('Enter your username or email', true);
     send.disabled = true; send.classList.add('busy');
     try {
       const d = await api('forgotStart', { username: user.value });
