@@ -195,6 +195,7 @@
   .avatar.icon { background: var(--panel-2); color: var(--muted); border-radius: 8px; }
   .avatar { position: relative; background-size: cover; background-position: center; }
   .avatar[data-user] { cursor: pointer; }
+  .avatar.idiocyav { background-color: #fff; box-shadow: 0 0 0 1px var(--border); }
   .presence {
     position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%;
     background: var(--ok); border: 2px solid var(--panel);
@@ -264,6 +265,19 @@
   .acts button:hover { background: var(--hover); color: var(--text); }
   .acts button.danger:hover { color: var(--danger); }
   .msg.pending { opacity: .55; }
+  /* Messages from Idiocy itself */
+  .msg.official .name { color: var(--accent); cursor: default; }
+  .msg.official .name:hover { text-decoration: none; }
+  .msg.official .txt { white-space: pre-wrap; }
+  .badge.offbadge { background: var(--accent); color: #fff; }
+  body.idiocychat #send, body.idiocychat #attachbar, body.idiocychat #replybar { display: none; }
+  body.idiocychat #composernote { padding: 12px 16px max(12px, env(safe-area-inset-bottom)); text-align: center; font-size: 13px; }
+  .idcmsg textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 90px; font: inherit; }
+  .idcmsg .idclist { display: flex; flex-direction: column; gap: 8px; }
+  .idcmsg .idcrow { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: start; }
+  .idcmsg .idcmeta { font-size: 12px; color: var(--muted); }
+  .idcmsg .idctext { grid-column: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .idcmsg .idcrow button { grid-column: 2; grid-row: 1 / span 2; }
   .msg.pending .acts { display: none !important; }
 
   .reacts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
@@ -1939,7 +1953,11 @@ function storeProfiles(map) {
 }
 
 // opts.dot shows an online dot; opts.click = false disables opening the profile.
+// Messages from Idiocy itself (an admin wrote them) go by this name, which nobody can take.
+const IDIOCY = 'Idiocy', IDIOCY_LOGO = document.getElementById('favicon').href;
+const isIdiocy = n => key(n) === key(IDIOCY);
 function avatar(n, opts = {}) {
+  if (isIdiocy(n)) return h('div', { class: 'avatar idiocyav', title: IDIOCY, style: `background-image:url("${IDIOCY_LOGO}")` });
   const el = h('div', {
     class: 'avatar',
     'data-user': key(n),
@@ -2082,6 +2100,7 @@ function openProfile(name) {
         : h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Ban ${name}?`)) run('ban', { username: name }, () => toast(`${name} banned`))(); } }, 'Ban'));
       if (serverApi >= 7) btns.push(h('button', { class: 'ghost', onclick: () => renameUser(p.username || name, true, () => close()) }, 'Rename'));
       if (serverApi >= 15) btns.push(h('button', { class: 'ghost', onclick: () => adminSetEmail(p.username || name, () => { profiles.delete(key(name)); openProfile(name); }) }, '✉️ Set email'));
+      if (serverApi >= 42) btns.push(h('button', { class: 'ghost', onclick: () => openIdiocyMessenger(p.username || name) }, '\u{1F4E3} Message as Idiocy'));
       if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => close()) }, 'Delete account'));
     }
     const c = state.counts, n = state.posts.total, ns = state.shorts.total;
@@ -2461,6 +2480,43 @@ async function openBadgeEditor(username, onChange) {
     list, h('h3', null, 'Give a badge'), form, usedBox,
     h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
   const d = await act('adminBadges', { username });
+  if (!d) return md.close();
+  paint(d);
+}
+
+// Admins: message someone as Idiocy itself (warnings and such). It goes to their own Idiocy chat,
+// which they can't reply in. They aren't told which admin sent it; admins can see.
+async function openIdiocyMessenger(username, draft) {
+  const list = h('div', { class: 'idclist' }, h('div', { class: 'shimmer', style: 'height:56px;border-radius:10px' }));
+  const text = h('textarea', { rows: 4, maxlength: 2000, 'aria-label': 'Message', placeholder: 'e.g. \u26A0\uFE0F Please don\u2019t spam the Global feed. If it keeps happening, you\u2019ll be timed out.' });
+  text.value = draft || '';
+  const paint = d => list.replaceChildren(...(d.messages.length ? d.messages.slice().reverse().map(m => h('div', { class: 'idcrow' },
+    h('div', { class: 'idcmeta' }, new Date(m.time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }), m.by && [' \u00b7 sent by ', nameEl(m.by, 'b')]),
+    h('div', { class: 'idctext' }, m.text),
+    h('button', { class: 'ghost danger', title: 'Delete it from their chat', onclick: async () => {
+      if (!confirm('Delete this message from their Idiocy chat?')) return;
+      const d2 = await act('adminIdiocyDelete', { username: d.username, id: m.id });
+      if (d2) { paint(d2); toast('Message deleted'); }
+    } }, 'Delete'))) : [h('div', { class: 'muted' }, 'Nothing sent to them yet.')]));
+  const send = h('button', { class: 'primary', type: 'submit' }, '\u{1F4E3} Send as Idiocy');
+  const form = h('form', { onsubmit: async e => {
+    e.preventDefault();
+    if (!text.value.trim() || send.disabled) return;
+    send.disabled = true;
+    const d = await act('adminIdiocySend', { username, text: text.value });
+    send.disabled = false;
+    if (!d) return;
+    paint(d);
+    text.value = '';
+    toast(`Sent to ${displayName(d.username)} as Idiocy`);
+  } }, text, h('div', { class: 'btns' }, send));
+  text.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); form.requestSubmit(); } };
+  const md = modal('scroll idcmsg', h('h2', null, `\u{1F4E3} Message ${displayName(username)} as Idiocy`),
+    h('div', { class: 'hint' }, 'It goes to their own Idiocy chat, from Idiocy (not from you, though other admins can see who sent it). They get a notification even if they\u2019ve muted things, and they can\u2019t reply.'),
+    form, h('h3', null, 'Sent to them before'), list,
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
+  setTimeout(() => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); }, 50);
+  const d = await act('adminIdiocy', { username });
   if (!d) return md.close();
   paint(d);
 }
@@ -3496,6 +3552,7 @@ const isUnread = id => id !== openId && read && (latest[id] || 0) > (read[id] ||
 function convoLabel(c) {
   if (c.type === 'global') return 'Global feed';
   if (c.type === 'group') return c.name;
+  if (c.type === 'idiocy') return IDIOCY; // their chat with Idiocy itself
   return c.members.find(n => key(n) !== key(me.name)) || 'DM';
 }
 // What a chat is called on screen: a DM goes by the other person's name.
@@ -3543,7 +3600,7 @@ function renderSide() {
     a.type === 'global' ? -1 : b.type === 'global' ? 1 : (latest[b.id] || 0) - (latest[a.id] || 0));
   const rows = convos.map(c => {
     const label = convoLabel(c);
-    const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : h('div', { class: 'avatar icon' }, '#');
+    const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : c.type === 'idiocy' ? avatar(IDIOCY) : h('div', { class: 'avatar icon' }, '#');
     const unread = isUnread(c.id);
     return fresh(h('button', {
       class: 'row' + (c.id === openId && !shortsOpen ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
@@ -3645,13 +3702,14 @@ function renderHeader() {
   const hsig = c ? c.id + (c.pv || '') + picVer + (c.type === 'dm' ? profileVer : '') : '';
   if ($('hicon').dataset.sig !== hsig) {
     $('hicon').dataset.sig = hsig;
-    $('hicon').replaceChildren(...(!c || c.type === 'global' ? [] : c.type === 'dm' ? [avatar(convoLabel(c), { dot: true })] : [groupIcon(c)]));
+    $('hicon').replaceChildren(...(!c || c.type === 'global' ? [] : c.type === 'dm' ? [avatar(convoLabel(c), { dot: true })] : c.type === 'idiocy' ? [avatar(IDIOCY)] : [groupIcon(c)]));
   }
   if (c) pendingTitle = null;
   $('title').textContent = c ? convoTitle(c) : pendingTitle ? displayName(pendingTitle) : openId === 'global' ? 'Global' : 'Loading\u2026';
   $('sub').textContent = !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
     : c.type === 'global' ? 'Posts from everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
     : c.type === 'dm' ? streakText(c.id) || 'Direct message'
+    : c.type === 'idiocy' ? 'Messages from the people who run Idiocy'
     : `${c.members.length} members: ${c.members.map(displayName).join(', ')}`;
   $('searchbtn').classList.toggle('hidden', !(serverApi >= 18 && c));
   $('gadd').classList.toggle('hidden', !isGroup);
@@ -4112,6 +4170,19 @@ function buildMessage(m, pending) {
     const el = h('div', { class: 'msg sysline', title: fmtTime(m.time) }, h('span', null, m.text));
     el._m = m;
     el.dataset.id = m.id;
+    return el;
+  }
+  if (m.idiocy) {
+    // From Idiocy itself: no profile to open, and nothing to react to, reply to or report.
+    const el = h('div', { class: 'msg official', 'data-user': key(IDIOCY), 'data-time': m.time || Date.now() },
+      avatar(IDIOCY),
+      h('div', { class: 'head' }, h('span', { class: 'name' }, IDIOCY), h('span', { class: 'badge offbadge', title: 'From the people who run Idiocy' }, '\u2713 OFFICIAL'),
+        h('span', { class: 'time' }, fmtTime(m.time))),
+      h('div', { class: 'body' }, h('span', { class: 'txt' })),
+      h('div', { class: 'reacts' }));
+    el._m = m;
+    el.dataset.id = m.id;
+    paintText(el);
     return el;
   }
   const time = h('span', { class: 'time' });
@@ -5012,7 +5083,7 @@ log.addEventListener('click', e => {
   if (!matchMedia('(hover: none)').matches) return;
   if (e.target.closest('a, button, input, textarea, .shot, .quote, .name, .avatar, .reacts, .comments, .pfoot')) return;
   if (logTouch && (logTouch.moving || logMoved > logTouch.at)) return; // it was scrolling
-  const el = e.target.closest('.msg:not(.pending):not(.sysline):not(.post)');
+  const el = e.target.closest('.msg:not(.pending):not(.sysline):not(.post):not(.official)');
   const was = el && el.classList.contains('sel');
   log.querySelectorAll('.msg.sel').forEach(m => m.classList.remove('sel'));
   if (el && !was) el.classList.add('sel');
@@ -5139,7 +5210,7 @@ function previewText(c) {
     const who = !p.name ? '' : me && key(p.name) === key(me.name) ? 'You: ' : c.type === 'group' ? displayName(p.name) + ': ' : '';
     return who + tame(p.text);
   }
-  return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : '';
+  return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : c.type === 'idiocy' ? 'Messages from Idiocy' : '';
 }
 function ago(t) {
   if (!t) return '';
@@ -5235,7 +5306,7 @@ function openSearch(convoId, q0) {
   const resultRow = (r, words) => {
     const conv = st && st.convos.find(x => x.id === r.convo);
     const where = r.post ? 'comment on a post' : r.convo === 'global' ? 'Global feed'
-      : conv ? (conv.type === 'group' ? conv.name : 'DM with ' + convoTitle(conv)) : '';
+      : conv ? (conv.type === 'group' || conv.type === 'idiocy' ? convoLabel(conv) : 'DM with ' + convoTitle(conv)) : '';
     return h('button', { class: 'sres', onclick: () => { md.close(); if (r.post || r.convo === 'global') openPost(r.post || r.id); else revealMessage(r.convo, r.id); } },
       avatar(r.name, { click: false }),
       h('div', { class: 'sbody' },
@@ -6882,7 +6953,9 @@ function updateComposer() {
   const slowLeft = Math.ceil((slowUntil - Date.now()) / 1000);
   const waiting = isPendingChat(openId); // DM still being created
   const locked = mustVerify();
-  textEl.disabled = !!muted || waiting || locked;
+  const official = !!(st && (st.convos.find(c => c.id === openId) || {}).type === 'idiocy'); // only Idiocy writes in it
+  document.body.classList.toggle('idiocychat', official);
+  textEl.disabled = !!muted || waiting || locked || official;
   $('attach').disabled = !!muted || waiting || locked;
   $('posttext').disabled = !!muted || locked;
   $('postimg').disabled = !!muted || locked;
@@ -6902,7 +6975,10 @@ function updateComposer() {
   note.onclick = null;
   document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
   paintTip();
-  if (locked) {
+  if (official) {
+    note.textContent = '\u{1F4E3} Only Idiocy can send messages here, so you can\u2019t reply.';
+    note.className = 'composer-note';
+  } else if (locked) {
     note.textContent = '\u{1F4E7} Verify your email to post and send messages. Tap here.';
     note.className = 'composer-note warn verify';
     note.onclick = openVerify;
@@ -7903,21 +7979,22 @@ function handlePings(pings) {
   pings.filter(p => p.kind === 'call').forEach(p => incomingCall(p));
   pings.filter(p => p.kind === 'gcall').forEach(p => groupCallInvite(p));
   pings = pings.filter(p => p.kind !== 'call' && p.kind !== 'gcall');
-  pings.filter(p => (p.kind === 'dm' || p.kind === 'group') && p.convo)
+  pings.filter(p => (p.kind === 'dm' || p.kind === 'group' || p.kind === 'idiocy') && p.convo)
     .forEach(p => notePreview(p.convo, { name: p.from, text: p.text, time: Date.now() }));
+  if (pings.some(p => p.kind === 'idiocy' && !(st && st.convos.some(c => c.id === p.convo)))) { uv = null; pollNow(); } // their first: the chat's new
   if (!pings.length) return;
   // Skip what you're already looking at (comments live inside the feed, so they always count).
   // Friend requests/accepts change the friends list: fetch it on the very next poll.
   if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' || p.kind === 'orginvite' || p.kind === 'orgjoin')) { uv = null; pollNow(); }
   const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' || !p.convo ||
       !(p.convo === openId && !document.hidden))
-    .filter(p => p.kind === 'removed' || !p.convo || (!isMuted(p.convo) && !(p.kind === 'group' && notifyLevel(p.convo) === 'mentions' && !forMe(p))));
+    .filter(p => p.kind === 'removed' || p.kind === 'idiocy' || !p.convo || (!isMuted(p.convo) && !(p.kind === 'group' && notifyLevel(p.convo) === 'mentions' && !forMe(p))));
   if (!shown.length) return;
   if (prefs.sound) ding();
   // Mentions and replies to you matter most, so they win over other pings.
   const p = shown.filter(forMe).pop() || shown[shown.length - 1];
   const where = p.kind === 'group' && forMe(p) ? (mentionsMe(p.text || '') ? 'mentioned you in ' : 'replied to you in ') + (p.gname || 'a group')
-    : p.kind === 'dm' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group'
+    : p.kind === 'dm' || p.kind === 'idiocy' ? 'sent you a message' : p.kind === 'group' ? 'posted in a group'
     : p.kind === 'comment' ? 'commented' : p.kind === 'removed' ? 'removed you from a group' : 'mentioned you';
   const from = displayName(p.from);
   const text = p.kind === 'removed' ? `${from} removed you from "${p.text}"`
@@ -8425,6 +8502,7 @@ function openAdmin() {
         h('div', { class: 'btns' },
           h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
           h('button', { class: 'ghost', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Dismiss'),
+          serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `) }, '\u{1F4E3} Warn'),
           ...timeoutButtons(r.sender, load),
           h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); load(); } } }, 'Ban')))) :
         [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, 'No open reports. Everyone\u2019s behaving (for now).')]));
@@ -8439,6 +8517,7 @@ function openAdmin() {
       const search = h('input', { placeholder: 'Search users', value: query });
       search.oninput = () => { query = search.value; drawUsers(); };
       const list = h('div');
+      const idiocyBtn = u => serverApi >= 42 && h('button', { class: 'ghost', title: 'Send them a message from Idiocy', onclick: () => openIdiocyMessenger(u.username) }, '\u{1F4E3} Message');
       const badgesBtn = u => serverApi >= 41 && h('button', { class: 'ghost', title: 'Badges from admins on their profile', onclick: () => openBadgeEditor(u.username, n => { u.badges = n; drawUsers(); }) }, `\u{1F3C5} Badges${u.badges ? ' (' + u.badges + ')' : ''}`);
       const drawUsers = () => list.replaceChildren(...data.users
         .filter(u => u.username && key(u.username).includes(key(query)))
@@ -8450,10 +8529,11 @@ function openAdmin() {
           u.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           serverApi >= 15 && (u.verified ? h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713') : h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
-          u.role === 'admin' && serverApi >= 41 && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, badgesBtn(u)), // admins get badges too
+          u.role === 'admin' && serverApi >= 41 && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, badgesBtn(u), idiocyBtn(u)), // admins get badges too
           u.role !== 'admin' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' },
             serverApi >= 15 && h('button', { class: 'ghost', onclick: () => adminSetEmail(u.username, load) }, '\u2709\uFE0F Set email'),
             badgesBtn(u),
+            idiocyBtn(u),
             serverApi >= 23 && u.shorts && h('button', {
               class: 'ghost', title: 'How many Shorts they can post a day. Click to change it.',
               onclick: async () => {
