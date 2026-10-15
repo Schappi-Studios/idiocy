@@ -238,7 +238,7 @@
     position: relative; padding: 6px 8px; border-radius: 6px; overflow-wrap: anywhere;
     display: grid; grid-template-columns: 36px 1fr; column-gap: 10px; margin-top: 6px;
   }
-  .msg:hover { background: var(--panel); }
+  @media (hover: hover) { .msg:hover { background: var(--panel); } } /* phones "hover" whatever a finger touches */
   .msg > .avatar { width: 36px; height: 36px; grid-row: span 2; margin-top: 2px; }
   .msg .head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
   .msg .body { grid-column: 2; }
@@ -255,7 +255,8 @@
     background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
     box-shadow: 0 2px 8px rgba(20, 24, 40, .12);
   }
-  .msg:hover .acts, .msg.picking .acts { display: flex; }
+  .msg.picking .acts { display: flex; }
+  @media (hover: hover) { .msg:hover .acts { display: flex; } } /* phones tap instead (.sel): a finger scrolling isn't hovering */
   .acts button {
     background: none; border: 0; border-radius: 6px; padding: 3px 7px; cursor: pointer;
     color: var(--muted); font-size: 13px; display: flex; align-items: center; gap: 4px;
@@ -309,7 +310,7 @@
   .emojiinfo .btns { width: 100%; }
 
   .msg.mentioned { background: rgba(255, 200, 87, .16); box-shadow: inset 3px 0 0 var(--gold); }
-  .msg.mentioned:hover { background: rgba(255, 200, 87, .24); }
+  @media (hover: hover) { .msg.mentioned:hover { background: rgba(255, 200, 87, .24); } }
   .ment { color: var(--accent); font-weight: 600; background: rgba(106, 76, 245, .1); border-radius: 4px; padding: 0 2px; }
   .ment.you { color: #8a5a00; background: rgba(255, 200, 87, .45); }
 
@@ -671,7 +672,7 @@
     display: block; background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
     padding: 14px 16px; margin-top: 0; box-shadow: 0 1px 3px rgba(20, 24, 40, .05);
   }
-  .msg.post:hover { background: var(--panel); }
+  @media (hover: hover) { .msg.post:hover { background: var(--panel); } }
   .msg.post.mentioned { background: #fffaf0; box-shadow: inset 3px 0 0 var(--gold), 0 1px 3px rgba(20, 24, 40, .05); }
   .post .phead { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding-right: 70px; }
   .post .phead > .avatar { width: 40px; height: 40px; }
@@ -4999,9 +5000,17 @@ function richText(text, ce) {
 // ---------- touch screens ----------
 // Tap a message to show its menu (react, reply, edit, report, delete), since
 // there's no hover. Tapping links, buttons, pictures or names still does their thing.
+// A tap that just stops the chat scrolling doesn't count, and scrolling with a finger puts the menu away.
+let logMoved = 0, logTouch = null;
+log.addEventListener('touchstart', e => { logTouch = { at: Date.now(), y: e.touches[0].clientY, moving: Date.now() - logMoved < 150 }; }, { passive: true });
+log.addEventListener('touchmove', e => {
+  if (logTouch && Math.abs(e.touches[0].clientY - logTouch.y) > 10) log.querySelectorAll('.msg.sel').forEach(m => m.classList.remove('sel'));
+}, { passive: true });
+log.addEventListener('scroll', () => { logMoved = Date.now(); }, { passive: true });
 log.addEventListener('click', e => {
   if (!matchMedia('(hover: none)').matches) return;
   if (e.target.closest('a, button, input, textarea, .shot, .quote, .name, .avatar, .reacts, .comments, .pfoot')) return;
+  if (logTouch && (logTouch.moving || logMoved > logTouch.at)) return; // it was scrolling
   const el = e.target.closest('.msg:not(.pending):not(.sysline):not(.post)');
   const was = el && el.classList.contains('sel');
   log.querySelectorAll('.msg.sel').forEach(m => m.classList.remove('sel'));
