@@ -1287,22 +1287,15 @@
     .reacts button { padding: 4px 10px; }
   }
   /* ---------- looking around signed out ---------- */
-  .guestonly { display: none !important; }
-  body.guest .guestonly { display: revert !important; }
-  body.guest #mtabs .guestonly { display: flex !important; }
-  body.guest aside .me, body.guest #myou, body.guest #orgbar, body.guest aside .sec.chats .sec-head, body.guest #msearch,
-  body.guest #convos, body.guest #projectsrow, body.guest aside .sec.friends, body.guest #feedbox, body.guest .verifybar,
-  body.guest #searchbtn, body.guest #mtabs [data-tab="chats"], body.guest #mtabs [data-tab="friends"], body.guest #mtabs [data-tab="you"],
-  body.guest #mhead, body.guest #menu { display: none !important; }
-  .guestbox { margin: 8px 12px 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); display: flex; flex-direction: column; gap: 8px; }
-  .guestbox b { font-size: 15px; }
-  .guestbox p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
-  .guestbox .btns { display: flex; gap: 8px; }
-  .guestbox .btns button { flex: 1; padding: 8px 10px; font-size: 14px; font-weight: 600; border-radius: 10px; }
-  #guestbar { display: none; align-items: center; gap: 8px; padding: 8px 12px; background: var(--panel); border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); }
-  #guestbar span { flex: 1; min-width: 0; }
-  #guestbar button { padding: 6px 12px; }
-  @media (max-width: 720px) { body.guest #guestbar { display: flex; } }
+  /* Everything is where it normally is; your own things say "log in" instead. */
+  .avatar.guestav { background: var(--panel-2); color: var(--muted); cursor: default; }
+  .avatar.guestav svg { width: 62%; height: 62%; }
+  .guestcard { margin: 8px 4px; padding: 14px; border: 1px dashed var(--border); border-radius: 12px; display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .guestcard b { color: var(--text); font-size: 14px; }
+  .guestcard .btns { display: flex; gap: 8px; margin-top: 8px; }
+  .guestcard .btns button { flex: 1; padding: 8px 10px; font-weight: 600; border-radius: 10px; }
+  @media (min-width: 721px) { #friends .guestcard .btns { display: none; } } /* the chats one above has them */
+  body.guest #settingsbtn { display: none; }
   .cguest { width: 100%; margin-top: 6px; }
   .pubback { margin-bottom: 4px; }
   #lookaround { align-self: center; margin-top: 6px; }
@@ -1747,8 +1740,6 @@
       </button>
     </div>
     <div id="orgbar" class="hidden"></div>
-    <div class="guestbox guestonly"><b>You’re looking around Idiocy</b><p>Join to post, like, comment, follow people and chat with your friends.</p>
-      <div class="btns"><button class="ghost" type="button" data-auth="login">Log in</button><button class="primary" type="button" data-auth="register">Join</button></div></div>
     <div id="myou"></div>
     <div class="sec chats">
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
@@ -1803,7 +1794,6 @@
       </div>
       <div class="bar"><span id="cstatus"></span><span id="cctrls" style="display:contents"></span></div>
     </div>
-    <div id="guestbar"><span>👀 Looking around. Join to post, like and comment.</span><button class="ghost" type="button" data-auth="login">Log in</button><button class="primary" type="button" data-auth="register">Join</button></div>
     <div id="log"></div>
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
@@ -1853,7 +1843,6 @@
     <button data-tab="shorts" class="hidden" id="mtabshorts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3.5"/><path d="M10.5 9.2v5.6l4.6-2.8z" fill="currentColor"/></svg>Shorts</button>
     <button data-tab="friends"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></svg>Friends<span class="tb hidden"></span></button>
     <button data-tab="you"><span class="avatar" id="mtabme"></span>You</button>
-    <button data-tab="join" class="guestonly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>Log in</button>
   </nav>
 </div>
 
@@ -3341,7 +3330,7 @@ function signOut(msg) {
   showAuth(msg);
 }
 
-$('mename').onclick = () => { if (me) openProfile(me.name); };
+$('mename').onclick = () => { if (guest) toAuth('login'); else if (me) openProfile(me.name); };
 $('acctbtn').onclick = () => openAccounts();
 
 async function logOut() {
@@ -3351,6 +3340,45 @@ async function logOut() {
   try { await fetch(API_URL, { method: 'POST', body: JSON.stringify({ action: 'logout', token: t }) }); } catch (e) {}
 }
 
+// Signed out, Idiocy looks the same: your picture is a grey person, your name says "Log in", and
+// your chats and friends are a card saying to log in. Things that need an account ask you to join.
+const PERSON_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="8.5" r="4.2"/><path d="M3.8 21a8.2 8.2 0 0 1 16.4 0z"/></svg>';
+function ghostAvatar(id) {
+  const a = h('div', { class: 'avatar guestav', title: 'Not logged in' });
+  a.innerHTML = PERSON_SVG;
+  if (id) a.id = id;
+  return a;
+}
+const guestCard = (title, sub) => h('div', { class: 'guestcard' }, h('b', null, title), h('span', null, sub),
+  h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => toAuth('login') }, 'Log in'), h('button', { class: 'primary', onclick: () => toAuth('register') }, 'Sign up')));
+function paintGuest() {
+  $('mename').replaceChildren(ghostAvatar(), h('span', { class: 'two' }, h('b', null, 'Not logged in'), h('span', { class: 'st' }, 'Log in or sign up')));
+  $('feedrow').replaceChildren(h('button', { class: 'row global' + (openId === 'global' && !shortsOpen ? ' on' : ''), onclick: () => { if (shortsOpen) shortsOpen.close(); switchTo('global'); } },
+    h('div', { class: 'avatar icon' }, '#'), h('span', { class: 'label' }, h('span', { class: 'nm' }, 'Global feed'), h('span', { class: 'prev' }, 'Posts from everyone'))));
+  if (!$('convos').querySelector('.guestcard')) $('convos').replaceChildren(guestCard('Your chats show up here', 'Log in to message your friends and groups.'));
+  $('requests').replaceChildren();
+  if (!$('friends').querySelector('.guestcard')) $('friends').replaceChildren(guestCard('Your friends show up here', 'Log in to follow people and see who follows you.'));
+  if (!$('mtabme').classList.contains('guestav')) $('mtabme').replaceWith(ghostAvatar('mtabme'));
+  if (!$('myou').querySelector('button')) $('myou').replaceChildren(
+    h('button', { onclick: () => toAuth('login') }, '\u{1F511}', ' Log in'),
+    h('button', { onclick: () => toAuth('register') }, '\u2728', ' Sign up'));
+  ['posttext', 'msearch', 'addfriend'].forEach(id => $(id).querySelectorAll('input, textarea').forEach(i => { i.readOnly = true; }));
+  $('posttext').readOnly = true; // no keyboard popping up: tapping it asks you to join
+}
+// Signed out: the things that need an account ask you to join instead of doing nothing.
+const GUEST_ASKS = [['#feedbox', 'post'], ['#newgroup, #mnew', 'make a group'], ['#msearch', 'search your chats'], ['#projectsrow', 'see Idiocy Projects'],
+  ['#addfriend', 'follow people'], ['#invitebtn', 'invite friends'], ['#searchbtn', 'search']];
+function guestAsk(e) {
+  if (!guest || !e.target.closest) return;
+  for (const [sel, what] of GUEST_ASKS) {
+    if (!e.target.closest(sel)) continue;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    return askToJoin(what);
+  }
+}
+['click', 'focusin', 'submit'].forEach(t => document.addEventListener(t, guestAsk, true));
+
 // Signed out: the Global feed and Shorts, read-only, with ways to log in or join.
 function startGuest() {
   guest = true;
@@ -3359,9 +3387,8 @@ function startGuest() {
   document.querySelectorAll('#auth .pubback').forEach(b => b.remove());
   $('app').classList.remove('hidden');
   me = null; st = null; uv = null; latest = {};
-  st = { convos: [{ id: 'global', type: 'global', name: 'Global', members: [] }], friends: [], incoming: [], outgoing: [], dms: [], blocked: [], orgs: [], orgInvites: [] };
-  $('feedrow').replaceChildren(h('button', { class: 'row global on', onclick: () => { if (shortsOpen) shortsOpen.close(); switchTo('global'); } },
-    h('div', { class: 'avatar icon' }, '#'), h('span', { class: 'label' }, h('span', { class: 'nm' }, 'Global feed'), h('span', { class: 'prev' }, 'Posts from everyone'))));
+  st = { convos: [{ id: 'global', type: 'global', name: 'Global', members: [] }], friends: [], incoming: [], outgoing: [], quiet: [], dms: [], blocked: [], orgs: [], orgInvites: [] };
+  paintGuest();
   const link = new URLSearchParams(pendingLink);
   feedFirst = Number(link.get('post')) || null;
   openId = 'global';
@@ -3374,6 +3401,9 @@ function leaveGuest() {
   if (!guest) return;
   guest = false;
   document.body.classList.remove('guest');
+  document.querySelectorAll('#fbrow .guestav, #mename .guestav').forEach(a => a.remove());
+  $('convos').replaceChildren(); $('friends').replaceChildren(); $('myou').replaceChildren();
+  document.querySelectorAll('#posttext, #msearch input, #addfriend input').forEach(i => { i.readOnly = false; });
   if (shortsOpen) shortsOpen.close();
   clearTimeout(pollTimer);
   me = st = uv = null;
@@ -3407,7 +3437,6 @@ function askToJoin(what) {
       h('button', { class: 'ghost', onclick: () => { md.close(); toAuth('login'); } }, 'Log in'),
       h('button', { class: 'primary', onclick: () => { md.close(); toAuth('register'); } }, 'Join')));
 }
-document.querySelectorAll('[data-auth]').forEach(b => { b.onclick = () => toAuth(b.dataset.auth); });
 $('lookaround').onclick = () => { if (guest) { $('auth').classList.add('hidden'); $('app').classList.remove('hidden'); } else startGuest(); };
 
 function start() {
@@ -3682,6 +3711,7 @@ document.addEventListener('pointerup', releaseSide, true);
 document.addEventListener('pointercancel', releaseSide, true);
 
 function renderSide() {
+  if (guest) return paintGuest();
   if (!st || !me) return;
   const sig = JSON.stringify([st, latest, openId, read, me, profileVer, picVer, prefs.muted, prevVer, Math.floor(Date.now() / 60000), streaks, serverApi, !!shortsOpen]);
   if (sig === sideSig) return;
@@ -3807,7 +3837,7 @@ function requestFriend(n) {
 }
 
 function renderHeader() {
-  if (isFeed() && me && !$('fbrow').querySelector('.avatar')) $('fbrow').prepend(avatar(me.name, { click: false }));
+  if (isFeed() && (me || guest) && !$('fbrow').querySelector('.avatar')) $('fbrow').prepend(me ? avatar(me.name, { click: false }) : ghostAvatar());
   const c = st && st.convos.find(c => c.id === openId);
   const isGroup = c && c.type === 'group';
   $('title').classList.toggle('link', !!c && (c.type === 'dm' || isGroup));
@@ -5286,7 +5316,7 @@ function filterChats() {
 }
 
 function renderTabs() {
-  if (!st || !me) return;
+  if (guest || !st || !me) return; // signed out: paintGuest
   const badge = (tab, n, dotOnly) => {
     const b = document.querySelector(`#mtabs button[data-tab="${tab}"] .tb`);
     b.classList.toggle('hidden', !n);
