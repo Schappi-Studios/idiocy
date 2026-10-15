@@ -6992,9 +6992,13 @@ log.addEventListener('scrollend', () => { if (isFeed()) feedSettled(); });
 // Laptops: each scroll or trackpad swipe moves exactly one post. After a swipe a trackpad
 // keeps "coasting" (sending smaller and smaller scrolls) for a second or so; that's ignored,
 // so it never flies past several posts, but a new swipe counts straight away.
+// Safari (WebKit: Macs, and iPads with a trackpad) snaps from post to post well by itself, and its
+// trackpad scrolling doesn't mix with doing it here (they fought: sticky, jumping back, skipping
+// posts), so there it's left to Safari.
+const NATIVE_FEED_WHEEL = 'GestureEvent' in window;
 let wheelLock = 0, wheelLast = -1e9, wheelHist = [], stepTo = null;
 log.addEventListener('wheel', e => {
-  if (!isFeed() || log.classList.contains('nosnap') || e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  if (NATIVE_FEED_WHEEL || !isFeed() || log.classList.contains('nosnap') || e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
   // Something inside a post that scrolls (a long caption, say) scrolls first.
   for (let n = e.target; n && n !== log; n = n.parentElement) {
     if (n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY) &&
