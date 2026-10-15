@@ -3730,11 +3730,12 @@ function renderSide() {
   $('addfriend').classList.toggle('hidden', asOrg);
   // People who follow you (follow them back and you're friends), then people you follow.
   // An organisation just has its followers, listed below like friends.
-  if (!asOrg) st.incoming.forEach(n => reqs.push(fresh(h('div', { class: 'req' },
+  if (!asOrg) asking().forEach(n => reqs.push(fresh(h('div', { class: 'req' },
     h('b', null, displayName(n)), ' follows you',
     h('div', { class: 'actions' },
       h('button', { class: 'primary', style: 'padding:4px 12px', onclick: async () => { const d = await respond(n, true); if (d && d.status) toast(followToast(d)); } }, 'Follow back'),
-      h('button', { class: 'ghost', onclick: () => respond(n, false) }, 'Remove'))), 'i:' + key(n))));
+      serverApi >= 45 && h('button', { class: 'ghost', title: 'Not friends, but they keep following you', onclick: () => declineFollow(n) }, 'Decline'),
+      h('button', { class: 'ghost', title: 'They stop following you', onclick: () => respond(n, false) }, 'Remove'))), 'i:' + key(n))));
   if (!asOrg) st.outgoing.forEach(n => reqs.push(fresh(h('div', { class: 'row', onclick: () => openProfile(n) },
     avatar(n), h('span', { class: 'label' }, displayName(n), h('span', { class: 'muted' }, 'following')),
     h('button', { class: 'x', title: 'Unfollow', onclick: e => { e.stopPropagation(); unfollowUser(n); } }, '✕')), 'o:' + key(n))));
@@ -3778,6 +3779,12 @@ function unfollowUser(n) {
     if (has(s.friends, n)) { drop(s.friends, n); s.incoming.push(n); }
     drop(s.outgoing, n);
   });
+}
+// Followers still waiting for you to follow back (not the ones you've said no to).
+const asking = () => st ? st.incoming.filter(n => !(st.quiet || []).some(q => key(q) === key(n))) : [];
+// No to being friends, but they keep following you (and aren't told).
+function declineFollow(n) {
+  return act('declineFollow', { username: n }, d => toast(`Declined. ${displayName(n)} still follows you.`), s => { s.quiet = (s.quiet || []).concat(n); });
 }
 // They stop following you. If you were friends, you still follow them.
 function removeFollower(n) {
@@ -5287,7 +5294,7 @@ function renderTabs() {
   };
   badge('chats', st.convos.filter(c => c.type !== 'global' && isUnread(c.id)).length);
   badge('feed', isUnread('global') ? 1 : 0, true);
-  badge('friends', orgMe() ? 0 : st.incoming.length); // an organisation's followers aren't waiting for anything
+  badge('friends', orgMe() ? 0 : asking().length); // an organisation's followers aren't waiting for anything
   const mine = $('mtabme');
   if (mine.dataset.name !== me.name) mine.replaceWith(Object.assign(avatar(me.name, { click: false }), { id: 'mtabme' }));
   else paintAvatar(mine);
