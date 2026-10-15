@@ -2092,6 +2092,7 @@ function openProfile(name) {
     if (!isMe && serverApi >= 12 && p.role !== 'admin') btns.push(isBlocked(name)
       ? h('button', { class: 'ghost', onclick: () => unblockUser(p.username || name) }, 'Unblock')
       : h('button', { class: 'ghost danger', onclick: () => blockUser(p.username || name) }, 'Block'));
+    if (!isMe && serverApi >= 43 && me && me.role !== 'admin') btns.push(h('button', { class: 'ghost', title: 'Report their @, name, picture or bio', onclick: () => openReportUser(p.username || name) }, '\u2691 Report')); // admins have their own buttons
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
@@ -6604,8 +6605,8 @@ function openForgot() {
 $('forgotbtn').onclick = openForgot;
 
 // ---------- reporting ----------
-function openReport(m, convo = openId) {
-  const reasons = ['Spam', 'Rude or bullying', 'Inappropriate', 'Other'];
+// Reason buttons for a report: pick one (it's highlighted), plus anything else to say.
+function reportReasons(reasons) {
   let reason = '';
   const other = h('input', { placeholder: 'Anything else admins should know? (optional)', maxlength: 100 });
   const chips = reasons.map(r => h('button', {
@@ -6619,6 +6620,33 @@ function openReport(m, convo = openId) {
       });
     },
   }, r));
+  return { chips, other, value: () => reason && reason + (other.value.trim() ? ': ' + other.value.trim() : '') };
+}
+
+// Reporting someone's account itself: their @, name, picture or bio.
+function openReportUser(name) {
+  const p = profileOf(name) || {};
+  const { chips, other, value } = reportReasons(['Offensive @ or name', 'Offensive picture or bio', 'Spam or fake account', 'Pretending to be someone', 'Other']);
+  const md = modal('',
+    h('h2', null, `Report ${displayName(name)}`),
+    h('div', { class: 'card', style: 'display:flex;align-items:center;gap:10px' }, avatar(name, { click: false }),
+      h('div', null, h('b', null, fullName(p) || name), h('div', { class: 'meta' }, '@' + (p.username || name)))),
+    h('div', { class: 'chips' }, chips),
+    other,
+    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Admins will see their profile and who reported it. To report one thing they posted, report that message instead.'),
+    h('div', { class: 'btns' },
+      h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'),
+      h('button', {
+        class: 'primary',
+        onclick: async () => {
+          if (!value()) return toast('Pick a reason', true);
+          if (await act('reportUser', { username: p.username || name, reason: value() })) { md.close(); toast('Reported. Thanks for keeping Idiocy nice!'); }
+        },
+      }, 'Report')));
+}
+
+function openReport(m, convo = openId) {
+  const { chips, other, value } = reportReasons(['Spam', 'Rude or bullying', 'Inappropriate', 'Other']);
   const md = modal('',
     h('h2', null, 'Report message'),
     h('div', { class: 'card' },
@@ -6632,8 +6660,8 @@ function openReport(m, convo = openId) {
       h('button', {
         class: 'primary',
         onclick: async () => {
-          if (!reason) return toast('Pick a reason', true);
-          const d = await act('report', { convo, id: m.id, reason: reason + (other.value.trim() ? ': ' + other.value.trim() : '') });
+          if (!value()) return toast('Pick a reason', true);
+          const d = await act('report', { convo, id: m.id, reason: value() });
           if (d) { md.close(); toast('Reported. Thanks for keeping Idiocy nice!'); }
         },
       }, 'Report')));
@@ -8003,16 +8031,18 @@ function handlePings(pings) {
     : p.kind === 'invitejoin' ? `\u{1F389} ${from} joined you with your invite link! Click to say hi.`
     : p.kind === 'orginvite' ? `\u{1F3E2} ${p.text} invited you to help run ${from}. Click to see it.`
     : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
+    : p.kind === 'newuser' ? `\u{1F44B} @${p.from} just joined Idiocy${p.text ? ` (${p.text})` : ''}. Click to see their profile.`
+    : p.kind === 'neworg' ? `\u{1F3E2} @${p.by} made an organisation: @${p.from}${p.text ? ` (${p.text})` : ''}. Click to see it.`
     : `${from} ${where}: ${tame(p.text)}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
-    : p.kind === 'orginvite' ? openProfile(p.from) : p.kind === 'orgjoin' ? openProfile(p.text)
+    : p.kind === 'orginvite' || p.kind === 'newuser' || p.kind === 'neworg' ? openProfile(p.from) : p.kind === 'orgjoin' ? openProfile(p.text)
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && !prefs.push && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind === 'removed' || p.kind === 'invitejoin';
+      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind.startsWith('new') || p.kind === 'removed' || p.kind === 'invitejoin';
       const n = new Notification(plain ? text : `${from} ${where}`,
         { body: plain ? '' : tame(p.text), icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
@@ -8496,15 +8526,18 @@ function openAdmin() {
     }
     if (tab === 'reports') {
       body.replaceChildren(...(data.reports.length ? data.reports.map(r => h('div', { class: 'card enter' },
-        h('div', { class: 'meta' }, h('b', { style: 'color:var(--text)' }, r.sender), ` in ${r.where} \u00b7 reported by ${r.reporter} \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
-        h('q', null, r.text || '(no text)'),
+        h('div', { class: 'meta' }, r.account ? ['\u{1F464} ', h('b', { style: 'color:var(--text)' }, '@' + r.sender), '\u2019s account'] : [h('b', { style: 'color:var(--text)' }, r.sender), ` in ${r.where}`],
+          ` \u00b7 reported by ${r.reporter} \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
+        h('q', null, r.text || (r.account ? '(no name, status or bio)' : '(no text)')),
         h('div', { class: 'meta' }, 'Reason: ' + r.reason),
         h('div', { class: 'btns' },
-          h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
+          r.account ? h('button', { class: 'primary', onclick: () => openProfile(r.sender) }, 'See profile')
+            : h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
           h('button', { class: 'ghost', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Dismiss'),
-          serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `) }, '\u{1F4E3} Warn'),
+          serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, r.account ? '\u26A0\uFE0F About your account: ' : `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `) }, '\u{1F4E3} Warn'),
           ...timeoutButtons(r.sender, load),
-          h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); load(); } } }, 'Ban')))) :
+          h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); load(); } } }, 'Ban'),
+          r.account && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(r.sender, load) }, 'Delete account')))) :
         [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, 'No open reports. Everyone\u2019s behaving (for now).')]));
     } else if (tab === 'activity') {
       if (!activity) {
