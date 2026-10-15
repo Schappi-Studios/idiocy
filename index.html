@@ -8354,7 +8354,7 @@ function paintPostAs() {
 const DELETE_WARNING = 'This removes the account and everything it made: messages, posts, comments, pictures, reactions and DMs. It can\u2019t be undone.';
 
 async function adminDeleteAccount(name, done) {
-  const typed = prompt(`Delete ${name} forever?\n\n${DELETE_WARNING}\n\nType their username to confirm:`);
+  const typed = prompt(`Delete ${name} forever?\n\n${DELETE_WARNING}\n\nIt\u2019ll be as if they never joined: everyone who joined after them moves up one member number.\n\nType their username to confirm:`);
   if (typed == null) return;
   if (key(typed) !== key(name)) return toast("That doesn't match, so nothing was deleted", true);
   if (await act('adminDeleteAccount', { username: name })) {
