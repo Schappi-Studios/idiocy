@@ -2084,7 +2084,7 @@ function openProfile(name) {
       if (serverApi >= 15) btns.push(h('button', { class: 'ghost', onclick: () => adminSetEmail(p.username || name, () => { profiles.delete(key(name)); openProfile(name); }) }, '✉️ Set email'));
       if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => close()) }, 'Delete account'));
     }
-    const c = state.counts, n = state.posts.total;
+    const c = state.counts, n = state.posts.total, ns = state.shorts.total;
     titles.replaceChildren(nameEl(p.username || name, 'b'),
       h('span', null, n == null ? '@' + (p.username || name) : `${n} post${n === 1 ? '' : 's'}`));
     head.replaceChildren(
@@ -2112,6 +2112,7 @@ function openProfile(name) {
         !g && p.orgs && p.orgs.length > 0 && h('div', { class: 'pmeta' }, '\u{1F3E2} Part of ', ...p.orgs.flatMap((n, i) => [i ? ', ' : '', nameEl(n, 'b', { class: 'plink', onclick: () => openProfile(n) })])),
         serverApi >= 34 && c && h('div', { class: 'pfollow' },
           n != null && h('span', null, h('b', null, String(n)), n === 1 ? ' post' : ' posts'),
+          ns != null && h('span', null, h('b', null, String(ns)), ns === 1 ? ' Short' : ' Shorts'),
           h('span', null, h('b', null, String(c.followers)), c.followers === 1 ? ' follower' : ' followers'),
           !g && h('span', null, h('b', null, String(c.following)), ' following'), // organisations don't follow anyone
           !isMe && rel === 'friend' && h('span', { class: 'ptag' }, '\u{1F91D} Friends'),
