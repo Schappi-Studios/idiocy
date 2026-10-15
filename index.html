@@ -647,7 +647,7 @@
   #send.recording #mic .i-send { display: block; }
   #recbar { display: none; }
   #send.recording #recbar { display: flex; flex: 1; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; min-width: 0; }
-  #send.recording #text, #send.recording #attach, #send.recording #count, #send.recording button[type=submit] { display: none; }
+  #send.recording #chatcam, #send.recording #text, #send.recording #attach, #send.recording #count, #send.recording button[type=submit] { display: none; }
   #rectime { color: var(--text); font-variant-numeric: tabular-nums; font-weight: 600; }
   .recdot { width: 10px; height: 10px; border-radius: 50%; background: var(--danger); animation: blink 1s infinite; }
   @keyframes blink { 50% { opacity: .3; } }
@@ -1839,6 +1839,7 @@
       <input type="file" id="attachfile" accept="image/*" class="hidden">
       <input type="file" id="camfile" accept="image/*" capture="environment" class="hidden">
       <button type="button" class="iconbtn hidden" id="mic" title="Record a voice message" aria-label="Record a voice message"><svg class="i-mic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><svg class="i-send" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg></button>
+      <button type="button" class="iconbtn hidden" id="chatcam" title="Take a photo" aria-label="Take a photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h2l1.6-2.2h5.8L16.5 6h2A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="12.8" r="3.6"/></svg></button>
       <span id="recbar"><span class="recdot"></span><span id="rectime">0:00</span><span class="rlabel">Recording…</span><button type="button" id="reccancel">Cancel</button></span>
       <button type="button" class="iconbtn emojibtn hidden" id="emojibtn" title="Your custom emojis" aria-label="Your custom emojis">😀</button>
       <input id="text" autocomplete="off" placeholder="Say something…" maxlength="300">
@@ -7114,7 +7115,11 @@ function updateComposer() {
   $('postimg').disabled = !!muted || locked;
   $('postcam').disabled = !!muted || locked;
   $('mic').disabled = !!muted || waiting || locked;
-  $('mic').classList.toggle('hidden', serverApi < 11);
+  // DMs have a camera where other chats have voice messages.
+  const dm = waiting || !!(st && (st.convos.find(c => c.id === openId) || {}).type === 'dm');
+  $('mic').classList.toggle('hidden', serverApi < 11 || dm);
+  $('chatcam').classList.toggle('hidden', !dm);
+  $('chatcam').disabled = !!muted || waiting || locked;
   $('postpoll').classList.toggle('hidden', serverApi < 11);
   $('postshort').classList.toggle('hidden', serverApi < 22);
   $('postshort').disabled = !!muted || locked;
@@ -7402,6 +7407,7 @@ function takePhoto() {
   openCamera();
 }
 $('postcam').onclick = () => takePhoto();
+$('chatcam').onclick = () => takePhoto();
 $('camfile').onchange = () => {
   const f = $('camfile').files[0];
   $('camfile').value = '';
