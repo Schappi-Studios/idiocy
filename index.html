@@ -791,7 +791,8 @@
   #log.feed > .post.ig.pollcard > .body { justify-content: center; }
   #log.feed > .post.ig.pollcard > .body > .txt { margin: 0 0 16px; font-size: 25px; }
   #log.feed > .post.ig.pollcard .popt { min-height: 56px; font-size: 17px; }
-  #log.feed > .post.ig.txtcard > .body { background: linear-gradient(rgba(0, 0, 0, .12), rgba(0, 0, 0, .12)), var(--card); color: #fff; font-weight: 700; text-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+  #log.feed > .post.ig.txtcard > .body { background: linear-gradient(rgba(0, 0, 0, .12), rgba(0, 0, 0, .12)), var(--card); color: #fff; font-weight: 600; text-shadow: 0 1px 3px rgba(0, 0, 0, .3); }
+  #log.feed > .post.ig.txtcard > .body b { font-weight: 900; } /* **bold** has to stand out from the already heavy text */
   #log.feed > .post.ig.txtcard > .body .ment { color: #fff; background: rgba(255, 255, 255, .22); }
   #log.feed > .post.ig.t-xl > .body { font-size: 32px; line-height: 1.2; text-align: center; }
   #log.feed > .post.ig.t-l > .body { font-size: 25px; line-height: 1.3; text-align: center; }
@@ -918,8 +919,8 @@
   .cmt .avatar { width: 28px; height: 28px; font-size: 12px; flex-shrink: 0; }
   .cmt .col { min-width: 0; }
   .cmt .bubble { background: var(--panel-2); border-radius: 12px; padding: 6px 10px; overflow-wrap: anywhere; font-size: 14px; }
-  .cmt .bubble b { font-size: 13px; cursor: pointer; margin-right: 6px; }
-  .cmt .bubble b:hover { text-decoration: underline; }
+  .cmt .bubble > b { font-size: 13px; cursor: pointer; margin-right: 6px; }
+  .cmt .bubble > b:hover { text-decoration: underline; }
   .cmt .meta { font-size: 11px; color: var(--muted); margin: 2px 0 0 10px; display: flex; gap: 10px; }
   .cmt .meta button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 11px; padding: 0; }
   .cmt .meta button:hover { text-decoration: underline; color: var(--text); }
@@ -2253,14 +2254,14 @@ function openProfile(name) {
       : m.sh ? '\u{1F4EE} ' + (m.text || 'Shared a post') : m.vo ? '\u{1F3A4} Voice' : m.text || '';
     const media = !!(pic || img);
     const el = h('button', { type: 'button', class: 'tile' + (media ? ' media' : '') + (!media && label.length <= 60 ? ' short' : ''),
-      'aria-label': (m.vd ? 'Short' : 'Post') + (m.text ? ': ' + m.text.slice(0, 80) : ''),
+      'aria-label': (m.vd ? 'Short' : 'Post') + (m.text ? ': ' + noStyle(m.text).slice(0, 80) : ''),
       onclick: () => {
         if (m.vd) { if (shortsOpen) shortsOpen.close(); openShorts(m.id, { list: state.shorts.list, by: name }); } // their Shorts, over this page
         else { close(); openPost(m.id, false, true); }
       } },
       pic && h('img', { src: pic, alt: '', loading: 'lazy' }),
       img && h('img', { alt: '', 'data-img': m.img }),
-      !media && h('div', { class: 'ttext' }, tame(label)),
+      !media && h('div', { class: 'ttext' }, styledText(label)),
       (likes > 0 || m.cc > 0) && h('div', { class: 'tstat' },
         likes > 0 && [icon(ICON_HEART, { fill: 'currentColor', stroke: 'none' }), String(likes)],
         m.cc > 0 && [icon(ICON_COMMENT, { fill: 'currentColor', stroke: 'none' }), String(m.cc)]));
@@ -3884,7 +3885,7 @@ function paintPin(c) {
   const p = c && (c.type === 'dm' || c.type === 'group') && c.pin;
   $('pinbar').classList.toggle('hidden', !p);
   if (!p) return;
-  $('pintext').replaceChildren(nameEl(p.name, 'b'), ': ', tame(p.text) || '[image]');
+  $('pintext').replaceChildren(nameEl(p.name, 'b'), ': ', tame(noStyle(p.text)) || '[image]');
   $('pinx').classList.toggle('hidden', !canPin(c));
 }
 $('pinbar').onclick = e => {
@@ -4342,7 +4343,7 @@ function buildMessage(m, pending) {
       byLine(m),
       time, h('span', { class: 'edtag' })),
     h('div', { class: 'body' },
-      m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, nameEl(m.rp.name, 'b'), tame(m.rp.text) || '[image]'),
+      m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, nameEl(m.rp.name, 'b'), tame(noStyle(m.rp.text)) || '[image]'),
       m.sh && shareCard(m.sh),
       h('span', { class: 'txt' }), m.img && (m.vo ? voiceBlock(m) : imageBlock(m)), h('div', { class: 'pollbox' })),
     h('div', { class: 'reacts' }),
@@ -4714,7 +4715,7 @@ async function openShorts(startId, from) {
         h('button', { title: 'More', onclick: () => shortMenu(slide, close) }, h('span', { class: 'smore', style: 'font-size:26px;line-height:1' }, '\u22EF'))),
       h('div', { class: 'scap' },
         h('div', { class: 'sname', onclick: () => openProfile(m.name) }, avatar(m.name, { click: false }), nameEl(m.name), byLine(m), h('span', { class: 'when' }, '\u2022 ' + ago(m.time))),
-        m.text && h('div', { class: 'stext', onclick: e => e.currentTarget.classList.toggle('open') }, tame(m.text))));
+        m.text && h('div', { class: 'stext', onclick: e => e.currentTarget.classList.toggle('open') }, styledText(m.text))));
     // One tap: pause or play. Two: like, with a big heart.
     let lastTap = 0, tapTimer = null;
     v.onclick = () => {
@@ -4762,7 +4763,7 @@ async function openShortComments(slide, repaint) {
   const input = h('input', { placeholder: 'Add a comment\u2026', maxlength: 300 });
   attachMentions(input);
   const row = c => h('div', { class: 'crow' }, avatar(c.name),
-    h('div', { class: 'ct' }, nameEl(c.name, 'b'), ' ', tame(c.text), h('span', { class: 'when' }, ago(c.time))));
+    h('div', { class: 'ct' }, nameEl(c.name, 'b'), ' ', styledText(c.text || ''), h('span', { class: 'when' }, ago(c.time))));
   const form = h('form', { onsubmit: async e => {
     e.preventDefault();
     const text = input.value.trim();
@@ -4948,7 +4949,7 @@ const SHARE_KINDS = { photo: '\u{1F4F7} Photo', video: '\u{1F3AC} Short', poll: 
 function shareCard(sh) {
   return h('button', { type: 'button', class: 'sharecard', onclick: e => { e.stopPropagation(); revealMessage('global', sh.id); } },
     h('span', { class: 'shtop' }, '\u{1F4EE} ', nameEl(sh.name, 'b'), '\u2019s post', SHARE_KINDS[sh.k] ? ' \u00b7 ' + SHARE_KINDS[sh.k] : ''),
-    sh.text && h('span', { class: 'shtext' }, tame(sh.text)),
+    sh.text && h('span', { class: 'shtext' }, styledText(sh.text)),
     h('span', { class: 'shgo' }, 'Open post \u2192'));
 }
 
@@ -5193,35 +5194,70 @@ function repaintTexts() {
   renderHeader();
 }
 
+// **bold**, *italic* and ***both***, like most chat apps. A star only counts at the edge of a word,
+// so 2 * 3, sh*t and f*** stay as typed, and stars inside links are left alone.
+const LINK_END = /[.,!?;:)\]'"*]+$/; // punctuation after a link isn't part of it
+const EMPH = /(^|[^\p{L}\p{N}*])(\*{1,3})(?=[^\s*])([\s\S]*?[^\s*])\2(?![\p{L}\p{N}*])/u;
+// Links blanked out (same length), so their stars can't start or end anything.
+const hideLinks = text => text.replace(/https?:\/\/[^\s<>"]+/gi, u => { const n = u.replace(LINK_END, '').length; return 'a'.repeat(n) + u.slice(n); });
+// The text in pieces: plain strings, and { n: number of stars, kids: the pieces inside }.
+function emphasis(text, masked = hideLinks(text)) {
+  const out = [];
+  for (let m; (m = EMPH.exec(masked));) {
+    const at = m.index + m[1].length, n = m[2].length, end = at + n + m[3].length;
+    if (at) out.push(text.slice(0, at));
+    out.push({ n, kids: emphasis(text.slice(at + n, end), masked.slice(at + n, end)) });
+    text = text.slice(end + n);
+    masked = masked.slice(end + n);
+  }
+  if (text) out.push(text);
+  return out;
+}
+// leaf turns each plain piece into nodes.
+const styled = (parts, leaf) => parts.flatMap(p => {
+  if (typeof p === 'string') return leaf(p);
+  const kids = styled(p.kids, leaf);
+  return [p.n === 1 ? h('i', null, kids) : p.n === 2 ? h('b', null, kids) : h('b', null, h('i', null, kids))];
+});
+// Without the stars, for one-line previews and notifications.
+const flat = parts => parts.map(p => (typeof p === 'string' ? p : flat(p.kids))).join('');
+const noStyle = text => (text ? flat(emphasis(String(text))) : text);
+// Bold and italic only (no links or @mentions), for captions and short comments.
+const styledText = text => h('span', null, styled(emphasis(String(text)), p => [tame(p)]));
+
 // Message text with @mentions highlighted (built from text nodes, never HTML).
 // ce: the custom emojis the text uses ({ party_cat: "c:<id>.gif" }); their :names: show as the picture.
 function richText(text, ce) {
   const mine = myMentionRe();
   // (?!) never matches, for when we don't know our own name yet.
   const re = new RegExp('(' + (mine ? mine.source : '(?!)') + ')|(@[A-Za-z0-9_-]+)|(https?:\\/\\/[^\\s<>"]+)' + (ce ? '|:([a-z0-9_]{1,24}):' : ''), 'gi');
-  const out = [];
-  let last = 0, m;
-  while ((m = re.exec(text))) {
-    out.push(tame(text.slice(last, m.index)));
-    if (m[4] !== undefined) {
-      const code = Object.prototype.hasOwnProperty.call(ce, m[4]) && isCustomEmoji(ce[m[4]]) && ce[m[4]];
-      out.push(code ? inlineEmoji(code, m[4]) : m[0]);
+  const leaf = part => {
+    const out = [];
+    let last = 0, m;
+    re.lastIndex = 0;
+    while ((m = re.exec(part))) {
+      out.push(tame(part.slice(last, m.index)));
+      if (m[4] !== undefined) {
+        const code = Object.prototype.hasOwnProperty.call(ce, m[4]) && isCustomEmoji(ce[m[4]]) && ce[m[4]];
+        out.push(code ? inlineEmoji(code, m[4]) : m[0]);
+        last = m.index + m[0].length;
+        continue;
+      }
+      if (m[3]) {
+        // Links: only http(s), opened in a new tab. Trailing punctuation stays as text.
+        const url = m[3].replace(LINK_END, '');
+        out.push(h('a', { href: url, target: '_blank', rel: 'noopener noreferrer nofollow' }, url));
+        last = m.index + url.length;
+        re.lastIndex = last;
+        continue;
+      }
+      out.push(h('span', { class: 'ment' + (m[1] ? ' you' : '') }, m[0]));
       last = m.index + m[0].length;
-      continue;
     }
-    if (m[3]) {
-      // Links: only http(s), opened in a new tab. Trailing punctuation stays as text.
-      const url = m[3].replace(/[.,!?;:)\]'"]+$/, '');
-      out.push(h('a', { href: url, target: '_blank', rel: 'noopener noreferrer nofollow' }, url));
-      last = m.index + url.length;
-      re.lastIndex = last;
-      continue;
-    }
-    out.push(h('span', { class: 'ment' + (m[1] ? ' you' : '') }, m[0]));
-    last = m.index + m[0].length;
-  }
-  out.push(tame(text.slice(last)));
-  return h('span', null, out.filter(x => x !== ''));
+    out.push(tame(part.slice(last)));
+    return out.filter(x => x !== '');
+  };
+  return h('span', null, styled(emphasis(text), leaf));
 }
 
 // ---------- touch screens ----------
@@ -5364,7 +5400,7 @@ function previewText(c) {
   const p = previews[c.id];
   if (p && p.text) {
     const who = !p.name ? '' : me && key(p.name) === key(me.name) ? 'You: ' : c.type === 'group' ? displayName(p.name) + ': ' : '';
-    return who + tame(p.text);
+    return who + tame(noStyle(p.text));
   }
   return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : c.type === 'idiocy' ? 'Messages from Idiocy' : '';
 }
@@ -5385,7 +5421,7 @@ function setReply(m) {
   replying = m;
   $('replybar').classList.toggle('hidden', !m);
   if (m) {
-    $('replytext').replaceChildren('Replying to ', nameEl(m.name, 'b'), ': ', tame(m.text) || '[image]');
+    $('replytext').replaceChildren('Replying to ', nameEl(m.name, 'b'), ': ', tame(noStyle(m.text)) || '[image]');
     textEl.focus();
   }
 }
@@ -5467,7 +5503,7 @@ function openSearch(convoId, q0) {
       avatar(r.name, { click: false }),
       h('div', { class: 'sbody' },
         h('div', { class: 'stop' }, nameEl(r.name, 'b'), !scope && where && h('span', { class: 'swhere' }, where), h('span', { class: 'swhen' }, ago(r.time))),
-        h('div', { class: 'stext' }, highlightWords(tame(r.text), words))));
+        h('div', { class: 'stext' }, highlightWords(tame(noStyle(r.text)), words))));
   };
   input.oninput = () => { clearTimeout(timer); timer = setTimeout(run, 300); };
   input.onkeydown = e => { if (e.key === 'Enter') { clearTimeout(timer); run(); } };
@@ -8201,7 +8237,7 @@ function handlePings(pings) {
     : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
     : p.kind === 'newuser' ? `\u{1F44B} @${p.from} just joined Idiocy${p.text ? ` (${p.text})` : ''}. Click to see their profile.`
     : p.kind === 'neworg' ? `\u{1F3E2} @${p.by} made an organisation: @${p.from}${p.text ? ` (${p.text})` : ''}. Click to see it.`
-    : `${from} ${where}: ${tame(p.text)}`;
+    : `${from} ${where}: ${tame(noStyle(p.text))}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
@@ -8212,7 +8248,7 @@ function handlePings(pings) {
     try {
       const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind.startsWith('new') || p.kind === 'removed' || p.kind === 'invitejoin';
       const n = new Notification(plain ? text : `${from} ${where}`,
-        { body: plain ? '' : tame(p.text), icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
+        { body: plain ? '' : tame(noStyle(p.text)), icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
     } catch (e) {}
   }
