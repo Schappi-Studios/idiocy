@@ -2117,6 +2117,8 @@ function openProfile(name) {
       btns.push(p.banned
         ? h('button', { class: 'ghost', onclick: run('unban', { username: name }, () => toast(`${name} unbanned`)) }, 'Unban')
         : h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Ban ${name}?`)) run('ban', { username: name }, () => toast(`${name} banned`))(); } }, 'Ban'));
+      if (serverApi >= 46) btns.push(h('button', { class: 'ghost', title: FO_ABOUT, onclick: () => { if (p.fo || confirmFollowersOnly(name)) run('adminFollowersOnly', { username: name, on: !p.fo }, () => toast(foToast(name, !p.fo)))(); } },
+        p.fo ? '\u{1F50A} Back in feeds' : '\u{1F507} Followers only'));
       if (serverApi >= 7) btns.push(h('button', { class: 'ghost', onclick: () => renameUser(p.username || name, true, () => close()) }, 'Rename'));
       if (serverApi >= 15) btns.push(h('button', { class: 'ghost', onclick: () => adminSetEmail(p.username || name, () => { profiles.delete(key(name)); openProfile(name); }) }, '✉️ Set email'));
       if (serverApi >= 42) btns.push(h('button', { class: 'ghost', onclick: () => openIdiocyMessenger(p.username || name) }, '\u{1F4E3} Message as Idiocy'));
@@ -2505,6 +2507,11 @@ async function openBadgeEditor(username, onChange) {
 
 // Admins: message someone as Idiocy itself (warnings and such). It goes to their own Idiocy chat,
 // which they can't reply in. They aren't told which admin sent it; admins can see.
+// Followers only (admins): someone's posts and Shorts only come up in the feed and Shorts for their followers.
+const FO_ABOUT = 'Their posts and Shorts only come up in the feed and Shorts for people who follow them. Links to their posts and their profile still work, and they aren\u2019t told.';
+const confirmFollowersOnly = name => confirm(`Make ${name} followers only?\n\n${FO_ABOUT}`);
+const foToast = (name, on) => on ? `${name}\u2019s posts now only reach their followers` : `${name}\u2019s posts reach everyone again`;
+
 async function openIdiocyMessenger(username, draft) {
   const list = h('div', { class: 'idclist' }, h('div', { class: 'shimmer', style: 'height:56px;border-radius:10px' }));
   const text = h('textarea', { rows: 4, maxlength: 2000, 'aria-label': 'Message', placeholder: 'e.g. \u26A0\uFE0F Please don\u2019t spam the Global feed. If it keeps happening, you\u2019ll be timed out.' });
@@ -4532,7 +4539,7 @@ let shortsOpen = null;
 const follows = n => !!st && (has(st.friends, n) || has(st.outgoing || [], n));
 // The newest Short from people you follow that you've seen in Following (for the dot on the tab).
 const fseenKey = () => 'shorts_fseen_' + key(me.name);
-async function openShorts(startId, from) {
+async function openShorts(startId, from, linked) {
   if (shortsOpen || serverApi < 22) return;
   const desk = !isPhone();
   rollShortsIcon();
@@ -4617,7 +4624,8 @@ async function openShorts(startId, from) {
   state.list = d.shorts;
   paintTabs();
   // First: the one you tapped (if any), then a mix where liked Shorts come up more.
-  const start = startId && state.list.find(m => m.id === startId);
+  // linked: a Short from a followers-only account you don't follow, opened from its link (shown, but not in the mix).
+  const start = startId && (state.list.find(m => m.id === startId) || (linked && linked.id === startId ? linked : null));
   if (startId && !start) toast('Couldn\u2019t find that Short. It may have been deleted.');
   fill(start);
   function fill(start) {
@@ -4634,7 +4642,7 @@ async function openShorts(startId, from) {
       }
       return more();
     }
-    if (!state.list.length) {
+    if (!state.list.length && !start) {
       track.append(h('div', { class: 'sempty' }, h('div', { class: 'big' }, shortsIcon), h('b', null, 'No Shorts yet'),
         h('div', null, 'Be the first! Post a video up to a minute long.'),
         h('div', null, h('button', { class: 'primary', onclick: post }, 'Post a Short'))));
@@ -4681,7 +4689,7 @@ async function openShorts(startId, from) {
       }
       return;
     }
-    if (track.children.length > 300) return;
+    if (track.children.length > 300 || !state.list.length) return;
     for (let i = 0; i < n; i++) {
       const pool = state.list.length > 1 ? state.list.filter(m => m.id !== state.last) : state.list; // never the same one twice in a row
       addSlide(weightedOrder(pool, againWeight)[0]);
@@ -5434,15 +5442,18 @@ function jumpTo(id) { revealMessage(openId, id); }
 // Opens a chat and shows one message in it, loading older messages until it's there.
 async function revealMessage(convoId, id, quiet) {
   // A Short isn't in the feed: it opens in Shorts (from a link, a notification, search or a shared card).
+  // linked: a post from a followers-only account you don't follow. It's not in your feed, but its link still shows it.
+  let linked = null;
   if (convoId === 'global' && serverApi >= 40 && !log.querySelector(`.msg[data-id="${id}"]`)) {
     let d = null;
     try { d = await api('postKind', { id }); } catch (e) {}
     if (d && d.ok && d.short) {
       if (profileOpen) profileOpen.close();
       if (shortsOpen) shortsOpen.close();
-      openShorts(Number(id));
+      openShorts(Number(id), undefined, d.post);
       return null;
     }
+    if (d && d.ok && d.post) linked = d.post;
   }
   if (profileOpen) profileOpen.close();
   if (shortsOpen) shortsOpen.close();
@@ -5459,6 +5470,7 @@ async function revealMessage(convoId, id, quiet) {
       if (!quiet) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
       return el;
     }
+    if (linked && openRev !== null && isFeed()) { keepPlace(() => addMessage(linked, 'top')); linked = null; continue; } // lastId stays: it's not part of the feed
     if (openRev !== null && !olderLoading && !olderMore) break; // all loaded, and it isn't there
     if (openRev !== null && !olderLoading) await loadOlder();
     await new Promise(r => setTimeout(r, olderLoading ? 120 : 250));
@@ -8765,6 +8777,7 @@ function openAdmin() {
           u.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
           u.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
+          u.fo && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: FO_ABOUT }, 'FOLLOWERS ONLY'),
           serverApi >= 15 && (u.verified ? h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713') : h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
           u.role === 'admin' && serverApi >= 41 && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, badgesBtn(u), idiocyBtn(u)), // admins get badges too
           u.role !== 'admin' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' },
@@ -8790,6 +8803,10 @@ function openAdmin() {
             u.banned
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('unban', { username: u.username })) load(); } }, 'Unban')
               : h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${u.username}?`) && await act('ban', { username: u.username })) load(); } }, 'Ban'),
+            serverApi >= 46 && h('button', { class: 'ghost', title: FO_ABOUT, onclick: async () => {
+              if (!u.fo && !confirmFollowersOnly(u.username)) return;
+              if (await act('adminFollowersOnly', { username: u.username, on: !u.fo })) { toast(foToast(u.username, !u.fo)); load(); }
+            } }, u.fo ? '\u{1F50A} Back in feeds' : '\u{1F507} Followers only'),
             serverApi >= 7 && h('button', { class: 'ghost', onclick: () => renameUser(u.username, true, load) }, 'Rename'),
             serverApi >= 5 && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(u.username, load) }, 'Delete')))));
       drawUsers();
