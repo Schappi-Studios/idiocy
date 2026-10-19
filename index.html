@@ -1533,6 +1533,17 @@
   .actp { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-bottom: 1px solid var(--border); }
   .actp .avatar { flex: none; }
   .actp .nm { font-weight: 600; cursor: pointer; }
+  /* ---------- admin stats ---------- */
+  .atabs { overflow-x: auto; scrollbar-width: none; } /* five tabs: on a small phone they slide sideways if they don't fit */
+  .atabs::-webkit-scrollbar { display: none; }
+  .atabs button { flex: 1 0 auto; }
+  @media (max-width: 420px) { .atabs { gap: 2px; } .atabs button { padding: 7px 5px; font-size: 13px; } }
+  @media (max-width: 370px) { .atabs button { padding: 7px 4px; font-size: 12.5px; } }
+  .sbars { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: center; font-size: 13px; margin: 10px 0 8px; }
+  .sbars .track { height: 10px; border-radius: 5px; background: var(--panel-2); overflow: hidden; }
+  .sbars .bar { display: block; height: 100%; border-radius: 5px; background: var(--accent); }
+  .sbars b { text-align: right; font-variant-numeric: tabular-nums; }
+  .actp .srank { flex: none; min-width: 22px; padding-top: 9px; text-align: right; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
   .actp .on { color: var(--ok); font-weight: 600; }
   .actp .lst { flex: 1; min-width: 0; }
   .actp .sub { overflow-wrap: anywhere; }
@@ -8652,9 +8663,9 @@ function timeoutButtons(name, done) {
 }
 
 function openAdmin() {
-  let tab = 'reports', data = null, activity = null, actQuery = '';
+  let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const body = h('div', { class: 'alist' });
-  const TABS = ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), 'settings'];
+  const TABS = ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), 'settings'];
   const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; draw(); } }, t[0].toUpperCase() + t.slice(1)));
   const loadActivity = async () => {
     try {
@@ -8664,9 +8675,17 @@ function openAdmin() {
       if (tab === 'activity') draw();
     } catch (e) { toast('Could not reach the server', true); }
   };
+  const loadStats = async () => {
+    try {
+      const d = await api('adminStats', {});
+      if (!d.ok) { if (!d.auth) toast(d.error, true); return; }
+      stats = d;
+      if (tab === 'stats') draw();
+    } catch (e) { toast('Could not reach the server', true); }
+  };
   // How many real people use Idiocy (the server leaves out organisations and the test accounts).
   const count = h('div', { class: 'acount hidden' });
-  const md = modal('wide scroll', h('h2', null, 'Admin panel'), count, h('div', { class: 'tabbar' }, tabs), body);
+  const md = modal('wide scroll', h('h2', null, 'Admin panel'), count, h('div', { class: 'tabbar atabs' }, tabs), body);
   const load = async () => {
     progress(1);
     try {
@@ -8727,6 +8746,63 @@ function openAdmin() {
       }) : [h('div', { class: 'actnote', style: 'padding:8px 4px' }, 'None waiting.')]),
       h('h3', null, `People (${a.people.length})`), search, people);
   };
+  // Stats: how many people joined each day, week or month (in your own time zone), and who has the most followers.
+  const drawStats = () => {
+    const s = stats, dated = s.joined.filter(Boolean);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const daysBack = n => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
+    const since = d => dated.filter(t => t >= +d).length;
+    const fmt = (d, o) => d.toLocaleDateString([], o);
+    // Each period starts at midnight; the newest comes first, and none from before the first person joined.
+    const PERIODS = {
+      day: { start: i => daysBack(i), max: 30, name: (d, i) => i === 0 ? 'Today' : i === 1 ? 'Yesterday' : fmt(d, { weekday: 'short', day: 'numeric', month: 'short' }) },
+      week: { start: i => daysBack((today.getDay() + 6) % 7 + 7 * i), max: 12, name: (d, i) => i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of ' + fmt(d, { day: 'numeric', month: 'short' }) }, // weeks start on Monday
+      month: { start: i => new Date(today.getFullYear(), today.getMonth() - i, 1), max: 120, name: (d, i) => i === 0 ? 'This month' : fmt(d, { month: 'long', year: 'numeric' }) },
+    };
+    const per = PERIODS[statsBy], first = Math.min(...dated);
+    const rows = [];
+    for (let i = 0; i < per.max; i++) {
+      const from = per.start(i), to = i ? per.start(i - 1) : new Date(8.64e15);
+      rows.push({ name: per.name(from, i), n: dated.filter(t => t >= +from && t < +to).length });
+      if (+from <= first) break;
+    }
+    const top = Math.max(1, ...rows.map(r => r.n));
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    let rank = 0;
+    const ranked = s.followed.map((u, i) => ({ ...u, rank: i && u.followers === s.followed[i - 1].followers ? rank : (rank = i + 1) })); // ties share a place
+    const shown = statsAll ? ranked : ranked.slice(0, 25);
+    body.replaceChildren(
+      h('div', { class: 'actsum' },
+        h('span', null, `${since(today)} today`),
+        h('span', null, `${since(daysBack(6))} in the last 7 days`),
+        h('span', null, `${since(daysBack(29))} in the last 30 days`),
+        h('span', null, `${s.joined.length} in all`),
+        h('button', { class: 'ghost', style: 'padding:4px 12px', onclick: () => { stats = null; draw(); } }, '\u21BB Refresh')),
+      h('h3', null, 'People joining'),
+      h('div', { class: 'chips', role: 'tablist' }, [['day', 'Days'], ['week', 'Weeks'], ['month', 'Months']].map(([k, label]) => h('button', {
+        class: 'ghost', role: 'tab', 'aria-selected': String(statsBy === k),
+        style: statsBy === k ? 'border-color:var(--accent);color:var(--accent)' : '',
+        onclick: () => { statsBy = k; drawStats(); },
+      }, label))),
+      h('div', { class: 'sbars' }, ...rows.flatMap(r => [
+        h('span', null, r.name),
+        h('span', { class: 'track' }, h('span', { class: 'bar', style: `width:${r.n ? Math.max(2, r.n / top * 100) : 0}%` })),
+        h('b', null, String(r.n))])),
+      h('div', { class: 'actnote' }, 'Counted in your time zone. Not counting organisations, the test accounts ATLAS and P-body, or deleted accounts.'
+        + (dated.length < s.joined.length ? ` ${plural(s.joined.length - dated.length, 'account')} from before join dates were kept ${s.joined.length - dated.length === 1 ? 'is' : 'are'} only in the totals.` : '')),
+      h('h3', null, 'Most followed'),
+      ...shown.map(u => h('div', { class: 'actp' },
+        h('span', { class: 'srank' }, String(u.rank)),
+        avatar(u.username),
+        h('div', { class: 'lst' },
+          h('div', null,
+            h('span', { class: 'nm' + (u.role === 'admin' ? ' admin-name' : ''), onclick: () => openProfile(u.username) }, u.username), ' ',
+            u.role === 'admin' && h('span', { class: 'badge' }, 'ADMIN'),
+            u.role === 'org' && h('span', { class: 'badge orgbadge' }, '\u{1F3E2} ORGANISATION'),
+            u.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED')),
+          h('div', { class: 'sub' }, `${plural(u.followers, 'follower')} \u00b7 ${u.following} following`)))),
+      ...(ranked.length > shown.length ? [h('button', { class: 'ghost', style: 'margin-top:10px', onclick: () => { statsAll = true; drawStats(); } }, `Show all ${ranked.length}`)] : []));
+  };
   let query = '';
   const draw = () => {
     tabs.forEach((b, i) => b.classList.toggle('on', TABS[i] === tab));
@@ -8762,6 +8838,13 @@ function openAdmin() {
         return;
       }
       drawActivity();
+    } else if (tab === 'stats') {
+      if (!stats) {
+        body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
+        loadStats();
+        return;
+      }
+      drawStats();
     } else if (tab === 'users') {
       const search = h('input', { placeholder: 'Search users', value: query });
       search.oninput = () => { query = search.value; drawUsers(); };
