@@ -4470,6 +4470,9 @@ function rollShortsIcon() {
 rollShortsIcon();
 const shortIcon = id => [...String(id)].reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) % 1000003, 7) % 10 === 0 ? '\u{1FA73}' : '\u{1F3AC}';
 let shortsSound = (() => { try { return JSON.parse(localStorage.getItem('chat_prefs') || '{}').shortsSound !== false; } catch (e) { return true; } })();
+// School hours (weekdays, 8 am to 3 pm on their own clock): Shorts open muted, and tapping the sound button
+// turns it on for that visit. The rest of the time they open the way they last left it.
+const quietHours = (d = new Date()) => d.getDay() >= 1 && d.getDay() <= 5 && d.getHours() >= 8 && d.getHours() < 15;
 
 // A Short in the feed: plays silently while it's on screen; tap to open it in Shorts.
 const feedVideos = new IntersectionObserver(entries => entries.forEach(e => {
@@ -4569,7 +4572,8 @@ async function openShorts(startId, from, linked) {
   if (desk && openId !== 'global' && !from) switchTo('global'); // nothing sits open (and gets marked read) underneath
   const track = h('div', { class: 'strack' });
   const soundBtn = h('button', { class: desk ? 'iconbtn' : null, title: 'Sound on/off', 'aria-label': 'Sound on or off' });
-  const paintSound = () => { soundBtn.textContent = shortsSound ? '\u{1F50A}' : '\u{1F507}'; };
+  let sound = shortsSound && !quietHours(); // this visit's
+  const paintSound = () => { soundBtn.textContent = sound ? '\u{1F50A}' : '\u{1F507}'; };
   paintSound();
   const post = () => { if (guest) return askToJoin('post Shorts'); if (!desk) close(); pickShort(); };
   const tabbed = !from && !orgMe() && !guest && serverApi >= 34; // organisations don't follow anyone (and signed out, nobody)
@@ -4618,9 +4622,9 @@ async function openShorts(startId, from, linked) {
     log.querySelectorAll('.vshot').forEach(b => { feedVideos.unobserve(b); feedVideos.observe(b); }); // the feed's videos carry on
   }
   soundBtn.onclick = () => {
-    shortsSound = !shortsSound;
-    prefs.shortsSound = shortsSound; savePrefs(); paintSound();
-    track.querySelectorAll('video').forEach(v => { v.muted = !shortsSound; });
+    sound = shortsSound = !sound;
+    prefs.shortsSound = sound; savePrefs(); paintSound();
+    track.querySelectorAll('video').forEach(v => { v.muted = !sound; });
     if (state.current) state.current.play().catch(() => {});
   };
   // The one on screen plays; the next one starts loading.
@@ -4630,8 +4634,8 @@ async function openShorts(startId, from, linked) {
       state.current = v;
       syncAddress();
       if (!v.src) v.src = v.dataset.src;
-      v.muted = !shortsSound;
-      if (isTopPage(view)) v.play().catch(() => { v.muted = true; shortsSound = false; paintSound(); v.play().catch(() => {}); });
+      v.muted = !sound;
+      if (isTopPage(view)) v.play().catch(() => { v.muted = true; sound = shortsSound = false; paintSound(); v.play().catch(() => {}); });
       const next = e.target.nextElementSibling && e.target.nextElementSibling.querySelector('video');
       if (next && !next.src) { next.preload = 'auto'; next.src = next.dataset.src; }
       if (!e.target.nextElementSibling || !e.target.nextElementSibling.nextElementSibling) more(); // keep going
