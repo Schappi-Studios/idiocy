@@ -1534,15 +1534,27 @@
   .actp .avatar { flex: none; }
   .actp .nm { font-weight: 600; cursor: pointer; }
   /* ---------- admin stats ---------- */
+  .lchart { margin: 12px 0 8px; }
+  .lreadout { font-size: 13px; color: var(--muted); min-height: 20px; margin-bottom: 10px; }
+  .lreadout b { color: var(--text); }
+  .lplot { position: relative; height: 170px; margin: 0 8px 28px 30px; touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+  .lplot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .lplot .grid { fill: none; stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .lplot .area { fill: var(--accent); fill-opacity: .12; }
+  .lplot .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+  .lplot .dot { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); transform: translate(-50%, -50%); pointer-events: none; }
+  .lplot .dot.on { width: 12px; height: 12px; border: 2px solid var(--panel); box-shadow: 0 0 0 1.5px var(--accent); }
+  .lplot .guide { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--muted); opacity: .45; pointer-events: none; }
+  .lplot .ylab, .lplot .xlab { position: absolute; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .lplot .ylab { right: calc(100% + 8px); transform: translateY(-50%); }
+  .lplot .xlab { top: calc(100% + 7px); transform: translateX(-50%); }
+  .lplot .xlab.l { transform: none; }
+  .lplot .xlab.r { transform: translateX(-100%); }
   .atabs { overflow-x: auto; scrollbar-width: none; } /* five tabs: on a small phone they slide sideways if they don't fit */
   .atabs::-webkit-scrollbar { display: none; }
   .atabs button { flex: 1 0 auto; }
   @media (max-width: 420px) { .atabs { gap: 2px; } .atabs button { padding: 7px 5px; font-size: 13px; } }
   @media (max-width: 370px) { .atabs button { padding: 7px 4px; font-size: 12.5px; } }
-  .sbars { display: grid; grid-template-columns: auto 1fr auto; gap: 6px 10px; align-items: center; font-size: 13px; margin: 10px 0 8px; }
-  .sbars .track { height: 10px; border-radius: 5px; background: var(--panel-2); overflow: hidden; }
-  .sbars .bar { display: block; height: 100%; border-radius: 5px; background: var(--accent); }
-  .sbars b { text-align: right; font-variant-numeric: tabular-nums; }
   .actp .srank { flex: none; min-width: 22px; padding-top: 9px; text-align: right; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
   .actp .on { color: var(--ok); font-weight: 600; }
   .actp .lst { flex: 1; min-width: 0; }
@@ -8662,6 +8674,37 @@ function timeoutButtons(name, done) {
   }, 'Timeout ' + label));
 }
 
+// A line graph of rows ({ name, tick, n }, oldest first). Hovering or tapping shows a point's number; otherwise the newest's.
+function lineChart(rows, say) {
+  const top = Math.max(0, ...rows.map(r => r.n));
+  const step = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000].find(x => top / x <= 4) || Math.ceil(top / 4);
+  const max = Math.max(1, Math.ceil(top / step)) * step, last = rows.length - 1;
+  const X = i => last ? i / last * 100 : 50, Y = n => 100 - n / max * 100;
+  const el = (tag, attrs) => { const e = document.createElementNS(SVG_NS, tag); Object.entries(attrs).forEach(([k, v]) => e.setAttribute(k, v)); return e; };
+  const svg = el('svg', { viewBox: '0 0 100 100', preserveAspectRatio: 'none', 'aria-hidden': 'true' });
+  const levels = []; for (let v = 0; v <= max; v += step) levels.push(v);
+  levels.forEach(v => svg.append(el('path', { class: 'grid', d: `M0 ${Y(v)}H100` })));
+  const pts = rows.map((r, i) => `${X(i).toFixed(2)} ${Y(r.n).toFixed(2)}`).join('L');
+  if (last) svg.append(el('path', { class: 'area', d: `M0 100L${pts}L100 100Z` }), el('path', { class: 'line', d: 'M' + pts }));
+  const dots = rows.map((r, i) => h('span', { class: 'dot', style: `left:${X(i)}%;top:${Y(r.n)}%` }));
+  const guide = h('span', { class: 'guide' }), readout = h('div', { class: 'lreadout', 'aria-live': 'polite' });
+  const every = Math.ceil(rows.length / 4), ticks = []; // about four dates along the bottom (room on a phone), always the newest
+  for (let i = last; i >= 0; i -= every) ticks.push(h('span', { class: 'xlab' + (X(i) < 8 ? ' l' : X(i) > 92 ? ' r' : ''), style: `left:${X(i)}%` }, rows[i].tick));
+  const show = i => {
+    dots.forEach((d, j) => d.classList.toggle('on', j === i));
+    guide.style.left = X(i) + '%';
+    readout.replaceChildren(rows[i].name + ' \u00b7 ', h('b', null, say(rows[i].n)));
+  };
+  const plot = h('div', { class: 'lplot', role: 'img', 'aria-label': rows.map(r => `${r.name}: ${r.n}`).join(', ') },
+    svg, guide, ...dots, ...levels.map(v => h('span', { class: 'ylab', style: `top:${Y(v)}%` }, String(v))), ...ticks);
+  const pick = e => { const b = plot.getBoundingClientRect(); show(Math.round(Math.min(1, Math.max(0, (e.clientX - b.left) / b.width)) * last)); };
+  plot.addEventListener('pointermove', pick);
+  plot.addEventListener('pointerdown', pick);
+  plot.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') show(last); }); // a tap's point stays up
+  show(last);
+  return h('div', { class: 'lchart' }, readout, plot);
+}
+
 function openAdmin() {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const body = h('div', { class: 'alist' });
@@ -8753,20 +8796,19 @@ function openAdmin() {
     const daysBack = n => { const d = new Date(today); d.setDate(d.getDate() - n); return d; };
     const since = d => dated.filter(t => t >= +d).length;
     const fmt = (d, o) => d.toLocaleDateString([], o);
-    // Each period starts at midnight; the newest comes first, and none from before the first person joined.
+    // Each period starts at midnight; oldest first, going back no further than the first person who joined.
     const PERIODS = {
-      day: { start: i => daysBack(i), max: 30, name: (d, i) => i === 0 ? 'Today' : i === 1 ? 'Yesterday' : fmt(d, { weekday: 'short', day: 'numeric', month: 'short' }) },
-      week: { start: i => daysBack((today.getDay() + 6) % 7 + 7 * i), max: 12, name: (d, i) => i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of ' + fmt(d, { day: 'numeric', month: 'short' }) }, // weeks start on Monday
-      month: { start: i => new Date(today.getFullYear(), today.getMonth() - i, 1), max: 120, name: (d, i) => i === 0 ? 'This month' : fmt(d, { month: 'long', year: 'numeric' }) },
+      day: { start: i => daysBack(i), max: 30, name: (d, i) => i === 0 ? 'Today' : i === 1 ? 'Yesterday' : fmt(d, { weekday: 'short', day: 'numeric', month: 'short' }), tick: d => fmt(d, { day: 'numeric', month: 'short' }) },
+      week: { start: i => daysBack((today.getDay() + 6) % 7 + 7 * i), max: 12, name: (d, i) => i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of ' + fmt(d, { day: 'numeric', month: 'short' }), tick: d => fmt(d, { day: 'numeric', month: 'short' }) }, // weeks start on Monday
+      month: { start: i => new Date(today.getFullYear(), today.getMonth() - i, 1), max: 120, name: (d, i) => i === 0 ? 'This month' : fmt(d, { month: 'long', year: 'numeric' }), tick: d => fmt(d, d.getMonth() ? { month: 'short' } : { month: 'short', year: 'numeric' }) },
     };
     const per = PERIODS[statsBy], first = Math.min(...dated);
     const rows = [];
     for (let i = 0; i < per.max; i++) {
       const from = per.start(i), to = i ? per.start(i - 1) : new Date(8.64e15);
-      rows.push({ name: per.name(from, i), n: dated.filter(t => t >= +from && t < +to).length });
+      rows.unshift({ name: per.name(from, i), tick: per.tick(from), n: dated.filter(t => t >= +from && t < +to).length });
       if (+from <= first) break;
     }
-    const top = Math.max(1, ...rows.map(r => r.n));
     const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
     let rank = 0;
     const ranked = s.followed.map((u, i) => ({ ...u, rank: i && u.followers === s.followed[i - 1].followers ? rank : (rank = i + 1) })); // ties share a place
@@ -8784,10 +8826,7 @@ function openAdmin() {
         style: statsBy === k ? 'border-color:var(--accent);color:var(--accent)' : '',
         onclick: () => { statsBy = k; drawStats(); },
       }, label))),
-      h('div', { class: 'sbars' }, ...rows.flatMap(r => [
-        h('span', null, r.name),
-        h('span', { class: 'track' }, h('span', { class: 'bar', style: `width:${r.n ? Math.max(2, r.n / top * 100) : 0}%` })),
-        h('b', null, String(r.n))])),
+      lineChart(rows, n => `${n} ${n === 1 ? 'person' : 'people'} joined`),
       h('div', { class: 'actnote' }, 'Counted in your time zone. Not counting organisations, the test accounts ATLAS and P-body, or deleted accounts.'
         + (dated.length < s.joined.length ? ` ${plural(s.joined.length - dated.length, 'account')} from before join dates were kept ${s.joined.length - dated.length === 1 ? 'is' : 'are'} only in the totals.` : '')),
       h('h3', null, 'Most followed'),
