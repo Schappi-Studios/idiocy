@@ -6822,8 +6822,9 @@ $('emojibtn').onclick = e => openEmojiPanel(e.currentTarget, $('text'));
 ['postemoji', 'emojibtn'].forEach(id => { $(id).onpointerdown = e => e.preventDefault(); });
 
 // ---------- Idiocy Projects ----------
-// Something you made (code, a picture, a video or a website) that you keep changing. Posts with
-// it always show its newest version: saving one updates every post it's in.
+// Something you made in code (HTML, CSS and JavaScript) that you keep changing. Posts with it always
+// show its newest version: saving one updates every post it's in. (Art, video and website projects
+// can't be made any more; the ones from before still work.)
 const PROJECT_KINDS = [['code', '</>', 'Code'], ['art', '\u{1F3A8}', 'Art'], ['video', '\u{1F3AC}', 'Video'], ['site', '\u{1F310}', 'Website']];
 const projectIcon = kind => (PROJECT_KINDS.find(k => k[0] === kind) || ['', '\u{1F9EA}'])[1];
 const projectLine = p => p.gone
@@ -6853,7 +6854,7 @@ async function openProjects(pick) {
   const list = h('div', { class: 'projlist' }, h('div', { class: 'hint' }, h('span', { class: 'spinner' })));
   const md = modal('projects scroll',
     h('h2', null, pick ? '\u{1F9EA} Post a project' : '\u{1F9EA} Your projects'),
-    h('div', { class: 'hint' }, 'Code, art, a video or a website that you keep changing. Posts with it always show the newest version.'),
+    h('div', { class: 'hint' }, 'Code (HTML, CSS and JavaScript, like a game) that you keep changing. Posts with it always show the newest version.'),
     h('button', { class: 'primary', onclick: () => { md.close(); openProjectEditor(null); } }, '+ New project'),
     list,
     h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Close')));
@@ -6953,12 +6954,8 @@ async function openProjectEditor(p) {
   };
   siteHint(url, siteNote);
   const showPart = () => Object.entries(parts).forEach(([k, el]) => el.classList.toggle('hidden', k !== kind));
-  const tabs = h('div', { class: 'notifychips' }, ...PROJECT_KINDS.map(([k, ic, label]) =>
-    h('button', { type: 'button', class: k === kind ? 'primary' : 'ghost', onclick: e => {
-      kind = k;
-      tabs.querySelectorAll('button').forEach(b => { b.className = b === e.currentTarget ? 'primary' : 'ghost'; });
-      showPart();
-    } }, ic + ' ' + label)));
+  // Projects are code now. Art, video and website ones made before keep working (and can still be changed).
+  const tabs = kind !== 'code' && h('div', { class: 'hint' }, `${projectIcon(kind)} An older ${(PROJECT_KINDS.find(k => k[0] === kind) || [])[2] || ''} project. New projects are code.`);
   showPart();
   const save = h('button', { class: 'primary', onclick: async () => {
     const body = { title: title.value, kind, desc: desc.value, ...(p && { id: p.id }) };
