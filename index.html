@@ -3038,8 +3038,8 @@ function pushSync() {
 // ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>, ?short=<Short id>, ?u=<username>
 // (a profile); opened once you're logged in. Notifications' ?go= and ?dm= are tidied away; the
 // others stay in the address bar, which then follows you as you scroll (syncAddress).
-let pendingLink = /[?&](go|dm|post|short|u|v)=/.test(location.search) ? location.search : '';
-if (/[?&](go|dm)=/.test(pendingLink)) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+let pendingLink = /[?&](go|dm|post|short|u|v|admin)=/.test(location.search) ? location.search : '';
+if (/[?&](go|dm|admin)=/.test(pendingLink)) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
 // Refreshing on a post comes back to it as it was, without opening its comments like a link does.
 let linkReloaded = !!pendingLink && (performance.getEntriesByType('navigation')[0] || {}).type === 'reload';
 let feedFirst = null; // the post the feed opens on, from the address bar
@@ -3064,6 +3064,7 @@ function openLink(search) {
   else if (post) openPost(post, !quiet);
   else if (u) openProfile(u);
   else if (v) openPublicLink(v); // a public link, opened logged in
+  else if (q.get('admin') && me.role === 'admin') openAdmin();
 }
 
 // The address bar names the post, Short or profile you're on, like YouTube's, so refreshing (or
@@ -8322,16 +8323,18 @@ function handlePings(pings) {
     : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
     : p.kind === 'newuser' ? `\u{1F44B} @${p.from} just joined Idiocy${p.text ? ` (${p.text})` : ''}. Click to see their profile.`
     : p.kind === 'neworg' ? `\u{1F3E2} @${p.by} made an organisation: @${p.from}${p.text ? ` (${p.text})` : ''}. Click to see it.`
+    : p.kind === 'aiflag' ? `${p.urgent ? '\u26A0\uFE0F ' : ''}\u{1F916} Idiocy AI flagged a ${p.what || 'post'} by @${p.from}: ${p.text}. Click to see it in Reports.`
     : `${from} ${where}: ${tame(noStyle(p.text))}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
     : p.kind === 'orginvite' || p.kind === 'newuser' || p.kind === 'neworg' ? openProfile(p.from) : p.kind === 'orgjoin' ? openProfile(p.text)
+    : p.kind === 'aiflag' ? openAdmin()
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && !prefs.push && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind.startsWith('new') || p.kind === 'removed' || p.kind === 'invitejoin';
+      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind.startsWith('new') || p.kind === 'removed' || p.kind === 'invitejoin' || p.kind === 'aiflag';
       const n = new Notification(plain ? text : `${from} ${where}`,
         { body: plain ? '' : tame(noStyle(p.text)), icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
@@ -8912,6 +8915,7 @@ function openAdmin() {
         h('q', null, r.text || (r.account ? '(no name, status or bio)' : '(no text)')),
         h('div', { class: 'meta' }, 'Reason: ' + r.reason),
         h('div', { class: 'btns' },
+          !r.account && r.post && h('button', { class: 'ghost', title: 'Open the post (for a comment, the post it\u2019s on)', onclick: () => { md.close(); openPost(r.post); } }, '\u{1F440} See it'),
           r.account ? h('button', { class: 'primary', onclick: () => openProfile(r.sender) }, 'See profile')
             : h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
           h('button', { class: 'ghost', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Dismiss'),
@@ -8994,7 +8998,11 @@ function openAdmin() {
             const d = await act('setSlowMode', { seconds: sec });
             if (d) { data.settings = d.settings; settings = d.settings; draw(); renderHeader(); toast(sec ? `Slow mode: ${sec}s` : 'Slow mode off'); }
           },
-        }, sec ? sec + 's' : 'Off'))));
+        }, sec ? sec + 's' : 'Off'))),
+        ...(serverApi >= 48 ? [h('div', { style: 'margin-top:18px' }, h('b', null, '\u{1F916} AI admin: ' + (data.ai ? 'on' : 'off')),
+          h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin-top:4px' }, data.ai
+            ? 'It checks every new post, comment, Short, embed and project, and reports anything that looks like it breaks the rules in Reports (from \u{1F916} Idiocy AI). It never deletes anything itself. DMs and group chats are never checked.'
+            : 'It needs an OpenAI key on the server. Until then, nothing is checked by AI.'))] : []));
     }
   };
   draw();
