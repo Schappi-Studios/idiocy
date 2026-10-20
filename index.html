@@ -7340,7 +7340,10 @@ async function send(text, att, extra = {}) {
   try {
     const d = await api('send', { convo: openId, text, ...as, ...(emojisIn(text) && { emojis: emojisIn(text) }), ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
       ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }), ...(extra.project && { project: extra.project.id }) });
-    if (!d.ok) { pending.remove(); if (rp && !replying) setReply(rp); if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false; }
+    if (!d.ok) {
+      pending.remove(); if (rp && !replying) setReply(rp);
+      if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false;
+    }
     if (sentTo !== 'global') notePreview(sentTo, d.message);
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
     const m = d.message;
@@ -8323,7 +8326,7 @@ function handlePings(pings) {
     : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
     : p.kind === 'newuser' ? `\u{1F44B} @${p.from} just joined Idiocy${p.text ? ` (${p.text})` : ''}. Click to see their profile.`
     : p.kind === 'neworg' ? `\u{1F3E2} @${p.by} made an organisation: @${p.from}${p.text ? ` (${p.text})` : ''}. Click to see it.`
-    : p.kind === 'aiflag' ? `${p.urgent ? '\u26A0\uFE0F ' : ''}\u{1F916} Idiocy AI flagged a ${p.what || 'post'} by @${p.from}: ${p.text}. Click to see it in Reports.`
+    : p.kind === 'aiflag' ? `${p.urgent ? '\u26A0\uFE0F ' : ''}\u{1F916} Idiocy AI ${p.stopped ? 'stopped' : 'flagged'} a ${p.what || 'post'} by @${p.from}: ${p.text}. Click to see it in Reports.`
     : `${from} ${where}: ${tame(noStyle(p.text))}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
@@ -8914,10 +8917,11 @@ function openAdmin() {
           ` \u00b7 reported by ${r.reporter} \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
         h('q', null, r.text || (r.account ? '(no name, status or bio)' : '(no text)')),
         h('div', { class: 'meta' }, 'Reason: ' + r.reason),
+        r.stopped && h('div', { class: 'meta' }, '\u{1F6D1} Stopped before it went up, so nobody saw it'),
         h('div', { class: 'btns' },
-          !r.account && r.post && h('button', { class: 'ghost', title: 'Open the post (for a comment, the post it\u2019s on)', onclick: () => { md.close(); openPost(r.post); } }, '\u{1F440} See it'),
+          !r.account && !r.stopped && r.post && h('button', { class: 'ghost', title: 'Open the post (for a comment, the post it\u2019s on)', onclick: () => { md.close(); openPost(r.post); } }, '\u{1F440} See it'),
           r.account ? h('button', { class: 'primary', onclick: () => openProfile(r.sender) }, 'See profile')
-            : h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
+            : !r.stopped && h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
           h('button', { class: 'ghost', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Dismiss'),
           serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, r.account ? '\u26A0\uFE0F About your account: ' : `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `) }, '\u{1F4E3} Warn'),
           ...timeoutButtons(r.sender, load),
@@ -9001,7 +9005,7 @@ function openAdmin() {
         }, sec ? sec + 's' : 'Off'))),
         ...(serverApi >= 48 ? [h('div', { style: 'margin-top:18px' }, h('b', null, '\u{1F916} AI admin: ' + (data.ai ? 'on' : 'off')),
           h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin-top:4px' }, data.ai
-            ? 'It checks every new post, comment, Short, embed and project, and reports anything that looks like it breaks the rules in Reports (from \u{1F916} Idiocy AI). It never deletes anything itself. DMs and group chats are never checked.'
+            ? 'It checks every post, comment, Short, embed and project before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and you see who tried in Reports). If it can\u2019t check in time, the post goes up and anything wrong is reported here instead. DMs and group chats are never checked.'
             : 'It needs an OpenAI key on the server. Until then, nothing is checked by AI.'))] : []));
     }
   };
