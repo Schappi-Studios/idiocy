@@ -2827,14 +2827,14 @@ function openEditProfile() {
 function fmtTime(t) {
   return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
-// Messages from the last day say how long ago ("5 minutes ago", "1 hour ago"); older ones, the time.
+// Messages from the last day say how long ago ("5 minutes ago", "1 hour ago"); older ones, the day and time.
 // The exact time shows on hover, and they keep up as time passes.
 function whenText(t) {
   const s = (Date.now() - t) / 1000;
   if (s < 60) return 'just now';
   const n = s < 3600 ? Math.floor(s / 60) : Math.floor(s / 3600);
   if (s < 86400) return `${n} ${s < 3600 ? 'minute' : 'hour'}${n === 1 ? '' : 's'} ago`;
-  return fmtTime(t);
+  return `${dayText(t, true)}, ${fmtTime(t)}`; // "Yesterday, 4:53 pm", "Mon 19 Oct, 4:53 pm"
 }
 function stamp(el, t) {
   el.dataset.ts = t;
@@ -5646,14 +5646,28 @@ function previewText(c) {
   }
   return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : c.type === 'idiocy' ? 'Messages from Idiocy' : '';
 }
+// Short: "now", "5m", "2h", then the day: "Yesterday", "19 Oct" (with the year if it isn't this one).
 function ago(t) {
   if (!t) return '';
   const s = (Date.now() - t) / 1000;
   if (s < 60) return 'now';
   if (s < 3600) return Math.floor(s / 60) + 'm';
   if (s < 86400) return Math.floor(s / 3600) + 'h';
-  if (s < 7 * 86400) return Math.floor(s / 86400) + 'd';
-  return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  return dayText(t);
+}
+// The same in a sentence: "just now", "5m ago", "yesterday", "on 19 Oct".
+function agoWords(t) {
+  const a = ago(t);
+  return a === 'now' ? 'just now' : /^\d+[mh]$/.test(a) ? a + ' ago' : a === 'Yesterday' ? 'yesterday' : 'on ' + a;
+}
+// "Yesterday", "19 Oct" or "19 Oct 2025"; long, with the weekday: "Mon 19 Oct".
+function dayText(t, long) {
+  const d = new Date(t), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return d.toLocaleDateString([], d.getFullYear() !== now.getFullYear() ? { day: 'numeric', month: 'short', year: 'numeric' }
+    : long ? { weekday: 'short', day: 'numeric', month: 'short' } : { day: 'numeric', month: 'short' });
 }
 
 // ---------- replies, editing, typing, older messages ----------
@@ -5880,10 +5894,7 @@ function showTyping(names) {
 // ---------- seen receipts ----------
 // DMs: "Seen 2m ago" under your last message. Groups: "Seen by Ann, Ben" under the newest message.
 let seenNow = null; // { name: [messageId, time] } for the open chat, from the server
-function seenAgo(t) {
-  const a = ago(t);
-  return a === 'now' ? 'just now' : /^\d+[mhd]$/.test(a) ? a + ' ago' : 'on ' + a;
-}
+const seenAgo = agoWords;
 function paintSeen() {
   log.querySelectorAll('.seenline').forEach(el => el.remove());
   const c = curConvo();
@@ -6003,7 +6014,7 @@ function updateMessage(m) {
   if (m.e) eMax = Math.max(eMax, m.e);
   if (m.proj) log.querySelectorAll(`.msg[data-id="${m.id}"]`).forEach(el => {
     const was = el._m && el._m.proj;
-    if (was && was.v === m.proj.v && !was.gone === !m.proj.gone) return;
+    if (was && was.v === m.proj.v && !was.gone === !m.proj.gone && !was.st === !m.proj.st) return; // (st: it just got its still)
     el._m = m;
     const shot = el.querySelector(':scope > .shot');
     if (shot) {
@@ -6014,6 +6025,13 @@ function updateMessage(m) {
     }
     const line = el.querySelector('.projline');
     if (line) line.replaceWith(projectLine(m.proj));
+  });
+  // An HTML post that just got its still: its preview is built again, to show it.
+  if (m.em && m.em.st) log.querySelectorAll(`.msg[data-id="${m.id}"]`).forEach(el => {
+    const was = el._m, shot = el.querySelector(':scope > .shot');
+    if (!was || !was.em || was.em.st || !shot || runningEmbed === shot) return;
+    el._m = m;
+    shot.replaceWith(embedBlock(m));
   });
   // The feed can show a post more than once (it keeps going), so update every copy.
   log.querySelectorAll(`.msg[data-id="${m.id}"]`).forEach(el => {
@@ -6811,7 +6829,7 @@ const projectIcon = kind => (PROJECT_KINDS.find(k => k[0] === kind) || ['', '\u{
 const projectLine = p => p.gone
   ? h('div', { class: 'projline' }, '\u{1F9EA} This project was deleted')
   : h('button', { type: 'button', class: 'projline', onclick: () => openProjectInfo(p) },
-    '\u{1F9EA} ', h('b', null, p.title), ` \u00b7 v${p.v} \u00b7 updated ${ago(p.u)}`);
+    '\u{1F9EA} ', h('b', null, p.title), ` \u00b7 v${p.v} \u00b7 updated ${agoWords(p.u)}`);
 function projectBlock(m) {
   const p = m.proj;
   if (p.gone) return h('div', { class: 'shot projgone' }, '\u{1F9EA}', h('span', null, 'This project was deleted'));
@@ -6822,7 +6840,7 @@ function projectBlock(m) {
 function openProjectInfo(p) {
   const md = modal('projinfo',
     h('h2', null, projectIcon(p.kind), ' ', p.title),
-    h('div', { class: 'hint' }, `By ${displayName(p.by)} \u00b7 version ${p.v} \u00b7 updated ${ago(p.u) === 'now' ? 'just now' : ago(p.u) + ' ago'}`),
+    h('div', { class: 'hint' }, `By ${displayName(p.by)} \u00b7 version ${p.v} \u00b7 updated ${agoWords(p.u)}`),
     p.desc ? h('p', { class: 'projdesc' }, tame(p.desc)) : null,
     h('div', { class: 'hint' }, 'Posts with this project always show its newest version.'),
     h('div', { class: 'btns' },
@@ -6845,7 +6863,7 @@ async function openProjects(pick) {
   if (!d.projects.length) { list.replaceChildren(h('div', { class: 'hint' }, 'Nothing yet. Make your first one!')); return; }
   list.replaceChildren(...d.projects.map(p => h('div', { class: 'projrow' },
     h('span', { class: 'projicon' }, projectIcon(p.kind)),
-    h('span', { class: 'projtext' }, h('b', null, p.title), h('span', null, `v${p.v} \u00b7 updated ${ago(p.u)}`)),
+    h('span', { class: 'projtext' }, h('b', null, p.title), h('span', null, `v${p.v} \u00b7 updated ${agoWords(p.u)}`)),
     !pick && h('button', { class: 'ghost', onclick: () => { md.close(); openProjectEditor(p); } }, 'Edit'),
     h('button', { class: pick ? 'primary' : 'ghost', onclick: () => { md.close(); postProject(p); } }, 'Post'))));
 }
