@@ -1580,15 +1580,23 @@
   .bigred:active:not(:disabled), .bigred.pressing { transform: translateY(5px); box-shadow: 0 1px 0 #4a0610, 0 4px 10px rgba(200, 0, 24, .4), inset 0 -3px 8px rgba(0, 0, 0, .4); }
   .bigred:disabled { filter: grayscale(.85) brightness(.85); cursor: not-allowed; }
   .bigred .bbtext { position: relative; }
-  /* The safety cover: clear plastic on a hinge at the top. */
+  /* The glass cover: smashed by the first tap, and it grows back if the button isn't pressed. */
   .bigred .bbcover {
     position: absolute; inset: -9px; border-radius: 50%; pointer-events: none;
-    background: linear-gradient(160deg, rgba(255, 255, 255, .6), rgba(255, 255, 255, .1) 45%, rgba(255, 255, 255, .35));
-    border: 2px solid rgba(255, 255, 255, .8); box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
-    transform-origin: 50% 0; transform: perspective(220px) rotateX(0deg); transition: transform .4s cubic-bezier(.3, 1.6, .5, 1);
+    background: linear-gradient(160deg, rgba(255, 255, 255, .7), rgba(200, 225, 255, .18) 45%, rgba(255, 255, 255, .4));
+    border: 2px solid rgba(255, 255, 255, .85); box-shadow: 0 2px 8px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(120, 160, 210, .35);
+    transition: opacity .6s, transform .6s cubic-bezier(.3, 1.4, .5, 1);
   }
-  .bigred.open .bbcover { transform: perspective(220px) rotateX(-120deg); }
-  .bigred.open { animation: bbglow 1s ease-in-out infinite alternate; }
+  .bigred.open .bbcover { opacity: 0; transform: scale(1.2); transition: none; }
+  .bigred.open { animation: bbpop .35s cubic-bezier(.3, 1.8, .5, 1), bbglow 1s ease-in-out .35s infinite alternate; }
+  @keyframes bbpop { 40% { transform: scale(1.12); } }
+  .glasslayer { position: fixed; z-index: 10000; pointer-events: none; }
+  .glassshard {
+    position: absolute; inset: 0; border-radius: 50%;
+    background: linear-gradient(160deg, rgba(225, 238, 255, .95), rgba(150, 190, 235, .6) 50%, rgba(235, 244, 255, .9));
+    border: 2px solid rgba(255, 255, 255, .95);
+  }
+  .glasscracks { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; fill: none; stroke: rgba(40, 60, 90, .75); stroke-width: 1.4; stroke-linejoin: round; }
   @keyframes bbglow { to { box-shadow: 0 6px 0 #4a0610, 0 0 26px 6px rgba(255, 30, 50, .7), inset 0 -6px 10px rgba(0, 0, 0, .35); } }
   .modal.banhammer { position: relative; overflow: hidden auto; }
   .banhammer .bhlist { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
@@ -1625,6 +1633,7 @@
   @keyframes banshard { from { opacity: 1; transform: rotate(var(--a)) translateX(0); } to { opacity: 0; transform: rotate(var(--a)) translateX(var(--d)) rotate(200deg); } }
   @media (prefers-reduced-motion: reduce) {
     .modal.shake, .bigred.open, .banflash { animation: none; }
+    .bigred.open .bbcover { transition: opacity .3s; transform: none; }
     .banflash, .banshard, .bhcard .banham { display: none; }
     .banstamp { animation: fadein .3s both; }
   }
@@ -9196,8 +9205,8 @@ function lineChart(rows, say) {
 }
 
 // ---------- the Ban Hammer ----------
-// A big red button at the top of the admin panel, under a flip-up safety cover: the first tap lifts the
-// cover, the next opens the Ban Hammer. Pick who, then press and hold its big red button for a moment
+// A big red button at the top of the admin panel, under a glass cover: the first tap smashes the glass
+// (it grows back if the button isn't pressed within 5 seconds), the next opens the Ban Hammer. Pick who, then press and hold its big red button for a moment
 // (so it can't happen by accident) and down it comes: a flash, a shake, a thud and a BANNED stamp.
 function banButton(users, onBanned) {
   const btn = h('button', { type: 'button', class: 'bigred', title: 'The Ban Hammer', 'aria-label': 'The Ban Hammer (tap twice: the cover, then the button)' },
@@ -9205,7 +9214,7 @@ function banButton(users, onBanned) {
   let shut = 0;
   btn.onclick = () => {
     clearTimeout(shut);
-    if (!btn.classList.contains('open')) { btn.classList.add('open'); shut = setTimeout(() => btn.classList.remove('open'), 5000); return; } // the cover flips up
+    if (!btn.classList.contains('open')) { shatterGlass(btn); btn.classList.add('open'); shut = setTimeout(() => btn.classList.remove('open'), 5000); return; } // smash the glass
     btn.classList.remove('open');
     openBanHammer(users(), onBanned);
   };
@@ -9243,6 +9252,73 @@ async function makeStills(todo, done) {
   done && done();
 }
 
+// Smashing the glass: cracks flash across it, then it bursts into pieces that spin and fall, with
+// the sound of breaking glass and little tinkles as they land. Each piece is a copy of the cover cut to
+// a shape (wedges from where it was hit, and the pieces beyond them), on a layer over everything.
+function shatterGlass(btn) {
+  const cover = btn.querySelector('.bbcover'), r = cover.getBoundingClientRect();
+  if (prefs.sound) glassBreak();
+  try { navigator.vibrate && navigator.vibrate([25, 30, 40]); } catch (e) {}
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const layer = h('div', { class: 'glasslayer', style: `left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px` });
+  const cx = 38 + Math.random() * 24, cy = 38 + Math.random() * 24, n = 9, R = 90; // where it was hit, in %
+  const ang = Array.from({ length: n }, (_, i) => (i + Math.random() * 0.6 - 0.3) / n * Math.PI * 2);
+  const ring = ang.map(() => 16 + Math.random() * 24);
+  const at = (a, d) => [cx + Math.cos(a) * d, cy + Math.sin(a) * d];
+  const pieces = [];
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n, a = ang[i], b = ang[j] + (j === 0 ? Math.PI * 2 : 0);
+    pieces.push([[cx, cy], at(a, ring[i]), at(b, ring[j])]);
+    pieces.push([at(a, ring[i]), at(a, R), at((a + b) / 2, R), at(b, R), at(b, ring[j])]);
+  }
+  const cracks = document.createElementNS(SVG_NS, 'svg');
+  cracks.setAttribute('viewBox', '0 0 100 100');
+  cracks.setAttribute('class', 'glasscracks');
+  cracks.innerHTML = ang.map((a, i) => { const [x1, y1] = at(a, ring[i]), [x2, y2] = at(a, 75); return `<path d="M${cx} ${cy}L${x1} ${y1}L${x2} ${y2}"/>`; }).join('')
+    + `<path d="M${pieces.filter((_, k) => k % 2 === 0).map(p => p[1].join(' ')).join('L')}Z"/>`;
+  layer.append(cracks);
+  cracks.animate([{ opacity: 1 }, { opacity: 1, offset: 0.4 }, { opacity: 0 }], { duration: 220, fill: 'forwards' });
+  pieces.forEach(poly => {
+    const mx = poly.reduce((t, p) => t + p[0], 0) / poly.length, my = poly.reduce((t, p) => t + p[1], 0) / poly.length;
+    const shard = h('div', { class: 'glassshard', style: `clip-path:polygon(${poly.map(([x, y]) => `${x.toFixed(1)}% ${y.toFixed(1)}%`).join(',')});transform-origin:${mx.toFixed(1)}% ${my.toFixed(1)}%` });
+    layer.append(shard);
+    const dx = mx - cx, dy = my - cy, len = Math.hypot(dx, dy) || 1, speed = 70 + Math.random() * 150;
+    const vx = dx / len * speed, vy = dy / len * speed - 110 - Math.random() * 60, g = 1100, spin = (Math.random() - 0.5) * 1000, T = 0.7 + Math.random() * 0.4;
+    shard.animate(Array.from({ length: 11 }, (_, k) => {
+      const t = k / 10 * T;
+      return { transform: `translate(${(vx * t).toFixed(1)}px, ${(vy * t + g * t * t / 2).toFixed(1)}px) rotate(${(spin * k / 10).toFixed(0)}deg)`, opacity: k < 6 ? 1 : 1 - (k - 5) / 5 };
+    }), { duration: T * 1000, delay: 70, easing: 'linear', fill: 'both' });
+  });
+  document.body.append(layer);
+  setTimeout(() => layer.remove(), 1300);
+}
+function glassBreak() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    const t = audio.currentTime, sr = audio.sampleRate;
+    const buf = audio.createBuffer(1, Math.round(sr * 0.45), sr), ch = buf.getChannelData(0); // the smash: bright noise, quickly gone
+    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length) ** 6;
+    const n = audio.createBufferSource(), hp = audio.createBiquadFilter(), g = audio.createGain();
+    n.buffer = buf;
+    hp.type = 'highpass';
+    hp.frequency.value = 2200;
+    g.gain.value = 0.5;
+    n.connect(hp).connect(g).connect(audio.destination);
+    n.start(t);
+    for (let i = 0; i < 10; i++) { // the tinkles
+      const at = t + 0.05 + Math.random() * 0.55, o = audio.createOscillator(), og = audio.createGain();
+      o.type = 'sine';
+      o.frequency.value = 2400 + Math.random() * 3600;
+      og.gain.setValueAtTime(0.0001, at);
+      og.gain.exponentialRampToValueAtTime(0.07, at + 0.004);
+      og.gain.exponentialRampToValueAtTime(0.0001, at + 0.1 + Math.random() * 0.18);
+      o.connect(og).connect(audio.destination);
+      o.start(at);
+      o.stop(at + 0.35);
+    }
+  } catch (e) {}
+}
 // A deep thud with a crack on top, made in code like the chime.
 function thud() {
   try {
