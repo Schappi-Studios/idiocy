@@ -1310,6 +1310,18 @@
   .suagree .linkbtn { font-size: inherit; padding: 0; }
   /* The terms: easy to read, and the buttons stay in view while scrolling. */
   .modal.terms { overflow-y: auto; }
+  /* Files in DMs: a card with the file's name and size and Save, and a peek at a text file. */
+  .fcard { display: flex; flex-direction: column; gap: 6px; max-width: 320px; margin-top: 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel-2); }
+  .fcard.ftextcard { cursor: pointer; }
+  .fcard .frow { display: flex; align-items: center; gap: 10px; }
+  .fcard .ficon { font-size: 26px; line-height: 1; flex: none; }
+  .fcard .fmeta { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .fcard .fmeta b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fcard .fsize { color: var(--muted); font-size: 12px; }
+  .fcard .fsave { flex: none; width: 34px; height: 34px; padding: 0; border-radius: 50%; border: 1px solid var(--border); background: var(--panel); cursor: pointer; font-size: 15px; }
+  .fcard .fpeek { margin: 0; max-height: calc(7.5em + 7px); overflow: hidden; padding-top: 6px; border-top: 1px solid var(--border); color: var(--muted); font: 12px/1.25 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+  .fcard .fpeek:empty { display: none; }
+  .modal.filetext pre.ftext { margin: 0; max-height: 60vh; overflow: auto; padding: 12px; border-radius: 10px; background: var(--panel-2); font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
   .modal.terms .termsask { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); font-weight: 600; }
   .modal.terms .termsbody { font-size: 14px; line-height: 1.5; margin-top: 8px; }
   .modal.terms .termsbody h3 { margin: 18px 0 6px; font-size: 15px; }
@@ -1872,6 +1884,7 @@
       </button>
       <input type="file" id="attachfile" accept="image/*" class="hidden">
       <input type="file" id="camfile" accept="image/*" capture="environment" class="hidden">
+      <input type="file" id="anyfile" class="hidden">
       <button type="button" class="iconbtn hidden" id="mic" title="Record a voice message" aria-label="Record a voice message"><svg class="i-mic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg><svg class="i-send" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3.4 20.4 21 12 3.4 3.6 3.4 10l12.6 2-12.6 2z"/></svg></button>
       <button type="button" class="iconbtn hidden" id="chatcam" title="Take a photo" aria-label="Take a photo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h2l1.6-2.2h5.8L16.5 6h2A2.5 2.5 0 0 1 21 8.5v9a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/><circle cx="12" cy="12.8" r="3.6"/></svg></button>
       <span id="recbar"><span class="recdot"></span><span id="rectime">0:00</span><span class="rlabel">Recording…</span><button type="button" id="reccancel">Cancel</button></span>
@@ -4038,7 +4051,7 @@ $('pinbar').onclick = e => {
   else jumpTo(c.pin.id);
 };
 async function pinMessage(convoId, m) {
-  const pin = m && { id: m.id, name: m.name, text: (m.text || (m.vo ? '[voice message]' : m.img ? '[image]' : '')).slice(0, 120), by: me.name };
+  const pin = m && { id: m.id, name: m.name, text: (m.text || (m.vo ? '[voice message]' : m.fl ? '\u{1F4CE} ' + m.fl.n : m.img ? '[image]' : '')).slice(0, 120), by: me.name };
   const d = await act('pinMessage', { convo: convoId, id: m ? m.id : 0 }, null, s => {
     const x = s.convos.find(x => x.id === convoId);
     if (x) { if (pin) x.pin = pin; else delete x.pin; }
@@ -4488,7 +4501,7 @@ function buildMessage(m, pending) {
     h('div', { class: 'body' },
       m.rp && h('span', { class: 'quote', title: 'Go to message', onclick: () => jumpTo(m.rp.id) }, nameEl(m.rp.name, 'b'), tame(noStyle(m.rp.text)) || '[image]'),
       m.sh && shareCard(m.sh),
-      h('span', { class: 'txt' }), m.img && (m.vo ? voiceBlock(m) : imageBlock(m)), h('div', { class: 'pollbox' })),
+      h('span', { class: 'txt' }), m.img && (m.vo ? voiceBlock(m) : imageBlock(m)), m.fl && fileBlock(m), h('div', { class: 'pollbox' })),
     h('div', { class: 'reacts' }),
     !pending && h('div', { class: 'acts' },
       h('button', { title: 'Add reaction', onclick: e => openPicker(e.currentTarget, el) }, '\u{1F642}+'),
@@ -5538,7 +5551,7 @@ function notePreview(convo, m) {
   const old = previews[convo];
   if (old && old.time > (m.time || 0)) return;
   const text = m.sys ? m.text : m.vo ? '\u{1F3A4} Voice message' : m.pl ? '\u{1F4CA} ' + (m.text || 'Poll')
-    : m.img && !m.text ? '\u{1F4F7} Photo' : m.sh && !m.text ? '\u{1F4EE} Shared a post' : (m.text || '');
+    : m.img && !m.text ? '\u{1F4F7} Photo' : m.sh && !m.text ? '\u{1F4EE} Shared a post' : m.fl && !m.text ? '\u{1F4CE} ' + m.fl.n : (m.text || '');
   previews[convo] = { name: m.sys ? '' : m.name || '', text: String(text).slice(0, 120), time: m.time || Date.now() };
   prevVer++;
   store.set('chat_prev', JSON.stringify(previews));
@@ -6774,6 +6787,105 @@ async function openProjectEditor(p) {
   if (!p) title.focus();
 }
 
+// ---------- files in DMs ----------
+// A file attached to a DM is uploaded to the home server (kept there encrypted, only for the two of
+// you), then sent as a message with a card: its name and size, and Save. A text file also shows a peek
+// at its start, and opens as plain text. Nothing of it is kept on this device unless it's saved.
+const MAX_FILE = 10 * 1024 * 1024; // the server allows the same
+const BLOCKED_FILE = /\.(exe|msi|bat|cmd|com|scr|pif|cpl|vbs|vbe|js|jse|wsf|wsh|hta|ps1|psm1|sh|command|app|dmg|pkg|apk|ipa|jar|deb|rpm|reg|lnk|dll|sys|msc|gadget|iso|appx|msix)$/i;
+const TEXT_FILE = /\.(txt|text|md|markdown|csv|tsv|json|log|xml|ya?ml|ini|cfg|conf|toml|html?|css|scss|py|java|c|h|cpp|hpp|cs|go|rs|rb|php|swift|kt|ts|tsx|jsx|lua|sql|tex|srt|vtt)$/i;
+const fileIcon = n => /\.pdf$/i.test(n) ? '\u{1F4D5}' : /\.(docx?|odt|rtf|pages)$/i.test(n) ? '\u{1F4DD}' : /\.(xlsx?|ods|numbers|csv|tsv)$/i.test(n) ? '\u{1F4CA}'
+  : /\.(pptx?|odp|key)$/i.test(n) ? '\u{1F4FD}\uFE0F' : /\.(zip|rar|7z|tar|gz)$/i.test(n) ? '\u{1F4E6}' : /\.(png|jpe?g|gif|webp|heic|svg|bmp)$/i.test(n) ? '\u{1F5BC}\uFE0F'
+  : /\.(mp3|wav|m4a|ogg|flac)$/i.test(n) ? '\u{1F3B5}' : /\.(mp4|mov|webm|mkv|avi)$/i.test(n) ? '\u{1F3AC}' : TEXT_FILE.test(n) ? '\u{1F4C4}' : '\u{1F4CE}';
+const fmtSize = s => s < 1024 ? s + ' B' : s < 1048576 ? Math.round(s / 1024) + ' KB' : (s / 1048576).toFixed(1).replace(/\.0$/, '') + ' MB';
+const fileBlobs = new Map(); // small ones fetched while the page is open (never stored on the device)
+async function fetchFile(convo, f) {
+  if (fileBlobs.has(f.id)) return fileBlobs.get(f.id);
+  const r = await fetch(MEDIA_BASE + '/file', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, convo, id: f.id }) });
+  if (/json/.test(r.headers.get('content-type') || '')) throw new Error((await r.json().catch(() => ({}))).error || 'Couldn\u2019t get that file');
+  if (!r.ok) throw new Error('Couldn\u2019t get that file');
+  const blob = await r.blob();
+  if (blob.size <= 2 * 1024 * 1024) {
+    fileBlobs.set(f.id, blob);
+    if (fileBlobs.size > 10) fileBlobs.delete(fileBlobs.keys().next().value);
+  }
+  return blob;
+}
+const fileText = async (convo, f) => (await fetchFile(convo, f)).slice(0, 200000).text();
+async function saveFile(convo, f, btn) {
+  const was = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '\u2026';
+  try {
+    const url = URL.createObjectURL(await fetchFile(convo, f));
+    const a = h('a', { href: url, download: f.n, class: 'hidden' });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) {
+    toast(e.message || 'Couldn\u2019t get that file', true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = was;
+  }
+}
+function openTextFile(convo, f) {
+  const pre = h('pre', { class: 'ftext' }, 'Loading\u2026');
+  const md = modal('wide filetext', h('h2', null, fileIcon(f.n) + ' ' + f.n), h('div', { class: 'hint' }, fmtSize(f.s)), pre,
+    h('div', { class: 'btns' },
+      h('button', { class: 'ghost', onclick: e => saveFile(convo, f, e.currentTarget) }, '\u2B07 Save'),
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Close')));
+  fileText(convo, f).then(t => { pre.textContent = t; }, e => { pre.textContent = e.message; }); // plain text, never run
+}
+function fileBlock(m) {
+  const convo = openId, f = m.fl, text = !!f.id && TEXT_FILE.test(f.n) && f.s <= 200000;
+  const peek = text && h('pre', { class: 'fpeek' });
+  const card = h('div', { class: 'fcard' + (text ? ' ftextcard' : ''), ...(text && { role: 'button', tabindex: '0', title: 'Open', onclick: () => openTextFile(convo, f) }) },
+    h('div', { class: 'frow' },
+      h('span', { class: 'ficon' }, fileIcon(f.n)),
+      h('span', { class: 'fmeta' }, h('b', null, f.n), h('span', { class: 'fsize' }, f.id ? fmtSize(f.s) : 'Uploading\u2026')),
+      f.id && h('button', { type: 'button', class: 'fsave', title: 'Save to this device', 'aria-label': 'Save ' + f.n, onclick: e => { e.stopPropagation(); saveFile(convo, f, e.currentTarget); } }, '\u2B07')),
+    peek);
+  if (text) whenNear(card, () => fileText(convo, f).then(t => { peek.textContent = t.split('\n').slice(0, 6).join('\n').slice(0, 600); }, () => peek.remove()));
+  return card;
+}
+async function sendFile(f) {
+  if (!f.size) return toast('That file is empty', true);
+  if (f.size > MAX_FILE) return toast('That file is too big (10 MB at most)', true);
+  if (BLOCKED_FILE.test(f.name)) return toast('That kind of file can\u2019t be sent (apps and scripts aren\u2019t allowed)', true);
+  const convo = openId;
+  // While it uploads: a card saying how far along it is.
+  const up = buildMessage({ name: me.name, by: me.actor, fl: { n: f.name, s: f.size } }, true);
+  log.querySelectorAll('.sys.empty').forEach(e => e.remove());
+  log.appendChild(up);
+  scrollDown();
+  const size = up.querySelector('.fsize');
+  let d;
+  try {
+    d = await new Promise((ok, bad) => {
+      const x = new XMLHttpRequest();
+      x.open('POST', MEDIA_BASE + '/upload/file?convo=' + encodeURIComponent(convo) + '&name=' + encodeURIComponent(f.name));
+      x.setRequestHeader('x-idiocy-token', token || '');
+      x.upload.onprogress = e => { if (e.lengthComputable && size) size.textContent = `Uploading ${Math.round(e.loaded / e.total * 100)}%`; };
+      x.onload = () => { try { ok(JSON.parse(x.responseText)); } catch (e) { bad(new Error('The upload didn\u2019t work')); } };
+      x.onerror = () => bad(new Error('Could not reach the server'));
+      x.send(f);
+    });
+  } catch (e) { d = { ok: false, error: e.message }; }
+  up.remove();
+  if (!d.ok) return toast(d.error || 'Couldn\u2019t send that file', true);
+  const file = { id: d.id, n: d.n, s: d.s };
+  if (openId === convo) return send('', null, { file });
+  const r = await api('send', { convo, text: '', file: file.id }).catch(() => ({ ok: false })); // they've gone to another chat meanwhile
+  if (!r.ok) toast(r.error || 'Couldn\u2019t send that file', true);
+}
+$('anyfile').onchange = () => {
+  const f = $('anyfile').files[0];
+  $('anyfile').value = '';
+  if (f) sendFile(f);
+};
+
 // ---------- voice messages ----------
 let playingVoice = null;
 function voiceBlock(m) {
@@ -7434,11 +7546,12 @@ async function send(text, att, extra = {}) {
   const pending = buildMessage({
     name: isFeed() ? postingAs() : me ? me.name : '', by: isFeed() ? postBy() : me && me.actor, admin: me && me.role === 'admin' && !('as' in as && as.as), text,
     ...(att && { img: 'local', local: att.data, w: att.w, h: att.h }),
-    ...(rp && { rp: { id: rp.id, name: rp.name, text: (rp.text || '[image]').slice(0, 100) } }),
+    ...(rp && { rp: { id: rp.id, name: rp.name, text: (rp.text || (rp.fl ? '\u{1F4CE} ' + rp.fl.n : '[image]')).slice(0, 100) } }),
     ...(extra.poll && { pl: { o: extra.poll, v: {} } }),
     ...(extra.voice && { img: 'local', local: extra.voice, vo: extra.dur }),
     ...(extra.embed && { em: extra.embed.url ? { u: extra.embed.url } : { c: extra.embed.code.length, local: extra.embed.code } }),
     ...(extra.project && { pj: extra.project.id, proj: extra.project }),
+    ...(extra.file && { fl: extra.file }),
     ...(emojisIn(text) && { ce: emojisIn(text) }),
   }, true);
   if (rp) setReply(null);
@@ -7447,7 +7560,7 @@ async function send(text, att, extra = {}) {
   scrollDown();
   try {
     const d = await api('send', { convo: openId, text, ...as, ...(emojisIn(text) && { emojis: emojisIn(text) }), ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
-      ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }), ...(extra.project && { project: extra.project.id }) });
+      ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }), ...(extra.project && { project: extra.project.id }), ...(extra.file && { file: extra.file.id }) });
     if (!d.ok) {
       pending.remove(); if (rp && !replying) setReply(rp);
       if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false;
@@ -7661,7 +7774,8 @@ $('attach').onclick = () => {
   plusMenu = h('div', { class: 'plusmenu', role: 'menu' },
     item('\u{1F5BC}\uFE0F', 'Picture', () => $('attachfile').click()),
     item('\u{1F4F7}', 'Take photo', () => takePhoto()),
-    serverApi >= 11 && item('\u{1F4CA}', 'Poll', openPollMaker));
+    serverApi >= 11 && item('\u{1F4CA}', 'Poll', openPollMaker),
+    serverApi >= 51 && curConvo() && curConvo().type === 'dm' && item('\u{1F4CE}', 'File', () => $('anyfile').click()));
   document.body.append(plusMenu);
   const r = $('attach').getBoundingClientRect();
   plusMenu.style.left = Math.max(8, r.left) + 'px';
