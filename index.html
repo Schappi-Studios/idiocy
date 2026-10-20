@@ -1393,7 +1393,22 @@
   #shorts.desk .sicons button:hover svg, #shorts.desk .sicons button:hover .smore { background: var(--hover); }
   #shorts.desk .sicons .on { color: #ff3040; }
   #shorts.desk .sempty .big { line-height: 1; }
-  #shortsrow.on { background: var(--panel-2); }
+  #shortsrow.on, #coderow.on { background: var(--panel-2); }
+  .row.sidelink .avatar.icon.codeicon { font: 800 12px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: -.5px; color: var(--accent); }
+  @media (max-width: 720px) { .row.sidelink .avatar.icon.codeicon { font-size: 17px; } #coderow.on { background: none; } } /* a list on phones, like the chats */
+  /* Idiocy Code: the feed's switch (Feed / Code) and its post bar */
+  #feedtabs { display: flex; gap: 2px; flex-shrink: 0; background: var(--panel-2); border-radius: 999px; padding: 3px; }
+  #feedtabs.hidden { display: none; }
+  #feedtabs button { border: 0; background: none; border-radius: 999px; padding: 6px 12px; font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  #feedtabs button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(20, 24, 40, .12); }
+  #codebar { display: flex; gap: 10px; align-items: center; }
+  body:not(.codetab) #codebar, body.codetab #feedbox #fbrow, body.codetab #feedbox .fbwrap, body.codetab #feedbox #fbact { display: none !important; }
+  #codebar .avatar { width: 36px; height: 36px; flex-shrink: 0; }
+  #postcode { flex: 1; min-width: 0; height: 42px; padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--panel-2); color: var(--muted);
+    font: inherit; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  #postcode:hover { border-color: var(--accent); }
+  #postcode:disabled, #postcodeproj:disabled { opacity: .5; cursor: default; }
+  #codebar #postcodeproj { height: 42px; }
   /* Organisations: "Using Idiocy Studios" in the sidebar, the account switcher, "Posting as", "by Anna", members. */
   #acctbtn { position: relative; }
   #acctbtn.unread::after { content: ''; position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
@@ -1875,6 +1890,7 @@
       <div class="sec-head">Chats <button class="ghost" id="newgroup">+ Group</button></div>
       <div id="msearch"><input type="search" placeholder="Search" autocomplete="off" aria-label="Search chats"><button type="button" class="ghost hidden" id="msgsearch"></button></div>
       <div id="feedrow"></div>
+      <button type="button" class="row sidelink hidden" id="coderow"><span class="avatar icon codeicon">&lt;/&gt;</span><span class="label">Idiocy Code</span></button>
       <button type="button" class="row sidelink hidden" id="shortsrow"><span class="avatar icon">🎬</span><span class="label">Idiocy Shorts</span></button>
       <button type="button" class="row sidelink hidden" id="projectsrow"><span class="avatar icon">🧪</span><span class="label">Idiocy Projects</span></button>
       <div id="convos"></div>
@@ -1903,6 +1919,7 @@
         <h1 id="title">Global</h1>
         <div id="sub"></div>
       </div>
+      <div id="feedtabs" class="hidden" role="tablist" aria-label="Which posts"><button type="button" role="tab" data-tab="global">Feed</button><button type="button" role="tab" data-tab="code">&lt;/&gt; Code</button></div>
       <button class="iconbtn hidden" id="searchbtn" title="Search messages (Ctrl+K)" aria-label="Search messages"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
       <button class="ghost hidden" id="gadd">Add people</button>
       <button class="ghost hidden" id="ginfo">Info</button>
@@ -1928,6 +1945,7 @@
     <button id="newmsgs">New messages ↓</button>
     <div id="feedbox">
       <div id="postas" class="hidden"></div>
+      <div id="codebar"><button type="button" id="postcode">Post a game, a page or anything made with code</button><button type="button" class="pollbtn" id="postcodeproj" title="Post one of your projects">🧪 Project</button></div>
       <div class="fbrow" id="fbrow"><textarea id="posttext" rows="1" maxlength="1000" placeholder="What idiotic idea have you thought of?"></textarea><button type="button" class="emojibtn hidden" id="postemoji" title="Your custom emojis" aria-label="Your custom emojis">😀</button><button class="primary" id="postbtn" type="button">Post</button><button type="button" id="postcammini" title="Take photo" aria-label="Take photo"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button></div>
       <div class="fbact" id="fbact">
         <button type="button" class="iconbtn" id="postimg" title="Add a picture" aria-label="Add a picture">
@@ -2020,6 +2038,9 @@ let uv = null;          // version of st the server last sent
 let latest = {};        // newest message id per chat
 let read = null;        // last read message id per chat
 let openId = store.get('chat_open') || 'global';
+// Idiocy Code: the Global feed's code (HTML embeds and code projects), which the normal feed leaves out
+// (like Shorts). feedTab says which of the two the feed shows; ?code in the address opens Idiocy Code.
+let feedTab = new URLSearchParams(location.search).has('code') ? 'code' : 'global';
 let openRev = null;     // changes when messages in the open chat are deleted
 let lastId = 0;         // newest message id shown in the open chat
 let epoch = 0;          // bumps on chat switch so stale responses are ignored
@@ -3154,7 +3175,7 @@ function pushSync() {
 }
 
 // ---------- links ----------
-// ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>, ?short=<Short id>, ?u=<username>
+// ?go=<chat id> (or friends), ?dm=<username>, ?post=<post id>, ?short=<Short id>, ?u=<username>, ?code (Idiocy Code)
 // (a profile); opened once you're logged in. Notifications' ?go= and ?dm= are tidied away; the
 // others stay in the address bar, which then follows you as you scroll (syncAddress).
 let pendingLink = /[?&](go|dm|post|short|u|v|admin)=/.test(location.search) ? location.search : '';
@@ -3198,8 +3219,8 @@ function syncAddress() {
     q = '?short=' + id;
   } else if (isFeed() && !(isPhone() && mview !== 'feed')) {
     const p = restingPost([...log.querySelectorAll('.msg.post:not(.pending)')].filter(c => c._m));
-    if (!p) return; // loading, or between posts
-    q = '?post=' + p._m.id;
+    if (!p && !(codeTab() && log.querySelector('.sys.empty'))) return; // loading, or between posts
+    q = (codeTab() ? '?code' : '') + (p ? (codeTab() ? '&' : '?') + 'post=' + p._m.id : '');
   }
   if (location.search === q) return;
   try { history.replaceState(history.state, '', location.pathname + q + location.hash); } catch (e) {}
@@ -3599,8 +3620,9 @@ const guestCard = (title, sub) => h('div', { class: 'guestcard' }, h('b', null, 
   h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => toAuth('login') }, 'Log in'), h('button', { class: 'primary', onclick: () => toAuth('register') }, 'Sign up')));
 function paintGuest() {
   $('mename').replaceChildren(ghostAvatar(), h('span', { class: 'two' }, h('b', null, 'Not logged in'), h('span', { class: 'st' }, 'Log in or sign up')));
-  $('feedrow').replaceChildren(h('button', { class: 'row global' + (openId === 'global' && !shortsOpen ? ' on' : ''), onclick: () => { if (shortsOpen) shortsOpen.close(); switchTo('global'); } },
+  $('feedrow').replaceChildren(h('button', { class: 'row global' + (openId === 'global' && !shortsOpen && !codeTab() ? ' on' : ''), onclick: () => { if (shortsOpen) shortsOpen.close(); switchTo('global', 'global'); } },
     h('div', { class: 'avatar icon' }, '#'), h('span', { class: 'label' }, h('span', { class: 'nm' }, 'Global feed'), h('span', { class: 'prev' }, 'Posts from everyone'))));
+  $('coderow').classList.toggle('on', codeTab() && !shortsOpen);
   if (!$('convos').querySelector('.guestcard')) $('convos').replaceChildren(guestCard('Your chats show up here', 'Log in to message your friends and groups.'));
   $('requests').replaceChildren();
   if (!$('friends').querySelector('.guestcard')) $('friends').replaceChildren(guestCard('Your friends show up here', 'Log in to follow people and see who follows you.'));
@@ -3690,6 +3712,7 @@ function start() {
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
   if (isPhone()) { openId = 'global'; setView('chats'); } // phones open on the chat list
+  if (feedTab === 'code') { openId = 'global'; if (isPhone()) setView('feed'); } // opened on Idiocy Code
   // Opened on a post or a Short (a link, or refreshing on one): the feed, with that post first.
   const link = new URLSearchParams(pendingLink);
   if (link.get('post') || link.get('short')) {
@@ -3714,7 +3737,7 @@ let snapSaved = 0;
 function saveSnapshot(force) {
   if (!token || !me || !st || (!force && Date.now() - snapSaved < 15000)) return;
   snapSaved = Date.now();
-  const feed = openId === 'global' && openRev
+  const feed = openId === 'global' && !codeTab() && openRev
     ? { msgs: [...log.querySelectorAll('.msg:not(.pending):not(.again)')].map(el => el._m).filter(m => m && m.id).slice(0, 60), rev: openRev, eMax }
     : chatCache.get('global');
   const snap = { v: 2, tok: token.slice(-12), as: actingAs, me, st, latest, api: serverApi, settings, streaks, feed: feed || null, names: Object.fromEntries(knownNames) };
@@ -3807,7 +3830,7 @@ async function poll() {
   const myAs = actingAs;
   try {
     const d = await api('poll', {
-      open: openId, after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop, vis: document.visibilityState === 'visible' || undefined,
+      open: openId, ...(codeTab() && { tab: 'code' }), after: lastId, eafter: eMax, uv, rev: openRev, pingAfter: pingTop, vis: document.visibilityState === 'visible' || undefined,
       ...(lastId && document.visibilityState === 'visible' && openRev !== null && !isFeed() && { read: lastId }), // for seen receipts
       k: me ? key(me.name) : undefined, known: st ? st.convos.map(c => c.id) : undefined, // lets the server batch its reads
     });
@@ -3877,6 +3900,7 @@ async function poll() {
     $('invitebtn').classList.toggle('hidden', serverApi < 21 || orgMe());
     $('mtabshorts').classList.toggle('hidden', serverApi < 22);
     $('shortsrow').classList.toggle('hidden', serverApi < 22);
+    $('coderow').classList.toggle('hidden', serverApi < 53);
     $('projectsrow').classList.toggle('hidden', serverApi < 29);
     if (store.get(INVITE_KEY) && token) redeemPendingInvite();
     if (pendingLink) openLink(pendingLink);
@@ -3960,7 +3984,7 @@ document.addEventListener('pointercancel', releaseSide, true);
 function renderSide() {
   if (guest) return paintGuest();
   if (!st || !me) return;
-  const sig = JSON.stringify([st, latest, openId, read, me, profileVer, picVer, prefs.muted, prevVer, Math.floor(Date.now() / 60000), streaks, serverApi, !!shortsOpen]);
+  const sig = JSON.stringify([st, latest, openId, feedTab, read, me, profileVer, picVer, prefs.muted, prevVer, Math.floor(Date.now() / 60000), streaks, serverApi, !!shortsOpen]);
   if (sig === sideSig) return;
   // Rebuilding the list mid-tap swaps the button under your finger, and the phone
   // then drops the tap. Wait until the finger's lifted.
@@ -3988,17 +4012,18 @@ function renderSide() {
     const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : c.type === 'idiocy' ? avatar(IDIOCY) : h('div', { class: 'avatar icon' }, '#');
     const unread = isUnread(c.id);
     return fresh(h('button', {
-      class: 'row' + (c.id === openId && !shortsOpen ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
+      class: 'row' + (c.id === openId && !shortsOpen && !codeTab() ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
       'data-at': c.type === 'dm' ? label : null,
-      onclick: () => { if (profileOpen) profileOpen.close(); if (shortsOpen) shortsOpen.close(); switchTo(c.id); },
+      onclick: () => { if (profileOpen) profileOpen.close(); if (shortsOpen) shortsOpen.close(); switchTo(c.id, 'global'); },
     }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, convoTitle(c), streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
       isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
       notifyLevel(c.id) === 'mentions' && h('span', { class: 'muteicon', title: 'Mentions only' }, '@'),
       h('span', { class: 'when' }, ago(latest[c.id])),
       unread && h('span', { class: 'dot' })), 'c:' + c.id);
   });
-  // Global feed sits above Idiocy Shorts and Idiocy Projects; the chats come after them.
+  // Global feed sits above Idiocy Code, Idiocy Shorts and Idiocy Projects; the chats come after them.
   $('feedrow').replaceChildren(...rows.filter(r => r.classList.contains('global')));
+  $('coderow').classList.toggle('on', codeTab() && !shortsOpen);
   $('convos').replaceChildren(...rows.filter(r => !r.classList.contains('global')));
 
   const reqs = [], asOrg = orgMe();
@@ -4097,13 +4122,16 @@ function renderHeader() {
     $('hicon').replaceChildren(...(!c || c.type === 'global' ? [] : c.type === 'dm' ? [avatar(convoLabel(c), { dot: true })] : c.type === 'idiocy' ? [avatar(IDIOCY)] : [groupIcon(c)]));
   }
   if (c) pendingTitle = null;
-  $('title').textContent = c ? convoTitle(c) : pendingTitle ? displayName(pendingTitle) : openId === 'global' ? 'Global' : 'Loading\u2026';
-  $('sub').textContent = !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
+  $('title').textContent = codeTab() ? 'Idiocy Code' : c ? convoTitle(c) : pendingTitle ? displayName(pendingTitle) : openId === 'global' ? 'Global' : 'Loading\u2026';
+  $('sub').textContent = codeTab() ? 'Games, pages and projects made with code'
+    : !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
     : c.type === 'global' ? 'Posts from everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
     : c.type === 'dm' ? streakText(c.id) || 'Direct message'
     : c.type === 'idiocy' ? 'Messages from the people who run Idiocy'
     : `${c.members.length} members: ${c.members.map(displayName).join(', ')}`;
   $('searchbtn').classList.toggle('hidden', !(serverApi >= 18 && c));
+  $('feedtabs').classList.toggle('hidden', !isFeed() || serverApi < 53);
+  $('feedtabs').querySelectorAll('button').forEach(b => { const on = b.dataset.tab === feedTab; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
   $('gadd').classList.toggle('hidden', !isGroup);
   $('ginfo').classList.toggle('hidden', !isGroup);
   // DMs: 1-to-1 calls. Groups: start a group call, or join the one that's on.
@@ -4150,6 +4178,7 @@ async function pinMessage(convoId, m) {
 }
 
 function emptyText() {
+  if (codeTab()) return 'No code yet. Post a game, a page or anything you\u2019ve made!';
   if (openId === 'global') return 'No posts yet. Be the first to post something!';
   return 'This is the start of the chat.';
 }
@@ -4159,6 +4188,10 @@ let pendingTitle = null; // title for a chat the sidebar doesn't know about yet
 
 const isPendingChat = id => String(id).startsWith('pending:');
 const isFeed = () => openId === 'global';
+const codeTab = () => openId === 'global' && feedTab === 'code';
+const isCodePost = m => !!((m.em && m.em.c) || (m.proj && m.proj.kind === 'code'));
+const inFeedTab = m => !m.vd && (serverApi < 53 || isCodePost(m) === codeTab()); // Shorts are in Idiocy Shorts
+const viewKey = () => codeTab() ? 'global:code' : openId; // chatCache keeps the two apart
 
 // The Global feed shows posts newest-first with its own composer at the top;
 // the composer's attachment bar and notes move up there while it's open.
@@ -4171,6 +4204,7 @@ function setFeedMode(on) {
   if (on) {
     $('feedbox').prepend(note, bar); // above the post box, like in chats
     if (me) $('fbrow').replaceChildren(avatar(me.name, { click: false }), $('posttext'), $('postemoji'), $('postbtn'), $('postcammini'));
+    if (me) $('codebar').replaceChildren(avatar(me.name, { click: false }), $('postcode'), $('postcodeproj'));
   } else {
     $('send').before(note, bar);
   }
@@ -4183,18 +4217,21 @@ const chatCache = new Map();
 function rememberChat() {
   if (!openRev || isPendingChat(openId)) return;
   const msgs = [...log.querySelectorAll('.msg:not(.pending)')].map(el => el._m).filter(m => m && m.id);
-  chatCache.delete(openId);
-  chatCache.set(openId, { msgs, rev: openRev, eMax });
+  chatCache.delete(viewKey());
+  chatCache.set(viewKey(), { msgs, rev: openRev, eMax });
   while (chatCache.size > 12) chatCache.delete(chatCache.keys().next().value);
 }
 
-function switchTo(id) {
+// tab: for the Global feed, 'code' for Idiocy Code (redraws stay on the one that's showing).
+function switchTo(id, tab = id === openId ? feedTab : 'global') {
   if (shortsOpen && id !== openId) shortsOpen.close(); // going somewhere else (redraws of this chat leave it be)
   if (profileOpen && id !== openId) profileOpen.close();
   if (id !== 'global') setView('chat');
   else if (mview === 'chat') setView('feed');
   rememberChat();
   openId = id;
+  feedTab = id === 'global' && tab === 'code' ? 'code' : 'global';
+  document.body.classList.toggle('codetab', codeTab());
   if (!isPendingChat(id)) store.set('chat_open', id);
   epoch++;
   openRev = null;
@@ -4210,7 +4247,7 @@ function switchTo(id) {
   seenNow = null;
   clearLog();
   setFeedMode(isFeed());
-  const cached = chatCache.get(id);
+  const cached = chatCache.get(viewKey());
   if (cached) {
     // Show what we had straight away; the next poll adds anything new, and
     // reloads fully if something was deleted meanwhile.
@@ -4812,7 +4849,7 @@ async function openShorts(startId, from, linked) {
   shortsOpen = state;
   paintTabs();
   $('shortsrow').classList.toggle('on', desk);
-  document.querySelectorAll('#feedrow .row.on, #convos .row.on').forEach(r => r.classList.remove('on'));
+  document.querySelectorAll('#feedrow .row.on, #convos .row.on, #coderow.on').forEach(r => r.classList.remove('on'));
   renderSide(); // Idiocy Shorts is the one highlighted now
   log.querySelectorAll('.vshot video').forEach(v => v.pause()); // the feed's videos wait
   const onKey = e => {
@@ -5005,6 +5042,8 @@ function pickShort() {
 $('postshort').onclick = pickShort;
 $('shortfile').onchange = () => { const f = $('shortfile').files[0]; $('shortfile').value = ''; openShortMaker(f); };
 $('shortsrow').onclick = () => { if (profileOpen) profileOpen.close(); openShorts(); }; // Shorts may be under the profile already
+$('coderow').onclick = () => { if (profileOpen) profileOpen.close(); if (shortsOpen) shortsOpen.close(); switchTo('global', 'code'); if (isPhone()) setView('feed'); };
+$('feedtabs').querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.tab === feedTab) feedToTop(); else switchTo('global', b.dataset.tab); });
 $('projectsrow').onclick = () => openProjects();
 
 // Comments on a Short, in a pop-up over the player.
@@ -5700,7 +5739,7 @@ function jumpTo(id) { revealMessage(openId, id); }
 async function revealMessage(convoId, id, quiet) {
   // A Short isn't in the feed: it opens in Shorts (from a link, a notification, search or a shared card).
   // linked: a post from a followers-only account you don't follow. It's not in your feed, but its link still shows it.
-  let linked = null;
+  let linked = null, tab = null;
   if (convoId === 'global' && serverApi >= 40 && !log.querySelector(`.msg[data-id="${id}"]`)) {
     let d = null;
     try { d = await api('postKind', { id }); } catch (e) {}
@@ -5711,10 +5750,11 @@ async function revealMessage(convoId, id, quiet) {
       return null;
     }
     if (d && d.ok && d.post) linked = d.post;
+    if (d && d.ok) tab = d.code ? 'code' : 'global'; // code is in Idiocy Code
   }
   if (profileOpen) profileOpen.close();
   if (shortsOpen) shortsOpen.close();
-  if (openId !== convoId) switchTo(convoId);
+  if (openId !== convoId || (tab && tab !== feedTab)) switchTo(convoId, tab || 'global');
   if (convoId === 'global' && isPhone() && mview !== 'feed') setView('feed'); // phones: the Feed tab
   const myEpoch = epoch;
   const started = Date.now();
@@ -5938,7 +5978,7 @@ async function loadOlder() {
   const note = h('div', { class: 'olderload' }, h('span', { class: 'spinner', style: 'display:inline-block;vertical-align:middle;margin-right:6px' }), 'Loading older messages\u2026');
   if (isFeed()) log.append(note); else log.prepend(note);
   try {
-    const d = await api('older', { convo: openId, before: Math.min(...ids) });
+    const d = await api('older', { convo: openId, before: Math.min(...ids), ...(codeTab() && { tab: 'code' }) });
     if (myEpoch !== epoch || !d.ok) return;
     olderMore = d.more;
     const fresh = d.messages.filter(m => !shown.has(m.id));
@@ -6739,8 +6779,8 @@ function siteHint(input, note) {
   input.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(check, 500); });
   if (input.value) check();
 }
-function openEmbedMaker() {
-  let kind = 'url';
+function openEmbedMaker(start) {
+  let kind = start === 'code' ? 'code' : 'url';
   const url = h('input', { type: 'url', placeholder: 'https://\u2026', maxlength: 500, inputmode: 'url', autocapitalize: 'none', spellcheck: 'false' });
   const code = h('textarea', { class: 'emcode', placeholder: '<h1>Hello!</h1>\n<script>\n  // HTML, CSS and JavaScript\n<\/script>', spellcheck: 'false', rows: 9 });
   const count = h('span', { class: 'hint' });
@@ -6765,8 +6805,8 @@ function openEmbedMaker() {
   const preview = h('div', { class: 'empreview' });
   const urlNote = h('div', { class: 'hint' });
   siteHint(url, urlNote);
-  const urlPart = h('div', { class: 'empart' }, url, urlNote);
-  const codePart = h('div', { class: 'empart hidden' }, code,
+  const urlPart = h('div', { class: 'empart' + (kind === 'url' ? '' : ' hidden') }, url, urlNote);
+  const codePart = h('div', { class: 'empart' + (kind === 'code' ? '' : ' hidden') }, code,
     h('div', { class: 'emfile' }, file, h('button', { class: 'ghost', type: 'button', onclick: () => file.click() }, '\u{1F4C4} Upload .html file'), fileNote),
     h('div', { class: 'hint' }, 'HTML, CSS and JavaScript, like a little web page or game. Up to 200 KB. ', count));
   const tabs = h('div', { class: 'notifychips' }, ...[['url', '\u{1F310} Website'], ['code', '</> Code']].map(([v, label]) =>
@@ -6822,9 +6862,11 @@ function openEmbedMaker() {
         if (caption.value === $('posttext').value) { $('posttext').value = ''; growPost(); }
         send(caption.value.trim(), null, { embed: e, still });
       } }, 'Post')));
-  url.focus();
+  (kind === 'url' ? url : code).focus();
 }
-$('postembed').onclick = openEmbedMaker;
+$('postembed').onclick = () => openEmbedMaker(codeTab() ? 'code' : 'url');
+$('postcode').onclick = () => openEmbedMaker('code');
+$('postcodeproj').onclick = () => openProjects(true);
 $('postemoji').onclick = e => openEmojiPanel(e.currentTarget, $('posttext'));
 $('emojibtn').onclick = e => openEmojiPanel(e.currentTarget, $('text'));
 // Tapping them leaves the typing where it is (the keyboard stays up and the post box stays open).
@@ -7636,7 +7678,7 @@ function stepFeed(dir) {
 // Told to reload the feed (a post was deleted, or the server restarted): take out what's
 // gone, update the rest and add anything new, all without moving the post you're on.
 function refreshFeed(msgs, full) {
-  msgs = msgs.filter(m => !m.vd); // Shorts are in Idiocy Shorts, not the feed
+  msgs = msgs.filter(inFeedTab); // Shorts are in Idiocy Shorts, and code in Idiocy Code (or only there)
   const ids = new Set(msgs.map(m => m.id));
   const from = full && msgs.length ? Math.min(...ids) : -Infinity; // posts older than these weren't sent
   keepPlace(() => {
@@ -7671,7 +7713,7 @@ function keepPlace(change) {
 }
 
 function renderBatch(msgs, animate) {
-  if (isFeed()) msgs = msgs.filter(m => !m.vd); // Shorts are in Idiocy Shorts, not the feed (a copy saved before then might have some)
+  if (isFeed()) msgs = msgs.filter(inFeedTab); // Shorts and code have their own places (a copy saved before then might have some)
   if (!msgs.length) return;
   if (!isFeed()) notePreview(openId, msgs[msgs.length - 1]);
   const stick = nearBottom();
@@ -7727,6 +7769,7 @@ function updateComposer() {
   $('postemoji').classList.toggle('hidden', serverApi < 32);
   $('emojibtn').classList.toggle('hidden', serverApi < 32);
   $('postproject').disabled = !!muted || locked;
+  $('postcode').disabled = $('postcodeproj').disabled = !!muted || locked;
   $('postpoll').disabled = !!muted || locked;
   note.onclick = null;
   document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
@@ -7756,6 +7799,11 @@ function updateComposer() {
 const sendError = msg => (isFeed() ? toast(msg, true) : sys(msg, true));
 
 async function send(text, att, extra = {}) {
+  // Code goes in Idiocy Code and everything else in the Global feed: posting takes you to where it goes.
+  if (isFeed() && serverApi >= 53) {
+    const tab = (extra.embed && extra.embed.code) || (extra.project && extra.project.kind === 'code') ? 'code' : 'global';
+    if (tab !== feedTab) switchTo('global', tab);
+  }
   const btn = isFeed() ? $('postbtn') : document.querySelector('#send button[type=submit]');
   const myEpoch = epoch, sentTo = openId;
   btn.disabled = true;
