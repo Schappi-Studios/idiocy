@@ -3469,8 +3469,8 @@ $('signup').addEventListener('submit', async e => {
 // ---------- terms and conditions ----------
 // Everyone agrees to them: by ticking a box at sign-up, or (accounts from before, or after they change)
 // in a pop-up the next time they open Idiocy, which only goes away by agreeing or logging out.
-const TERMS_VERSION = '2026-10-20'; // the server's TERMS_VERSION too: change both when everyone should agree again
-const TERMS_UPDATED = 'October 20, 2026';
+const TERMS_VERSION = '2026-10-21'; // the server's TERMS_VERSION too: change both when everyone should agree again
+const TERMS_UPDATED = 'October 21, 2026';
 // "# " a section, "## " a part of one, "- " a list item; "Label: the rest" shows the label in bold.
 const TERMS = `Welcome to Idiocy ("Platform", "we", "us", or "our"). These Terms and Conditions ("Terms") govern your access to and use of our website, mobile application (yet to be created), and related services (collectively, the "Services").
 By creating an account, accessing, or using the Services, you agree to be bound by these Terms. If you do not agree to these Terms, you must not access or use the Platform.
@@ -3491,6 +3491,7 @@ You agree not to:
 - Engage in spamming, automated scraping, or unauthorized advertising.
 - Attempt to bypass security controls, reverse-engineer, or compromise the technical integrity of the Platform.
 - Use racist, sexually offensive or similar slurs.
+- Report others for reasons that are false and/or incorrect and do not violate these Terms.
 # 3. Violations, Penalties, and Enforcement Actions
 ## A. Account Penalties (Muting, Suspension, and Bans)
 If you violate these Terms—specifically including but not limited to impersonating others or spreading misinformation about individuals—we reserve the right to impose penalties based on the severity and frequency of the violation:
@@ -3518,7 +3519,8 @@ If you violate these Terms—specifically including but not limited to impersona
 # 7. Modifications to the Terms
 We reserve the right to update or modify these Terms at any time. We will notify users of material changes via in-app notifications or email. Your continued use of the Platform after changes take effect constitutes your acceptance of the updated Terms.
 # 8. Contact Information
-- Contact Us: If you have questions regarding these Terms, please contact an Idiocy admin.`;
+- Contact Us: If you have questions regarding these Terms, please contact an Idiocy admin.
+- More contacts: If you have any questions regarding behaviour and/or reports, please use the report feature and our admins will try their best to resolve it.`;
 function termsBody() {
   const out = [];
   let list = null;
@@ -3544,7 +3546,9 @@ function openTerms(agree) {
   const md = modal('terms wide' + (agree ? ' asking' : ''),
     h('h2', null, 'Terms and Conditions'),
     h('div', { class: 'hint' }, 'Last updated: ' + TERMS_UPDATED),
-    agree && h('p', { class: 'termsask' }, '\u{1F4DC} To keep using Idiocy, please read these and agree to them.'),
+    agree && h('p', { class: 'termsask' }, me && me.termsChanged
+      ? '\u{1F4DC} Idiocy\u2019s terms have changed. To keep using Idiocy, please read the new ones and agree to them.'
+      : '\u{1F4DC} To keep using Idiocy, please read these and agree to them.'),
     h('div', { class: 'termsbody' }, ...termsBody()),
     h('div', { class: 'btns' }, ...(agree
       ? [h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'), go]
