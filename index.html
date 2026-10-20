@@ -1304,6 +1304,20 @@
   .cguest { width: 100%; margin-top: 6px; }
   .pubback { margin-bottom: 4px; }
   #lookaround { align-self: center; margin-top: 6px; }
+  #termslink { align-self: center; font-size: 12px; color: var(--muted); }
+  .suagree { display: flex; gap: 8px; align-items: center; font-size: 14px; margin-top: 4px; }
+  .suagree input { width: 18px; height: 18px; flex: none; margin: 0; }
+  .suagree .linkbtn { font-size: inherit; padding: 0; }
+  /* The terms: easy to read, and the buttons stay in view while scrolling. */
+  .modal.terms { overflow-y: auto; }
+  .modal.terms .termsask { margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--panel-2); font-weight: 600; }
+  .modal.terms .termsbody { font-size: 14px; line-height: 1.5; margin-top: 8px; }
+  .modal.terms .termsbody h3 { margin: 18px 0 6px; font-size: 15px; }
+  .modal.terms .termsbody h4 { margin: 12px 0 4px; font-size: 14px; }
+  .modal.terms .termsbody p { margin: 0 0 8px; }
+  .modal.terms .termsbody ul { margin: 0 0 8px; padding-left: 20px; }
+  .modal.terms .termsbody li { margin-bottom: 6px; }
+  .modal.terms .btns { position: sticky; bottom: -20px; margin: 8px -20px -20px; padding: 12px 20px 20px; background: var(--panel); border-top: 1px solid var(--border); }
   body.guest .msg .acts { display: none !important; } /* report, edit, delete: nothing to do signed out */
   /* ---------- Idiocy Shorts ---------- */
   .vshot { position: relative; background: #000; }
@@ -1725,6 +1739,7 @@
         <h2>What’s your email?</h2>
         <input id="suemail" type="email" autocomplete="email" maxlength="100" aria-label="Email">
         <p class="suhint">We’ll send you a code to check it’s yours. You’ll need it if you ever forget your password.</p>
+        <label class="suagree"><input type="checkbox" id="suagree"><span>I agree to Idiocy’s <button type="button" class="linkbtn" id="suterms">Terms and Conditions</button></span></label>
       </section>
       <section data-step="code" class="hidden">
         <h2>Enter the code</h2>
@@ -1736,6 +1751,7 @@
       <button class="primary" type="submit" id="sugo">Continue</button>
     </form>
     <button type="button" class="linkbtn" id="lookaround">👀 Just looking? See what’s on Idiocy</button>
+    <button type="button" class="linkbtn" id="termslink">Terms and Conditions</button>
   </div>
 </div>
 
@@ -2034,7 +2050,7 @@ function paintAvatar(el) {
 function modal(cls, ...kids) {
   const box = h('div', { class: 'modal ' + (cls || '') }, ...kids);
   const opened = Date.now(); // a tap that's still finishing as it opens doesn't close it
-  const overlay = h('div', { class: 'overlay', onclick: e => { if (e.target === overlay && Date.now() - opened > 400) overlay.remove(); } }, box);
+  const overlay = h('div', { class: 'overlay', onclick: e => { if (e.target === overlay && !overlay.dataset.keep && Date.now() - opened > 400) overlay.remove(); } }, box);
   document.body.append(overlay);
   return { overlay, box, close: () => overlay.remove() };
 }
@@ -3228,7 +3244,9 @@ function showSignupStep(step) {
   if (first && !first.value) first.focus();
 }
 const paintSignupGo = () => { $('sugo').disabled = suStep === 'handle' && handleOk !== true && handleOk !== 'unknown'; };
-const signupData = () => ({ first: $('sufirst').value, last: $('sulast').value, username: $('suuser').value, password: $('supass').value });
+const signupData = () => ({ first: $('sufirst').value, last: $('sulast').value, username: $('suuser').value, password: $('supass').value, ...($('suagree').checked && { agree: TERMS_VERSION }) });
+$('suterms').onclick = e => { e.preventDefault(); openTerms(); };
+$('termslink').onclick = () => openTerms();
 
 // Your @ starts as your name run together, e.g. "Lucas Schappi" -> @lucasschappi.
 function suggestHandle() {
@@ -3302,6 +3320,7 @@ $('signup').addEventListener('submit', async e => {
   if (suStep === 'handle') return $('sugo').disabled ? null : showSignupStep('password');
   if (suStep === 'password') return $('supass').value.length >= 6 ? showSignupStep('email') : err('Your password needs at least 6 characters');
   if (suStep === 'email' && !$('suemail').value.trim()) return err('Enter your email');
+  if (suStep === 'email' && !$('suagree').checked) return err('Tick the box to agree to the Terms and Conditions');
   if (suStep === 'code' && !$('sucode').value.trim()) return err('Enter the code from your email');
   const btn = $('sugo');
   btn.disabled = true;
@@ -3322,6 +3341,94 @@ $('signup').addEventListener('submit', async e => {
     paintSignupGo();
   }
 });
+
+// ---------- terms and conditions ----------
+// Everyone agrees to them: by ticking a box at sign-up, or (accounts from before, or after they change)
+// in a pop-up the next time they open Idiocy, which only goes away by agreeing or logging out.
+const TERMS_VERSION = '2026-10-20'; // the server's TERMS_VERSION too: change both when everyone should agree again
+const TERMS_UPDATED = 'October 20, 2026';
+// "# " a section, "## " a part of one, "- " a list item; "Label: the rest" shows the label in bold.
+const TERMS = `Welcome to Idiocy ("Platform", "we", "us", or "our"). These Terms and Conditions ("Terms") govern your access to and use of our website, mobile application (yet to be created), and related services (collectively, the "Services").
+By creating an account, accessing, or using the Services, you agree to be bound by these Terms. If you do not agree to these Terms, you must not access or use the Platform.
+# 1. Account Creation and Eligibility
+- Account Security: You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account.
+- Accurate Information: You agree to provide accurate, current, and complete information during registration and to update such information to keep it accurate.
+# 2. User Conduct and Prohibited Activities
+To maintain a safe, fair, and trustworthy environment, you agree not to engage in any prohibited conduct on the Platform.
+## A. Impersonation
+You are strictly prohibited from pretending to be another person, public figure, brand, organization, or entity.
+Creating parody, fan, or news accounts is permitted only if the account clearly and explicitly discloses in the bio and display name that it is unofficial or a parody (e.g., "Parody of [Name]").
+## B. Misinformation and Harassment
+You may not upload, post, transmit, or share content that spreads false, misleading, or deceptive information about other individuals, organizations, or public figures, including false claims that harm an individual's reputation, identity theft, or deceptive deepfakes/manipulated media.
+You may not use the Platform to harass, bully, defame, stalk, threaten, or intimidate any user or third party.
+## C. Other General Prohibitions
+You agree not to:
+- Post illegal, harmful, hateful, sexually explicit, or violent content.
+- Engage in spamming, automated scraping, or unauthorized advertising.
+- Attempt to bypass security controls, reverse-engineer, or compromise the technical integrity of the Platform.
+- Use racist, sexually offensive or similar slurs.
+# 3. Violations, Penalties, and Enforcement Actions
+## A. Account Penalties (Muting, Suspension, and Bans)
+If you violate these Terms—specifically including but not limited to impersonating others or spreading misinformation about individuals—we reserve the right to impose penalties based on the severity and frequency of the violation:
+- Warning: A formal notice requiring the removal of non-compliant content.
+- Muting / Feature Restrictions: Temporary or permanent restriction of your ability to comment, post, send direct messages, or interact with other users.
+- Temporary Suspension: Temporary loss of access to your account for a specified period.
+- Permanent Ban / Termination: Immediate and permanent termination of your account, IP block, and denial of future access to the Platform.
+## B. Platform Rights and Discretion
+- Right to Take Action: The Platform reserves the absolute right, at its sole discretion, to monitor, review, remove, edit, or flag any content or account that violates these Terms or is otherwise harmful to the community.
+- Right to Question and Investigate: The Platform reserves the right to contact, question, or request identity verification/explanation from any user suspected of violating these Terms or breaking Platform rules. Failure to cooperate with an investigation may result in immediate account suspension or termination.
+- No Obligation to Pre-Screen: While we reserve the right to monitor content, we have no obligation to pre-screen every post and are not liable for user-generated content.
+## C. Moderation, Investigation, and Evidence Standards
+- Right to Question and Investigate: Platform administrators and authorized moderators reserve the right to review user reports, contact you, and question you regarding any alleged or reported violations of these Terms.
+- Evidence-Based Enforcement: To prevent false reporting and ensure fair treatment, no disciplinary action (including warnings, muting, suspension, or banning) will be taken solely based on unverified user reports or accusations. Moderators will only take action after conducting a proper review and gathering further evidence (such as system logs, screenshot/recording verification, posted content history, or context checks) confirming that a violation occurred.
+- Cooperation: Users are expected to cooperate in good faith if contacted by moderators during an active investigation. Submitting false reports against other users in bad faith is itself a violation of these Terms and may result in penalties against the reporter.
+# 4. Content Rights and Intellectual Property
+- Your Content: You retain ownership of the original content you post on the Platform. However, by posting content, you grant us a non-exclusive, worldwide, royalty-free license to use, host, reproduce, display, and distribute your content solely for operating, promoting, and improving the Platform.
+- Platform Content: All logos, trademarks, interface designs, code, and proprietary software remain the exclusive property of the Platform.
+# 5. Reporting Violations and Appeals
+- Reporting: Users can report impersonation, misinformation, harassment, or other rule violations using our in-app reporting tools or by contacting an Idiocy admin.
+- Appeals: If you believe your account was muted, suspended, or banned in error, you may submit an appeal to an Idiocy admin within 14 days of the enforcement action. We will review your request, but final decisions remain at our sole discretion.
+# 6. Disclaimer of Warranties and Limitation of Liability
+- "As-Is" Basis: The Services are provided on an "AS IS" and "AS AVAILABLE" basis without warranties of any kind, express or implied.
+- Limitation of Liability: To the maximum extent permitted by applicable law, the Platform and its affiliates shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or any loss of profits or revenues, arising out of your use of or inability to use the Platform.
+# 7. Modifications to the Terms
+We reserve the right to update or modify these Terms at any time. We will notify users of material changes via in-app notifications or email. Your continued use of the Platform after changes take effect constitutes your acceptance of the updated Terms.
+# 8. Contact Information
+- Contact Us: If you have questions regarding these Terms, please contact an Idiocy admin.`;
+function termsBody() {
+  const out = [];
+  let list = null;
+  const line = t => { const m = /^([^:.]{2,45}):\s(.+)$/.exec(t); return m ? [h('b', null, m[1] + ':'), ' ' + m[2]] : [t]; };
+  TERMS.split('\n').forEach(t => {
+    if (t.startsWith('- ')) { if (!list) out.push(list = h('ul')); list.append(h('li', null, ...line(t.slice(2)))); return; }
+    list = null;
+    out.push(t.startsWith('## ') ? h('h4', null, t.slice(3)) : t.startsWith('# ') ? h('h3', null, t.slice(2)) : h('p', null, ...line(t)));
+  });
+  return out;
+}
+// agree: asking someone who hasn't agreed yet (there's no closing it any other way).
+function openTerms(agree) {
+  const go = h('button', { class: 'primary', onclick: async () => {
+    go.disabled = true;
+    const d = await act('agreeTerms', { version: TERMS_VERSION });
+    go.disabled = false;
+    if (!d) return;
+    if (me) me.terms = true;
+    md.close();
+    toast('Thanks! You\u2019re all set.');
+  } }, 'I agree');
+  const md = modal('terms wide' + (agree ? ' asking' : ''),
+    h('h2', null, 'Terms and Conditions'),
+    h('div', { class: 'hint' }, 'Last updated: ' + TERMS_UPDATED),
+    agree && h('p', { class: 'termsask' }, '\u{1F4DC} To keep using Idiocy, please read these and agree to them.'),
+    h('div', { class: 'termsbody' }, ...termsBody()),
+    h('div', { class: 'btns' }, ...(agree
+      ? [h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'), go]
+      : [h('button', { class: 'primary', onclick: () => md.close() }, 'Close')])));
+  if (agree) md.overlay.dataset.keep = '1';
+  return md;
+}
+const askTerms = () => { if (me && !document.querySelector('.modal.terms.asking')) openTerms(true); };
 
 function showAuth(msg) {
   $('app').classList.add('hidden');
@@ -3610,6 +3717,7 @@ async function poll() {
     lastError = '';
     setStatus(true);
     me = d.me;
+    if (d.terms && me.terms === false) askTerms();
     latest = d.latest;
     streaks = d.streaks || {};
     settings = d.settings || settings;
@@ -8480,6 +8588,8 @@ function openSettings() {
     notifyRow(desk, () => md.close()),
     installEvt && h('div', { class: 'toggle' }, h('span', null, 'Install Idiocy', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'As an app on this device')),
       h('button', { class: 'ghost', onclick: () => { md.close(); installApp(); } }, 'Install')),
+    h('div', { class: 'toggle' }, h('span', null, 'Terms and Conditions', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'What everyone on Idiocy agrees to')),
+      h('button', { class: 'ghost', onclick: () => openTerms() }, '\u{1F4DC} Read')),
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
       h('button', { class: 'primary', onclick: () => md.close() }, 'Done')),
@@ -9150,7 +9260,7 @@ $('menu').onclick = () => document.body.classList.add('side-open');
 $('scrim').onclick = () => document.body.classList.remove('side-open');
 document.addEventListener('visibilitychange', () => { if (!document.hidden) pollNow(); });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.querySelectorAll('.overlay').forEach(o => o.remove());
+  if (e.key === 'Escape') document.querySelectorAll('.overlay').forEach(o => { if (!o.dataset.keep) o.remove(); }); // keep: the terms, until agreed
 });
 
 // ---------- start ----------
