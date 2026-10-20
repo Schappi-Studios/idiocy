@@ -896,8 +896,8 @@
   .msg .shot.projgone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 200px; color: var(--muted); font-size: 28px; cursor: default; }
   .msg .shot.projgone span { font-size: 14px; }
   .embedmaker .hint { color: var(--muted); font-size: 12px; }
-  .embedmaker .empreview:empty { display: none; }
-  .embedmaker .empreview .emframe { height: 260px; border-radius: 10px; border: 1px solid var(--border); }
+  .embedmaker .empreview:empty, .projedit .empreview:empty { display: none; }
+  .embedmaker .empreview .emframe, .projedit .empreview .emframe { height: 260px; border-radius: 10px; border: 1px solid var(--border); }
   /* Feed polls: a colourful card, choices as bubbles that fill up once you've voted. */
   .post.ig.pollcard > .body {
     background: linear-gradient(rgba(0, 0, 0, .12), rgba(0, 0, 0, .12)), var(--card); color: #fff; border-radius: 20px; padding: 18px 18px 14px; margin: 0 12px 8px;
@@ -2792,7 +2792,7 @@ async function api(action, data) {
 // else needs an account, so it isn't sent (act() asks them to join instead).
 let guest = false;
 const GUEST_API = { poll: 'guestPoll', older: 'guestOlder', comments: 'guestComments', image: 'guestImage', profiles: 'guestProfiles',
-  shorts: 'guestShorts', embedCode: 'guestEmbedCode', projectImage: 'guestProjectImage', projectCode: 'guestProjectCode', postKind: 'guestPostKind' };
+  shorts: 'guestShorts', embedCode: 'guestEmbedCode', embedStill: 'guestEmbedStill', projectStill: 'guestProjectStill', projectImage: 'guestProjectImage', projectCode: 'guestProjectCode', postKind: 'guestPostKind' };
 const NO_LOGIN_API = new Set(['login', 'register', 'signupStart', 'usernameFree', 'forgotStart', 'forgotReset', 'publicShort', 'inviteInfo']);
 async function apiRaw(action, data) {
   if (guest && !token) {
@@ -6409,14 +6409,82 @@ function linkCheck(src) {
   return linkAsking.get(src);
 }
 
-function embedFrame(em, code) {
+// Stills: a copy of how some HTML looks running, so previews can show the real thing without running it.
+// stillHelper goes into the sealed frame ahead of the code (only for whoever posts it, or an admin running
+// an older one without a still): asked, it copies the page as it is, drawings turned into pictures and
+// scripts left out. WebGL drawings are kept around so they can be copied. Never called in Idiocy itself.
+function stillHelper() {
+  var getContext = HTMLCanvasElement.prototype.getContext;
+  HTMLCanvasElement.prototype.getContext = function (type, opts) {
+    if (/webgl/i.test(type)) opts = Object.assign({}, opts, { preserveDrawingBuffer: true });
+    return getContext.call(this, type, opts);
+  };
+  addEventListener('message', function (e) {
+    if (e.source !== parent || !e.data || e.data.idiocyStill !== 'take') return;
+    var html = null;
+    try {
+      var live = document.querySelectorAll('canvas, input, textarea, select, style');
+      var page = document.documentElement.cloneNode(true);
+      var copies = page.querySelectorAll('canvas, input, textarea, select, style');
+      live.forEach(function (el, i) {
+        var c = copies[i];
+        if (!c) return;
+        if (el.tagName === 'CANVAS') {
+          var img = document.createElement('img'), url = '';
+          try { url = el.toDataURL('image/png'); if (url.length > 200000) url = el.toDataURL('image/jpeg', 0.8); } catch (x) {}
+          Array.prototype.forEach.call(el.attributes, function (a) { img.setAttribute(a.name, a.value); });
+          img.setAttribute('width', el.width);
+          img.setAttribute('height', el.height);
+          if (!el.style.width && el.clientWidth) img.style.width = el.clientWidth + 'px';
+          if (!el.style.height && el.clientHeight) img.style.height = el.clientHeight + 'px';
+          img.setAttribute('data-idiocy-canvas', '');
+          if (url) img.src = url;
+          c.replaceWith(img);
+        } else if (el.tagName === 'STYLE') { // rules added by code aren't in its text
+          try { var t = Array.prototype.map.call(el.sheet.cssRules, function (r) { return r.cssText; }).join('\n'); if (t && t !== el.textContent) c.textContent = t; } catch (x) {}
+        } else if (el.type === 'checkbox' || el.type === 'radio') {
+          if (el.checked) c.setAttribute('checked', ''); else c.removeAttribute('checked');
+        } else if (el.tagName === 'TEXTAREA') c.textContent = el.value;
+        else if (el.tagName === 'SELECT') Array.prototype.forEach.call(c.options, function (o, j) { if (j === el.selectedIndex) o.setAttribute('selected', ''); else o.removeAttribute('selected'); });
+        else c.setAttribute('value', el.value);
+      });
+      page.querySelectorAll('script').forEach(function (x) { x.remove(); });
+      html = '<!doctype html>' + page.outerHTML;
+    } catch (x) {}
+    parent.postMessage({ idiocyStill: html }, '*');
+  });
+}
+const STILL_SCRIPT = '<script>(' + stillHelper + ')()<\/script>';
+const withStillHelper = code => { const top = /^\s*(<!doctype[^>]*>)?/i.exec(code); return (top[1] || '') + STILL_SCRIPT + code.slice(top[0].length); }; // after a doctype, so the page looks the same
+const MAX_STILL = 600000; // the server allows the same
+// Asks a frame (made with still: true) for its still: the HTML, or null.
+function takeStill(frame, ms = 3000) {
+  return new Promise(done => {
+    const finish = html => { removeEventListener('message', on); clearTimeout(timer); done(typeof html === 'string' && html.length <= MAX_STILL ? html : null); };
+    const on = e => { if (e.source === frame.contentWindow && e.data && 'idiocyStill' in e.data) finish(e.data.idiocyStill); };
+    const timer = setTimeout(() => finish(null), ms);
+    addEventListener('message', on);
+    try { frame.contentWindow.postMessage({ idiocyStill: 'take' }, '*'); } catch (e) { finish(null); }
+  });
+}
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+// Runs some code where it can be seen for a moment (so it draws), then takes its still.
+async function captureStill(code, holder) {
+  const frame = embedFrame({ c: 1 }, code, true);
+  frame._code = code;
+  holder.replaceChildren(frame);
+  await sleep(2000);
+  return takeStill(frame);
+}
+
+function embedFrame(em, code, still) {
   const site = em.u && embedSrc(em.u);
   const frame = h('iframe', { class: 'emframe', allow: EMBED_ALLOW, allowfullscreen: '',
     // Sites see that they're on Idiocy (just the address of Idiocy, nothing else): YouTube won't play without it.
     referrerpolicy: site ? 'strict-origin-when-cross-origin' : 'no-referrer',
     title: site ? 'Embedded website: ' + hostOf(site.src) : 'Embedded HTML' });
   frame.setAttribute('sandbox', site ? EMBED_SITE_SANDBOX : EMBED_CODE_SANDBOX);
-  if (site) frame.src = site.src; else frame.srcdoc = code;
+  if (site) frame.src = site.src; else frame.srcdoc = still ? withStillHelper(code) : code;
   return frame;
 }
 // The cover of a website embed: tap to run it, or (if the site won't be shown inside other
@@ -6435,6 +6503,18 @@ function siteCover(site, run) {
 }
 // HTML code, fetched once (the last 20 kept), for its preview and then for running it.
 const embedCodes = new Map();
+const embedStills = new Map();
+function embedStillFor(m) {
+  if (m.em.stillLocal) return Promise.resolve(m.em.stillLocal); // your own post, still sending
+  const k = m.em.pj ? `p${m.em.pj}:${m.proj ? m.proj.v : ''}` : 'm' + m.id;
+  if (!embedStills.has(k)) {
+    embedStills.set(k, Promise.resolve(m.em.pj ? api('projectStill', { id: m.em.pj }) : api('embedStill', { id: m.id }))
+      .then(d => { if (!d.ok) throw new Error(d.error); return d.still; })
+      .catch(err => { embedStills.delete(k); throw err; }));
+    if (embedStills.size > 20) embedStills.delete(embedStills.keys().next().value);
+  }
+  return embedStills.get(k);
+}
 function embedCodeFor(m) {
   if (m.em.local != null) return Promise.resolve(m.em.local); // your own post, still sending
   const k = m.em.pj ? `p${m.em.pj}:${m.proj ? m.proj.v : ''}` : 'm' + m.id; // a project: its newest version
@@ -6450,7 +6530,7 @@ function embedCodeFor(m) {
 // (so scrolling past it can't tell anyone you were there, and pictures from elsewhere wait for a tap).
 // Null when there'd be nothing to see, like a game that draws everything with code.
 const PREVIEW_HEAD = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; font-src data:">'
-  + '<style>img:not([src^="data:"]){visibility:hidden}</style>';
+  + '<style>img:not([src^="data:"]){visibility:hidden}img[data-idiocy-canvas]{max-width:100%;object-fit:contain}</style>';
 function embedPreview(code) {
   const still = String(code || '').replace(/<!--[\s\S]*?-->|<(script|noscript|template)\b[\s\S]*?<\/\1\s*>/gi, ''); // noscript: would show with scripts off
   const shown = still.replace(/<(head|style|title)\b[\s\S]*?<\/\1\s*>/gi, '');
@@ -6498,7 +6578,16 @@ function embedBlock(m) {
       try { code = await embedCodeFor(m); } catch (err) { toast(err.message || 'Couldn’t load it', true); stop(); return; }
       if (runningEmbed !== box) return; // something else started meanwhile
     }
-    const frame = embedFrame(m.em, code);
+    const fixStill = !site && !m.em.st && !m.em.stillLocal && m.id && serverApi >= 52 && me &&
+      (me.role === 'admin' || key(m.name) === key(me.name) || (m.proj && key(m.proj.by || '') === key(me.name)));
+    const frame = embedFrame(m.em, code, fixStill);
+    if (fixStill) setTimeout(async () => { // after it's had a few seconds to draw
+      if (runningEmbed !== box || !frame.isConnected) return;
+      const html = await takeStill(frame);
+      if (!html) return;
+      const d = await api(m.em.pj ? 'saveProjectStill' : 'saveEmbedStill', { id: m.em.pj || m.id, still: html }).catch(() => null);
+      if (d && d.ok) { m.em.st = 1; embedStills.set(m.em.pj ? `p${m.em.pj}:${m.proj ? m.proj.v : ''}` : 'm' + m.id, Promise.resolve(html)); still = embedPreview(html); }
+    }, 3000);
     box.replaceChildren(frame, h('div', { class: 'embar' },
       h('span', null, `Embedded by ${displayName(m.name)} · not part of Idiocy`),
       site && h('a', { href: site.open, target: '_blank', rel: 'noopener noreferrer nofollow' }, 'Open ↗'),
@@ -6513,7 +6602,9 @@ function embedBlock(m) {
   }
   box._stop = stop;
   cover();
-  if (!site) whenNear(box, () => embedCodeFor(m).then(code => { still = embedPreview(code); if (still && runningEmbed !== box) cover(); }, () => {}));
+  // The preview: its still (how it looks running), or else its HTML drawn with scripts off.
+  const showPreview = html => { still = embedPreview(html); if (still && runningEmbed !== box) cover(); };
+  if (!site) whenNear(box, () => (m.em.st || m.em.stillLocal ? embedStillFor(m).catch(() => embedCodeFor(m)) : embedCodeFor(m)).then(showPreview, () => {}));
   // Ask whether the site can be shown here, then fix up the cover (if it's still showing).
   if (site && !site.sure && !linkKnown.has(site.src)) linkCheck(site.src).then(() => { if (runningEmbed !== box) cover(); });
   return box;
@@ -6602,14 +6693,26 @@ function openEmbedMaker() {
           if (!site.sure) await linkCheck(site.src);
           if (!site.sure && linkKnown.get(site.src).frame === false) return preview.replaceChildren(siteCover(site));
         }
-        preview.replaceChildren(embedFrame(e.url ? { u: e.url } : { c: 1 }, e.code));
+        const f = embedFrame(e.url ? { u: e.url } : { c: 1 }, e.code, !e.url);
+        f._code = e.code;
+        preview.replaceChildren(f);
       } }, 'Preview'),
-      h('button', { class: 'primary', onclick: () => {
+      h('button', { class: 'primary', onclick: async ev => {
         const e = embed();
         if (!e) return;
+        let still = null;
+        if (e.code) { // how it looks running, for everyone's preview: what's on screen now, or a moment of it
+          const btn = ev.currentTarget;
+          btn.disabled = true;
+          btn.textContent = 'Getting a preview\u2026';
+          const f = preview.querySelector('iframe.emframe');
+          still = f && f._code === e.code ? await takeStill(f) : await captureStill(e.code, preview);
+          btn.disabled = false;
+          btn.textContent = 'Post';
+        }
         md.close();
         if (caption.value === $('posttext').value) { $('posttext').value = ''; growPost(); }
-        send(caption.value.trim(), null, { embed: e });
+        send(caption.value.trim(), null, { embed: e, still });
       } }, 'Post')));
   url.focus();
 }
@@ -6633,7 +6736,7 @@ function projectBlock(m) {
   if (p.gone) return h('div', { class: 'shot projgone' }, '\u{1F9EA}', h('span', null, 'This project was deleted'));
   if (p.kind === 'art') return igShot({ img: `proj:${p.id}:${p.v}`, w: p.img.w, h: p.img.h });
   if (p.kind === 'video') return videoBlock(Object.assign({}, m, { vd: p.vd }));
-  return embedBlock(Object.assign({}, m, { em: p.kind === 'site' ? { u: p.url } : { c: p.c, pj: p.id } }));
+  return embedBlock(Object.assign({}, m, { em: p.kind === 'site' ? { u: p.url } : { c: p.c, pj: p.id, ...(p.st && { st: 1 }) } }));
 }
 function openProjectInfo(p) {
   const md = modal('projinfo',
@@ -6699,6 +6802,7 @@ async function openProjectEditor(p) {
     code.disabled = true;
     api('projectCode', { id: p.id }).then(d => { code.disabled = false; code.value = d.ok ? d.code : ''; }).catch(() => { code.disabled = false; code.value = ''; });
   }
+  const stillBox = h('div', { class: 'empreview' }); // where its preview is taken
   const codeFile = h('input', { type: 'file', accept: '.html,.htm,text/html', class: 'hidden' });
   codeFile.onchange = async () => {
     const f = codeFile.files[0];
@@ -6743,7 +6847,7 @@ async function openProjectEditor(p) {
   const parts = {
     code: h('div', { class: 'empart' }, code, h('div', { class: 'emfile' }, codeFile,
       h('button', { class: 'ghost', type: 'button', onclick: () => codeFile.click() }, '\u{1F4C4} Upload .html file'),
-      h('span', { class: 'hint' }, 'Up to 200 KB. Runs in a sealed box.'))),
+      h('span', { class: 'hint' }, 'Up to 200 KB. Runs in a sealed box.')), stillBox),
     art: h('div', { class: 'empart' }, artImg, artFile, h('button', { class: 'ghost', type: 'button', onclick: () => artFile.click() }, '\u{1F5BC}\uFE0F Choose a picture')),
     video: h('div', { class: 'empart' }, vidFile, h('button', { class: 'ghost', type: 'button', onclick: () => vidFile.click() }, '\u{1F3AC} Choose a video'), vidNote),
     site: h('div', { class: 'empart' }, url, siteNote),
@@ -6760,6 +6864,16 @@ async function openProjectEditor(p) {
   const save = h('button', { class: 'primary', onclick: async () => {
     const body = { title: title.value, kind, desc: desc.value, ...(p && { id: p.id }) };
     if (kind === 'code' && (codeChanged || !p || p.kind !== 'code')) body.code = code.value;
+    if (kind === 'code' && code.value.trim() && serverApi >= 52 && (body.code != null || !p.st)) { // how it looks running, for previews
+      save.disabled = true;
+      const was = save.textContent;
+      save.textContent = 'Getting a preview\u2026';
+      const still = await captureStill(code.value, stillBox);
+      stillBox.replaceChildren();
+      save.disabled = false;
+      save.textContent = was;
+      if (still) body.still = still;
+    }
     if (kind === 'art' && picked) Object.assign(body, { image: picked.data, w: picked.w, h: picked.h });
     if (kind === 'video' && video) body.video = video;
     if (kind === 'site') body.url = url.value.trim() && !/^https?:\/\//i.test(url.value.trim()) ? 'https://' + url.value.trim() : url.value.trim();
@@ -7549,7 +7663,7 @@ async function send(text, att, extra = {}) {
     ...(rp && { rp: { id: rp.id, name: rp.name, text: (rp.text || (rp.fl ? '\u{1F4CE} ' + rp.fl.n : '[image]')).slice(0, 100) } }),
     ...(extra.poll && { pl: { o: extra.poll, v: {} } }),
     ...(extra.voice && { img: 'local', local: extra.voice, vo: extra.dur }),
-    ...(extra.embed && { em: extra.embed.url ? { u: extra.embed.url } : { c: extra.embed.code.length, local: extra.embed.code } }),
+    ...(extra.embed && { em: extra.embed.url ? { u: extra.embed.url } : { c: extra.embed.code.length, local: extra.embed.code, ...(extra.still && { stillLocal: extra.still }) } }),
     ...(extra.project && { pj: extra.project.id, proj: extra.project }),
     ...(extra.file && { fl: extra.file }),
     ...(emojisIn(text) && { ce: emojisIn(text) }),
@@ -7560,7 +7674,7 @@ async function send(text, att, extra = {}) {
   scrollDown();
   try {
     const d = await api('send', { convo: openId, text, ...as, ...(emojisIn(text) && { emojis: emojisIn(text) }), ...(att && { image: att.data, w: att.w, h: att.h }), ...(rp && { replyTo: rp.id }),
-      ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }), ...(extra.project && { project: extra.project.id }), ...(extra.file && { file: extra.file.id }) });
+      ...(extra.poll && { poll: { options: extra.poll } }), ...(extra.voice && { voice: extra.voice, dur: extra.dur }), ...(extra.embed && { embed: extra.embed }), ...(extra.still && { still: extra.still }), ...(extra.project && { project: extra.project.id }), ...(extra.file && { file: extra.file.id }) });
     if (!d.ok) {
       pending.remove(); if (rp && !replying) setReply(rp);
       if (verifyError(d.error)) openVerify(); else if (!d.auth) sendError(d.error || 'Could not send'); return false;
