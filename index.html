@@ -1563,6 +1563,67 @@
   .actp { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-bottom: 1px solid var(--border); }
   .actp .avatar { flex: none; }
   .actp .nm { font-weight: 600; cursor: pointer; }
+  /* ---------- the Ban Hammer ---------- */
+  .ahead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .ahead h2 { margin: 0; }
+  .bigred {
+    position: relative; flex: none; width: 64px; height: 64px; padding: 0; border-radius: 50%; border: 4px solid #4a0610; cursor: pointer;
+    color: #fff; font: 900 15px/1 system-ui, -apple-system, sans-serif; letter-spacing: .08em; text-shadow: 0 1px 2px rgba(0, 0, 0, .55);
+    background: radial-gradient(circle at 35% 30%, #ff9a9a 0, #ff2b3d 26%, #c40018 60%, #6e000c 100%);
+    box-shadow: 0 6px 0 #4a0610, 0 10px 20px rgba(200, 0, 24, .45), inset 0 -6px 10px rgba(0, 0, 0, .35);
+    transition: transform .08s, box-shadow .08s, filter .2s; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+  }
+  .bigred:active:not(:disabled), .bigred.pressing { transform: translateY(5px); box-shadow: 0 1px 0 #4a0610, 0 4px 10px rgba(200, 0, 24, .4), inset 0 -3px 8px rgba(0, 0, 0, .4); }
+  .bigred:disabled { filter: grayscale(.85) brightness(.85); cursor: not-allowed; }
+  .bigred .bbtext { position: relative; }
+  /* The safety cover: clear plastic on a hinge at the top. */
+  .bigred .bbcover {
+    position: absolute; inset: -9px; border-radius: 50%; pointer-events: none;
+    background: linear-gradient(160deg, rgba(255, 255, 255, .6), rgba(255, 255, 255, .1) 45%, rgba(255, 255, 255, .35));
+    border: 2px solid rgba(255, 255, 255, .8); box-shadow: 0 2px 8px rgba(0, 0, 0, .25);
+    transform-origin: 50% 0; transform: perspective(220px) rotateX(0deg); transition: transform .4s cubic-bezier(.3, 1.6, .5, 1);
+  }
+  .bigred.open .bbcover { transform: perspective(220px) rotateX(-120deg); }
+  .bigred.open { animation: bbglow 1s ease-in-out infinite alternate; }
+  @keyframes bbglow { to { box-shadow: 0 6px 0 #4a0610, 0 0 26px 6px rgba(255, 30, 50, .7), inset 0 -6px 10px rgba(0, 0, 0, .35); } }
+  .modal.banhammer { position: relative; overflow: hidden auto; }
+  .banhammer .bhlist { display: flex; flex-direction: column; gap: 4px; max-height: 240px; overflow-y: auto; }
+  .banhammer .bhpick { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid transparent; border-radius: 10px; background: none; cursor: pointer; text-align: left; }
+  .banhammer .bhpick:hover, .banhammer .bhpick.on { background: var(--panel-2); border-color: var(--border); }
+  .banhammer .bhwho { display: flex; flex-direction: column; min-width: 0; }
+  .banhammer .bhwho span { color: var(--muted); font-size: 12px; }
+  .banhammer .bhcard { position: relative; display: flex; align-items: center; gap: 12px; padding: 14px; border: 2px dashed var(--border); border-radius: 14px; min-height: 48px; }
+  .banhammer .bhcard.empty { justify-content: center; color: var(--muted); font-size: 13px; }
+  .banhammer .bhstage { display: flex; justify-content: center; padding: 14px 0 8px; }
+  .banhammer .bhnote { text-align: center; color: var(--muted); font-size: 12px; }
+  .bigred.hold { width: 120px; height: 120px; font-size: 22px; border-width: 6px; box-shadow: 0 9px 0 #4a0610, 0 14px 28px rgba(200, 0, 24, .45), inset 0 -8px 14px rgba(0, 0, 0, .35); }
+  .bigred.hold.pressing { transform: translateY(7px); }
+  /* The ring that fills as you hold. */
+  .bigred .bbring {
+    position: absolute; inset: -16px; border-radius: 50%; pointer-events: none;
+    background: conic-gradient(#ff2b3d calc(var(--p, 0) * 360deg), rgba(255, 43, 61, .15) 0);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px)); mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  }
+  /* Down it comes. */
+  .banflash { position: fixed; inset: 0; z-index: 9999; pointer-events: none; background: radial-gradient(circle, rgba(255, 40, 60, .55), rgba(255, 0, 20, .25)); animation: banflash .8s ease-out forwards; }
+  @keyframes banflash { from { opacity: 1; } to { opacity: 0; } }
+  .modal.shake { animation: banshake .45s cubic-bezier(.36, .07, .19, .97); }
+  @keyframes banshake { 10%, 90% { transform: translate(-2px, 1px); } 20%, 80% { transform: translate(5px, -2px); } 30%, 50%, 70% { transform: translate(-9px, 3px); } 40%, 60% { transform: translate(9px, -3px); } }
+  .banstamp {
+    position: absolute; left: 50%; top: 50%; padding: 4px 14px; border: 5px double #e0001b; border-radius: 8px; color: #e0001b; background: rgba(255, 255, 255, .85);
+    font: 900 30px/1 Impact, "Arial Black", system-ui, sans-serif; letter-spacing: .12em; pointer-events: none;
+    transform: translate(-50%, -50%) rotate(-12deg); animation: banstamp .45s cubic-bezier(.2, 1.6, .4, 1) .12s both;
+  }
+  @keyframes banstamp { from { opacity: 0; transform: translate(-50%, -50%) rotate(-12deg) scale(3.2); } to { opacity: 1; transform: translate(-50%, -50%) rotate(-12deg) scale(1); } }
+  .bhcard .banham { position: absolute; right: 6px; top: -34px; font-size: 54px; transform-origin: 80% 80%; pointer-events: none; animation: banswing .6s ease-in both; }
+  @keyframes banswing { 0% { opacity: 0; transform: rotate(70deg) translate(20px, -20px); } 40% { opacity: 1; transform: rotate(70deg); } 70% { transform: rotate(-25deg); } 85% { transform: rotate(-10deg); } 100% { opacity: 0; transform: rotate(-20deg); } }
+  .banshard { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; border-radius: 2px; pointer-events: none; animation: banshard .7s ease-out .12s both; }
+  @keyframes banshard { from { opacity: 1; transform: rotate(var(--a)) translateX(0); } to { opacity: 0; transform: rotate(var(--a)) translateX(var(--d)) rotate(200deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .modal.shake, .bigred.open, .banflash { animation: none; }
+    .banflash, .banshard, .bhcard .banham { display: none; }
+    .banstamp { animation: fadein .3s both; }
+  }
   /* ---------- admin stats ---------- */
   .lchart { margin: 12px 0 8px; }
   .lreadout { font-size: 13px; color: var(--muted); min-height: 20px; margin-bottom: 10px; }
@@ -9099,6 +9160,143 @@ function lineChart(rows, say) {
   return h('div', { class: 'lchart' }, readout, plot);
 }
 
+// ---------- the Ban Hammer ----------
+// A big red button at the top of the admin panel, under a flip-up safety cover: the first tap lifts the
+// cover, the next opens the Ban Hammer. Pick who, then press and hold its big red button for a moment
+// (so it can't happen by accident) and down it comes: a flash, a shake, a thud and a BANNED stamp.
+function banButton(users, onBanned) {
+  const btn = h('button', { type: 'button', class: 'bigred', title: 'The Ban Hammer', 'aria-label': 'The Ban Hammer (tap twice: the cover, then the button)' },
+    h('span', { class: 'bbtext' }, 'BAN'), h('span', { class: 'bbcover', 'aria-hidden': 'true' }));
+  let shut = 0;
+  btn.onclick = () => {
+    clearTimeout(shut);
+    if (!btn.classList.contains('open')) { btn.classList.add('open'); shut = setTimeout(() => btn.classList.remove('open'), 5000); return; } // the cover flips up
+    btn.classList.remove('open');
+    openBanHammer(users(), onBanned);
+  };
+  return btn;
+}
+// A deep thud with a crack on top, made in code like the chime.
+function thud() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state === 'suspended') audio.resume();
+    const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t);
+    o.frequency.exponentialRampToValueAtTime(35, t + 0.4);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.6, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.55);
+    o.connect(g).connect(audio.destination);
+    o.start(t);
+    o.stop(t + 0.6);
+    const buf = audio.createBuffer(1, Math.round(audio.sampleRate * 0.18), audio.sampleRate), ch = buf.getChannelData(0);
+    for (let i = 0; i < ch.length; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / ch.length) ** 3;
+    const n = audio.createBufferSource(), ng = audio.createGain();
+    n.buffer = buf;
+    ng.gain.value = 0.3;
+    n.connect(ng).connect(audio.destination);
+    n.start(t);
+  } catch (e) {}
+}
+function openBanHammer(users, onBanned) {
+  let target = null;
+  const HOLD_MS = 1200;
+  const search = h('input', { placeholder: 'Who\u2019s getting banned?', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
+  const results = h('div', { class: 'bhlist' });
+  const card = h('div', { class: 'bhcard empty' }, 'Pick someone above');
+  const hold = h('button', { type: 'button', class: 'bigred hold', disabled: '', 'aria-label': 'Hold to ban' }, h('span', { class: 'bbring' }), h('span', { class: 'bbtext' }, 'HOLD'));
+  const note = h('div', { class: 'hint bhnote' }, 'Press and hold for a second. They\u2019re logged out and can\u2019t log back in. You can undo it.');
+  const after = h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'));
+  const md = modal('banhammer', h('h2', null, '\u{1F528} The Ban Hammer'), search, results, card, h('div', { class: 'bhstage' }, hold), note, after);
+  const who = u => [avatar(u.username, { click: false }), h('span', { class: 'bhwho' }, h('b', null, displayName(u.username)), h('span', null, '@' + u.username))];
+  const list = () => {
+    const q = key(search.value);
+    const found = (users || []).filter(u => u.username && u.role !== 'admin' && !u.banned && (!q || key(u.username).includes(q) || key(displayName(u.username)).includes(q))).slice(0, q ? 8 : 5);
+    results.replaceChildren(...(found.length ? found.map(u => h('button', { type: 'button', class: 'bhpick' + (target === u ? ' on' : ''), onclick: () => pick(u) }, ...who(u)))
+      : [h('div', { class: 'hint' }, q ? 'Nobody by that name (admins can\u2019t be banned).' : 'Nobody to ban.')]));
+  };
+  const pick = u => {
+    target = u;
+    card.className = 'bhcard';
+    card.replaceChildren(...who(u));
+    hold.disabled = false;
+    hold.querySelector('.bbtext').textContent = 'HOLD';
+    list();
+  };
+  search.oninput = list;
+  list();
+  setTimeout(() => search.focus(), 50);
+  // Press and hold: a ring fills up; letting go early stops it.
+  let t0 = 0, raf = 0;
+  const tick = () => {
+    const p = Math.min(1, (performance.now() - t0) / HOLD_MS);
+    hold.style.setProperty('--p', p);
+    if (p >= 1) { t0 = 0; hold.classList.remove('pressing'); fire(); return; }
+    raf = requestAnimationFrame(tick);
+  };
+  const start = e => {
+    if (!target || hold.disabled || t0) return;
+    e.preventDefault();
+    t0 = performance.now();
+    hold.classList.add('pressing');
+    tick();
+  };
+  const cancel = () => {
+    if (!t0) return;
+    t0 = 0;
+    cancelAnimationFrame(raf);
+    hold.classList.remove('pressing');
+    hold.style.setProperty('--p', 0);
+  };
+  hold.addEventListener('pointerdown', start);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => hold.addEventListener(ev, cancel));
+  hold.addEventListener('keydown', e => { if ((e.key === ' ' || e.key === 'Enter') && !e.repeat) start(e); });
+  hold.addEventListener('keyup', e => { if (e.key === ' ' || e.key === 'Enter') cancel(); });
+  hold.addEventListener('contextmenu', e => e.preventDefault()); // a long press on a phone isn't a menu
+  hold.addEventListener('click', e => e.preventDefault());
+  async function fire() {
+    const u = target;
+    hold.disabled = true;
+    hold.querySelector('.bbtext').textContent = '\u2026';
+    const d = await act('ban', { username: u.username });
+    hold.style.setProperty('--p', 0);
+    if (!d) { hold.disabled = false; hold.querySelector('.bbtext').textContent = 'HOLD'; return; }
+    u.banned = true;
+    boom();
+    onBanned && onBanned();
+    search.disabled = true;
+    results.replaceChildren();
+    hold.querySelector('.bbtext').textContent = '\u2713';
+    note.textContent = `${displayName(u.username)} (@${u.username}) is banned.`;
+    after.replaceChildren(
+      h('button', { class: 'ghost', onclick: async () => {
+        if (!(await act('unban', { username: u.username }))) return;
+        u.banned = false;
+        toast(`@${u.username} is unbanned`);
+        onBanned && onBanned();
+        md.close();
+      } }, 'Undo'),
+      h('button', { class: 'ghost', onclick: () => { md.close(); openBanHammer(users, onBanned); } }, 'Ban someone else'),
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Done'));
+  }
+  // The hammer comes down.
+  function boom() {
+    if (prefs.sound) thud();
+    try { navigator.vibrate && navigator.vibrate([60, 40, 120]); } catch (e) {}
+    const flash = h('div', { class: 'banflash' });
+    document.body.append(flash);
+    setTimeout(() => flash.remove(), 900);
+    md.box.classList.remove('shake');
+    void md.box.offsetWidth; // so it shakes again for the next one
+    md.box.classList.add('shake');
+    card.append(h('span', { class: 'banham', 'aria-hidden': 'true' }, '\u{1F528}'), h('span', { class: 'banstamp' }, 'BANNED'),
+      ...Array.from({ length: 12 }, (_, i) => h('span', { class: 'banshard', 'aria-hidden': 'true',
+        style: `--a:${i * 30 + Math.random() * 20}deg;--d:${50 + Math.random() * 60}px;background:${i % 3 ? '#ff2b3d' : '#fff'}` })));
+  }
+}
+
 function openAdmin() {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const body = h('div', { class: 'alist' });
@@ -9122,7 +9320,8 @@ function openAdmin() {
   };
   // How many real people use Idiocy (the server leaves out organisations and the test accounts).
   const count = h('div', { class: 'acount hidden' });
-  const md = modal('wide scroll', h('h2', null, 'Admin panel'), count, h('div', { class: 'tabbar atabs' }, tabs), body);
+  const md = modal('wide scroll', h('div', { class: 'ahead' }, h('h2', null, 'Admin panel'), banButton(() => (data && data.users) || [], () => load())),
+    count, h('div', { class: 'tabbar atabs' }, tabs), body);
   const load = async () => {
     progress(1);
     try {
