@@ -822,6 +822,10 @@
   .emcover.emlink { text-decoration: none; }
   .emcover.emlink .emgo { background: rgba(255, 255, 255, .16); }
   .embedmaker .empreview .emcover { min-height: 220px; border-radius: 10px; }
+  /* HTML's preview: the page drawn still, with the button over it. */
+  .empvframe { flex: 1; width: 100%; min-height: 260px; border: 0; background: #fff; pointer-events: none; }
+  .emcover.empv { position: absolute; inset: 0; justify-content: flex-end; padding-bottom: 18px; background: linear-gradient(rgba(0, 0, 0, 0) 60%, rgba(0, 0, 0, .55)); }
+  .emcover.empv .emnote { opacity: .85; text-shadow: 0 1px 2px rgba(0, 0, 0, .5); }
   .emload { flex: 1; display: flex; align-items: center; justify-content: center; }
   .emframe { flex: 1; width: 100%; min-height: 240px; border: 0; background: #fff; }
   .embar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #111; color: #ccc; font-size: 12px; }
@@ -6307,28 +6311,69 @@ function siteCover(site, run) {
     ? h('a', { class: 'emcover emlink', href: site.open, target: '_blank', rel: 'noopener noreferrer nofollow', onclick: e => e.stopPropagation() }, ...kids)
     : h('button', { class: 'emcover', type: 'button', onclick: run }, ...kids);
 }
+// HTML code, fetched once (the last 20 kept), for its preview and then for running it.
+const embedCodes = new Map();
+function embedCodeFor(m) {
+  if (m.em.local != null) return Promise.resolve(m.em.local); // your own post, still sending
+  const k = m.em.pj ? `p${m.em.pj}:${m.proj ? m.proj.v : ''}` : 'm' + m.id; // a project: its newest version
+  if (!embedCodes.has(k)) {
+    embedCodes.set(k, Promise.resolve(m.em.pj ? api('projectCode', { id: m.em.pj }) : api('embedCode', { id: m.id }))
+      .then(d => { if (!d.ok) throw new Error(d.error); return d.code; })
+      .catch(err => { embedCodes.delete(k); throw err; }));
+    if (embedCodes.size > 20) embedCodes.delete(embedCodes.keys().next().value);
+  }
+  return embedCodes.get(k);
+}
+// How some HTML looks before it runs: drawn with its scripts off and nothing loaded from other sites
+// (so scrolling past it can't tell anyone you were there, and pictures from elsewhere wait for a tap).
+// Null when there'd be nothing to see, like a game that draws everything with code.
+const PREVIEW_HEAD = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data:; font-src data:">'
+  + '<style>img:not([src^="data:"]){visibility:hidden}</style>';
+function embedPreview(code) {
+  const still = String(code || '').replace(/<!--[\s\S]*?-->|<(script|noscript|template)\b[\s\S]*?<\/\1\s*>/gi, ''); // noscript: would show with scripts off
+  const shown = still.replace(/<(head|style|title)\b[\s\S]*?<\/\1\s*>/gi, '');
+  const words = shown.replace(/<[^>]*>/g, ' ').replace(/&nbsp;|&#160;/gi, ' ').trim();
+  if (!words && !/<(img|svg|input|button|select|textarea|table|hr|progress|meter)\b/i.test(shown)) return null;
+  const top = /^\s*(<!doctype[^>]*>)?/i.exec(still); // the rules go first, but after a doctype so the page looks the same
+  const frame = h('iframe', { class: 'empvframe', title: 'Preview', 'aria-hidden': 'true', tabindex: '-1', referrerpolicy: 'no-referrer' });
+  frame.setAttribute('sandbox', ''); // no scripts, no forms, no popups: just drawn
+  frame.srcdoc = (top[1] || '') + PREVIEW_HEAD + still.slice(top[0].length);
+  return frame;
+}
+// Calls fn once, when el is about to come on screen (in the feed, a little before).
+const nearFns = new WeakMap();
+const onNear = entries => entries.forEach(e => {
+  if (!e.isIntersecting || !nearFns.has(e.target)) return;
+  const fn = nearFns.get(e.target);
+  nearFns.delete(e.target); nearFeed.unobserve(e.target); nearPage.unobserve(e.target);
+  fn();
+});
+const nearFeed = new IntersectionObserver(onNear, { root: log, rootMargin: '600px 0px' });
+const nearPage = new IntersectionObserver(onNear, { rootMargin: '300px 0px' }); // profiles, Projects
+function whenNear(el, fn) { nearFns.set(el, fn); nearFeed.observe(el); nearPage.observe(el); }
+
 let runningEmbed = null;
 const feedEmbeds = new IntersectionObserver(entries => entries.forEach(e => { if (!e.isIntersecting && e.target._stop) e.target._stop(); }), { root: log, threshold: 0 });
 function embedBlock(m) {
   const box = h('div', { class: 'shot emshot' });
   const site = m.em.u && embedSrc(m.em.u);
-  const cover = () => box.replaceChildren(site ? siteCover(site, run) : h('button', { class: 'emcover', type: 'button', onclick: run },
-    h('span', { class: 'emicon' }, '</>'),
-    h('b', null, 'HTML code'),
-    h('span', { class: 'emgo' }, '▶ Tap to run'),
-    h('span', { class: 'emnote' }, 'Runs in a sealed box: it can’t see Idiocy or your account')));
+  let still = null; // HTML's preview, once its code is here
+  const note = () => h('span', { class: 'emnote' }, 'Runs in a sealed box: it can’t see Idiocy or your account');
+  const cover = () => box.replaceChildren(...(site ? [siteCover(site, run)]
+    : still ? [still, h('button', { class: 'emcover empv', type: 'button', 'aria-label': 'Run this HTML', onclick: run }, h('span', { class: 'emgo' }, '▶ Tap to run'), note())]
+    : [h('button', { class: 'emcover', type: 'button', onclick: run },
+      h('span', { class: 'emicon' }, '</>'),
+      h('b', null, 'HTML code'),
+      h('span', { class: 'emgo' }, '▶ Tap to run'),
+      note())]));
   async function run(e) {
     if (e) e.stopPropagation();
     if (runningEmbed && runningEmbed !== box) runningEmbed._stop();
     runningEmbed = box;
-    let code = m.em.local;
-    if (!site && code == null) {
+    let code = null;
+    if (!site) {
       box.replaceChildren(h('div', { class: 'emload' }, h('span', { class: 'spinner' })));
-      try {
-        const d = m.em.pj ? await api('projectCode', { id: m.em.pj }) : await api('embedCode', { id: m.id });
-        if (!d.ok) throw new Error(d.error);
-        code = d.code;
-      } catch (err) { toast(err.message || 'Couldn’t load it', true); stop(); return; }
+      try { code = await embedCodeFor(m); } catch (err) { toast(err.message || 'Couldn’t load it', true); stop(); return; }
       if (runningEmbed !== box) return; // something else started meanwhile
     }
     const frame = embedFrame(m.em, code);
@@ -6346,6 +6391,7 @@ function embedBlock(m) {
   }
   box._stop = stop;
   cover();
+  if (!site) whenNear(box, () => embedCodeFor(m).then(code => { still = embedPreview(code); if (still && runningEmbed !== box) cover(); }, () => {}));
   // Ask whether the site can be shown here, then fix up the cover (if it's still showing).
   if (site && !site.sure && !linkKnown.has(site.src)) linkCheck(site.src).then(() => { if (runningEmbed !== box) cover(); });
   return box;
