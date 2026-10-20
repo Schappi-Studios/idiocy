@@ -1348,8 +1348,8 @@
   }
   .modal.shortmake video { width: 100%; max-height: 50vh; border-radius: 14px; background: #000; display: block; }
   .modal.shortmake textarea { width: 100%; margin-top: 10px; min-height: 60px; resize: vertical; }
-  .modal.shortmake .upbar { height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin-top: 10px; }
-  .modal.shortmake .upbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+  .modal.shortmake .upbar, .modal.embedmaker .upbar { height: 8px; border-radius: 999px; background: var(--panel-2); overflow: hidden; margin-top: 10px; }
+  .modal.shortmake .upbar i, .modal.embedmaker .upbar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
   .modal.shortmake .upnote { color: var(--muted); font-size: 13px; margin-top: 6px; min-height: 18px; }
   /* The full-screen player: swipe up for the next one. */
   #shorts { position: fixed; inset: 0; z-index: 900; background: #000; color: #fff; }
@@ -1563,6 +1563,10 @@
   .actp { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-bottom: 1px solid var(--border); }
   .actp .avatar { flex: none; }
   .actp .nm { font-weight: 600; cursor: pointer; }
+  .stillsbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: -4px 0 12px; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); font-size: 13px; }
+  .stillsbar.hidden { display: none; }
+  .stillsbar button { padding: 6px 14px; }
+  .embedmaker .stillstage .emframe { height: 300px; }
   /* ---------- the Ban Hammer ---------- */
   .ahead { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .ahead h2 { margin: 0; }
@@ -2823,6 +2827,22 @@ function openEditProfile() {
 function fmtTime(t) {
   return new Date(t).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
+// Messages from the last day say how long ago ("5 minutes ago", "1 hour ago"); older ones, the time.
+// The exact time shows on hover, and they keep up as time passes.
+function whenText(t) {
+  const s = (Date.now() - t) / 1000;
+  if (s < 60) return 'just now';
+  const n = s < 3600 ? Math.floor(s / 60) : Math.floor(s / 3600);
+  if (s < 86400) return `${n} ${s < 3600 ? 'minute' : 'hour'}${n === 1 ? '' : 's'} ago`;
+  return fmtTime(t);
+}
+function stamp(el, t) {
+  el.dataset.ts = t;
+  el.title = new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  el.textContent = whenText(t);
+  return el;
+}
+setInterval(() => document.querySelectorAll('[data-ts]').forEach(el => { const w = whenText(Number(el.dataset.ts)); if (el.textContent !== w) el.textContent = w; }), 30000);
 
 let toastTimer;
 function toast(msg, isErr, onClick) {
@@ -4540,7 +4560,7 @@ function buildMessage(m, pending) {
     const el = h('div', { class: 'msg official', 'data-user': key(IDIOCY), 'data-time': m.time || Date.now() },
       avatar(IDIOCY),
       h('div', { class: 'head' }, h('span', { class: 'name' }, IDIOCY), h('span', { class: 'badge offbadge', title: 'From the people who run Idiocy' }, '\u2713 OFFICIAL'),
-        h('span', { class: 'time' }, fmtTime(m.time))),
+        stamp(h('span', { class: 'time' }), m.time)),
       h('div', { class: 'body' }, h('span', { class: 'txt' })),
       h('div', { class: 'reacts' }));
     el._m = m;
@@ -4550,7 +4570,7 @@ function buildMessage(m, pending) {
   }
   const time = h('span', { class: 'time' });
   if (pending) time.append(h('span', { class: 'spinner' }), 'sending');
-  else time.textContent = fmtTime(m.time);
+  else stamp(time, m.time);
 
   const el = h('div', { class: 'msg' + (pending ? ' pending' : ''), 'data-user': key(m.name) + (m.by ? ':' + key(m.by) : ''), 'data-time': m.time || Date.now() },
     avatar(m.name),
@@ -5315,7 +5335,7 @@ function buildComment(postEl, c, pending) {
         byLine(c),
         richText(c.text || '', c.ce)),
       h('div', { class: 'meta' },
-        pending ? 'sending\u2026' : fmtTime(c.time),
+        pending ? 'sending\u2026' : stamp(h('span'), c.time),
         !pending && !isMine(c) && h('button', { onclick: () => openReport(c, convo) }, 'Report'),
         !pending && canDelete(c) && h('button', {
           onclick: async () => {
@@ -9176,6 +9196,38 @@ function banButton(users, onBanned) {
   };
   return btn;
 }
+// Code posts without a still (posted before stills, or from an older page): this admin's browser runs
+// each one for a moment, where it can be seen, and saves its still, so every one gets a real preview.
+async function makeStills(todo, done) {
+  const items = todo.posts.map(id => ({ id, kind: 'post' })).concat(todo.projects.map(id => ({ id, kind: 'project' })));
+  const stage = h('div', { class: 'empreview stillstage' });
+  const status = h('div', { class: 'hint' }, 'Starting\u2026');
+  const bar = h('i');
+  const close = h('button', { class: 'primary', onclick: () => md.close() }, 'Stop');
+  const md = modal('embedmaker', h('h2', null, '\u{1F5BC}\uFE0F Making previews'), status, h('div', { class: 'upbar' }, bar), stage, h('div', { class: 'btns' }, close));
+  let made = 0, failed = 0;
+  for (let i = 0; i < items.length && md.overlay.isConnected; i++) {
+    const it = items[i];
+    status.textContent = `${i + 1} of ${items.length}\u2026`;
+    bar.style.width = (i / items.length * 100) + '%';
+    try {
+      const d = await api(it.kind === 'post' ? 'embedCode' : 'projectCode', { id: it.id });
+      if (!d.ok) throw new Error(d.error);
+      const still = await captureStill(d.code, stage);
+      if (!still) throw new Error('no still');
+      const s = await api(it.kind === 'post' ? 'saveEmbedStill' : 'saveProjectStill', { id: it.id, still });
+      if (!s.ok) throw new Error(s.error);
+      made++;
+    } catch (e) { failed++; }
+  }
+  stage.replaceChildren();
+  bar.style.width = '100%';
+  status.textContent = `\u2713 Made ${made} preview${made === 1 ? '' : 's'}` + (failed ? ` (${failed} couldn\u2019t be made)` : '') + '. Everyone sees them now.';
+  close.textContent = 'Done';
+  embedStills.clear();
+  done && done();
+}
+
 // A deep thud with a crack on top, made in code like the chime.
 function thud() {
   try {
@@ -9320,8 +9372,9 @@ function openAdmin() {
   };
   // How many real people use Idiocy (the server leaves out organisations and the test accounts).
   const count = h('div', { class: 'acount hidden' });
+  const stillsBar = h('div', { class: 'stillsbar hidden' });
   const md = modal('wide scroll', h('div', { class: 'ahead' }, h('h2', null, 'Admin panel'), banButton(() => (data && data.users) || [], () => load())),
-    count, h('div', { class: 'tabbar atabs' }, tabs), body);
+    count, stillsBar, h('div', { class: 'tabbar atabs' }, tabs), body);
   const load = async () => {
     progress(1);
     try {
@@ -9448,6 +9501,10 @@ function openAdmin() {
         h('span', null, 'Not counting organisations or the test accounts ATLAS and P-body'));
       count.classList.remove('hidden');
     }
+    const todo = data.stillsTodo, missing = todo ? todo.posts.length + todo.projects.length : 0;
+    stillsBar.classList.toggle('hidden', !missing);
+    if (missing) stillsBar.replaceChildren(h('span', null, `\u{1F5BC}\uFE0F ${missing} code post${missing === 1 ? ' doesn\u2019t' : 's don\u2019t'} have a preview yet.`),
+      h('button', { class: 'primary', onclick: () => makeStills(todo, () => load()) }, 'Make them now'));
     if (tab === 'reports') {
       body.replaceChildren(...(data.reports.length ? data.reports.map(r => h('div', { class: 'card enter' },
         h('div', { class: 'meta' }, r.account ? ['\u{1F464} ', h('b', { style: 'color:var(--text)' }, '@' + r.sender), '\u2019s account'] : [h('b', { style: 'color:var(--text)' }, r.sender), ` in ${r.where}`],
