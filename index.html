@@ -1612,6 +1612,13 @@
   .acount b { font-size: 16px; }
   .acount span { color: var(--muted); font-size: 12px; }
   .actsum { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+  /* ADAM's stats: a bar for each rule or kind of post. */
+  .abars { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
+  .abar { display: grid; grid-template-columns: minmax(0, 11em) 1fr 3em; gap: 8px; align-items: center; font-size: 13px; }
+  .abar .al { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .abar .at { height: 10px; border-radius: 5px; background: var(--panel-2); overflow: hidden; }
+  .abar .at span { display: block; height: 100%; border-radius: 5px; background: var(--adam, var(--accent)); }
+  .abar .an { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
   .actsum span { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
   .actsum span.warn { border-color: var(--gold); }
   .actreq { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 4px; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -9785,8 +9792,66 @@ function openAdmin() {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
-  const TABS = mod ? ['reports', 'users'] : ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), 'settings'];
-  const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; draw(); } }, t[0].toUpperCase() + t.slice(1)));
+  const TABS = mod ? ['reports', 'users'] : ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
+  const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t[0].toUpperCase() + t.slice(1)));
+  let adam = null, adamSince = 30, adamAll = false;
+  const loadAdam = async () => {
+    try {
+      const d = await api('adamStats', {});
+      if (!d.ok) { if (!d.auth) toast(d.error, true); return; }
+      adam = d;
+      if (tab === 'adam') draw();
+    } catch (e) { toast('Could not reach the server', true); }
+  };
+  // ADAM: what it stopped (and flagged, and took down), who, and why, in your own time zone.
+  const drawAdam = () => {
+    const ev = adam.events, today = new Date(); today.setHours(0, 0, 0, 0);
+    const daysBack = n => { const d = new Date(today); d.setDate(d.getDate() - n); return +d; };
+    const stops = ev.filter(e => e.kind === 'stopped');
+    const since = t => stops.filter(e => e.t >= t).length;
+    const from = adamSince ? daysBack(adamSince - 1) : 0, inRange = ev.filter(e => e.t >= from);
+    const count = (list, key) => { const m = new Map(); list.forEach(e => [].concat(key(e)).forEach(k => k && m.set(k, (m.get(k) || 0) + 1))); return [...m].sort((a, b) => b[1] - a[1]); };
+    const bars = rows => { const top = Math.max(1, ...rows.map(r => r[1])); return h('div', { class: 'abars' }, ...rows.map(([k, n]) => h('div', { class: 'abar' }, h('span', { class: 'al', title: k }, k), h('span', { class: 'at' }, h('span', { style: `width:${n / top * 100}%` })), h('span', { class: 'an' }, String(n))))); };
+    const first = ev.length ? Math.min(...ev.map(e => e.t)) : +today;
+    const days = [];
+    for (let i = 0; i < 30; i++) {
+      const a = daysBack(i), b = i ? daysBack(i - 1) : 8.64e15, d = new Date(a);
+      days.unshift({ name: i === 0 ? 'Today' : i === 1 ? 'Yesterday' : d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' }), tick: d.toLocaleDateString([], { day: 'numeric', month: 'short' }), n: stops.filter(e => e.t >= a && e.t < b).length });
+      if (a <= first) break;
+    }
+    const people = new Map();
+    inRange.forEach(e => { const p = people.get(key(e.who)) || { who: e.who, n: 0, rules: [], last: 0, urgent: false }; p.n++; p.rules.push(...e.rules); p.last = Math.max(p.last, e.t); p.urgent = p.urgent || !!e.urgent; people.set(key(e.who), p); });
+    const ranked = [...people.values()].sort((a, b) => (b.n - a.n) || (b.last - a.last));
+    const shown = adamAll ? ranked : ranked.slice(0, 20);
+    const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+    body.replaceChildren(
+      h('div', { class: 'actsum' },
+        h('span', null, `${since(+today)} stopped today`),
+        h('span', null, `${since(daysBack(6))} in the last 7 days`),
+        h('span', null, `${since(daysBack(29))} in the last 30 days`),
+        h('span', null, `${stops.length} in all`),
+        h('button', { class: 'ghost', style: 'padding:4px 12px', onclick: () => { adam = null; draw(); } }, '\u21BB Refresh')),
+      ...(adam.on ? [] : [h('div', { class: 'actnote' }, 'ADAM is off right now (it needs the OpenAI key on the server).')]),
+      h('h3', null, 'Stopped each day'),
+      ev.length ? lineChart(days, n => plural(n, 'thing') + ' stopped') : h('div', { class: 'actnote' }, 'Nothing yet.'),
+      h('div', { class: 'chips', role: 'tablist', style: 'margin-top:14px' }, [[7, 'Last 7 days'], [30, 'Last 30 days'], [0, 'All time']].map(([k, label]) => h('button', {
+        class: 'ghost', role: 'tab', 'aria-selected': String(adamSince === k), style: adamSince === k ? 'border-color:var(--accent);color:var(--accent)' : '',
+        onclick: () => { adamSince = k; drawAdam(); } }, label))),
+      h('div', { class: 'actnote' }, `${plural(inRange.filter(e => e.kind === 'stopped').length, 'thing')} stopped before going up, ${inRange.filter(e => e.kind === 'flagged').length} flagged after going up (when ADAM was too slow to check first), ${plural(inRange.filter(e => e.kind === 'removed').length, 'old picture')} taken down.`),
+      h('h3', null, 'Why'),
+      inRange.length ? bars(count(inRange, e => e.rules)) : h('div', { class: 'actnote' }, 'Nothing in this time.'),
+      h('h3', null, 'What'),
+      inRange.length ? bars(count(inRange, e => e.what)) : h('div', { class: 'actnote' }, 'Nothing in this time.'),
+      h('h3', null, `Who (${ranked.length})`),
+      ...shown.map((p, i) => h('div', { class: 'actp' },
+        h('span', { class: 'srank' }, String(i + 1)),
+        avatar(p.who),
+        h('div', { class: 'lst' },
+          h('div', null, h('span', { class: 'nm', onclick: () => openProfile(p.who) }, p.who), ' ', p.urgent && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff', title: 'ADAM thought they might hurt themselves' }, '\u26A0\uFE0F SELF-HARM')),
+          h('div', { class: 'sub' }, `${plural(p.n, 'time')} \u00b7 mostly ${(count(p.rules.map(r => ({ rules: [r] })), e => e.rules)[0] || ['?'])[0].toLowerCase()} \u00b7 last ${seenAgo(p.last)}`)))),
+      ...(ranked.length > shown.length ? [h('button', { class: 'ghost', style: 'margin-top:10px', onclick: () => { adamAll = true; drawAdam(); } }, `Show all ${ranked.length}`)] : []),
+      ...(ranked.length ? [] : [h('div', { class: 'actnote' }, 'Nobody in this time.')]));
+  };
   const loadActivity = async () => {
     try {
       const d = await api('adminActivity', {});
@@ -9982,6 +10047,13 @@ function openAdmin() {
         return;
       }
       drawActivity();
+    } else if (tab === 'adam') {
+      if (!adam) {
+        body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
+        loadAdam();
+        return;
+      }
+      drawAdam();
     } else if (tab === 'stats') {
       if (!stats) {
         body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
