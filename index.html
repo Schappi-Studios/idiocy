@@ -1145,6 +1145,18 @@
   .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; margin-top: 6px; }
   .swatch { height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; }
   .swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--panel) inset; }
+  .swatch.founders { grid-column: span 2; }
+  /* The Founders' sunset (Idiocy's first 5 members): on their profile the sun glows and the sea shimmers. */
+  .banner.founders { position: relative; overflow: hidden; }
+  .banner.founders::before { content: ''; position: absolute; left: 50%; top: 80%; width: 34%; aspect-ratio: 1; max-width: 240px; transform: translate(-50%, -50%);
+    border-radius: 50%; background: radial-gradient(circle, rgba(255, 230, 150, .55), rgba(255, 170, 80, 0) 65%); animation: fsunglow 5s ease-in-out infinite alternate; }
+  .banner.founders::after { content: ''; position: absolute; left: 0; right: 0; top: 81%; bottom: 0;
+    background: repeating-linear-gradient(90deg, rgba(255, 215, 150, 0) 0 22px, rgba(255, 215, 150, .22) 22px 30px, rgba(255, 215, 150, 0) 30px 52px);
+    -webkit-mask: radial-gradient(ellipse 30% 100% at 50% 0%, #000, transparent); mask: radial-gradient(ellipse 30% 100% at 50% 0%, #000, transparent);
+    animation: fsea 9s linear infinite; }
+  @keyframes fsunglow { from { opacity: .55; transform: translate(-50%, -50%) scale(.9); } to { opacity: 1; transform: translate(-50%, -50%) scale(1.12); } }
+  @keyframes fsea { to { background-position: 104px 0; } }
+  @media (prefers-reduced-motion: reduce) { .banner.founders::before, .banner.founders::after { animation: none; } }
   .blockedlist .row { padding: 6px 0; }
   .blocknote { display: none; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; padding: 4px 0; text-align: left; }
   .msg.blockedmsg { min-height: 0; display: block; padding-top: 4px; padding-bottom: 4px; }
@@ -2331,7 +2343,7 @@ function openProfile(name) {
     titles.replaceChildren(nameEl(p.username || name, 'b'),
       h('span', null, n == null ? '@' + (p.username || name) : `${n} post${n === 1 ? '' : 's'}`));
     head.replaceChildren(
-      h('div', { class: 'banner', style: `background:${BANNERS[p.banner] || colorFor(name, 80)}` }),
+      h('div', { class: 'banner' + (p.banner === FOUNDERS_BANNER ? ' founders' : ''), style: `background:${bannerBg(p.banner) || colorFor(name, 80)}` }),
       h('div', { class: 'inner' },
         big,
         fullName(p) && h('div', { class: 'pfull' }, fullName(p)),
@@ -2571,6 +2583,18 @@ const BANNERS = {
   sky: 'linear-gradient(135deg, #89f7fe, #66a6ff)',
 };
 const EARLY_MEMBERS = 100; // member numbers up to this are early members (organisations and test accounts have none)
+// The Founders' sunset: only Idiocy's first 5 members can have it (the server says who: founder). Layers, top
+// first: the sun's reflection on the sea, the sea, a few stars, the sun and its glow, the sky.
+const FOUNDERS = 5, FOUNDERS_BANNER = 'founders';
+const FOUNDERS_BG = [
+  'radial-gradient(ellipse 15% 9% at 50% 86%, rgba(255, 208, 120, .8), rgba(255, 208, 120, 0) 70%)',
+  'linear-gradient(180deg, rgba(0, 0, 0, 0) 81%, #4a1a55 81%, #1d0a2e 100%)',
+  'radial-gradient(circle at 18% 14%, #fff 0 1px, transparent 2px)', 'radial-gradient(circle at 34% 30%, rgba(255,255,255,.8) 0 1px, transparent 2px)',
+  'radial-gradient(circle at 71% 10%, #fff 0 1px, transparent 2px)', 'radial-gradient(circle at 86% 26%, rgba(255,255,255,.7) 0 1px, transparent 2px)',
+  'radial-gradient(circle at 50% 81%, #fff6cf 0 6%, #ffd166 9%, rgba(255, 150, 70, .65) 16%, rgba(255, 120, 60, 0) 34%)',
+  'linear-gradient(180deg, #1b0a3a 0%, #4f1d78 24%, #b8336f 52%, #ff6f3c 71%, #ffb04a 81%)',
+].join(', ');
+const bannerBg = id => id === FOUNDERS_BANNER ? FOUNDERS_BG : BANNERS[id];
 
 // Badge icons are emojis, or one of Idiocy's own pictures (there's no ostrich emoji). A badge
 // stores the picture's name ('~ostrich') where an emoji would go.
@@ -2584,6 +2608,7 @@ const BADGE_PRESETS = [{ e: '~ostrich', t: 'Ostrich', d: 'Did you know an ostric
 function badgeRow(p, b, edited) {
   const list = [];
   if (b && b.no) list.push(['\u{1F39F}️', `Member #${b.no}`, 'Idiocy looked deep within my soul and assigned me a number based on the order in which I joined.']);
+  if (b && b.no && b.no <= FOUNDERS) list.push(['\u{1F305}', 'Founder', `One of the first ${FOUNDERS} people to join Idiocy`]);
   if (b && b.no && b.no <= EARLY_MEMBERS) list.push(['\u{1F331}', 'Early member', `One of the first ${EARLY_MEMBERS} people to join Idiocy`]);
   ((b && b.given) || []).forEach(g => list.push([g.e, g.t, g.d || 'Given by the Idiocy admins']));
   const created = p.created || (b && b.created);
@@ -2713,14 +2738,32 @@ async function openBadgeEditor(username, onChange) {
 // Followers only (admins): someone's posts and Shorts only come up in the feed and Shorts for their followers.
 const FO_ABOUT = 'Their posts and Shorts only come up in the feed and Shorts for people who follow them. Links to their posts and their profile still work, and they aren\u2019t told.';
 const confirmFollowersOnly = name => confirm(`Make ${name} followers only?\n\n${FO_ABOUT}`);
-// Admins and moderators: clear someone's profile picture, status and bio.
-async function resetProfile(name, done) {
-  if (!confirm(`Reset ${name}\u2019s profile?\n\nTheir profile picture, status, bio and what they\u2019re doing or playing are cleared. Their name, @ and posts stay.`)) return;
-  const d = await act('adminResetProfile', { username: name });
-  if (!d) return;
-  profiles.delete(key(name));
-  toast(`${d.username}\u2019s profile is reset`);
-  if (done) done();
+// Admins and moderators: clear someone's profile picture, status, bio and what they're doing or playing, or
+// just the parts they tick.
+function resetProfile(name, done) {
+  const p = profileOf(name) || {};
+  const now = v => v == null ? '' : v ? '\u201C' + String(v).slice(0, 60) + (String(v).length > 60 ? '\u2026' : '') + '\u201D' : 'Nothing there';
+  const PARTS = [['picture', 'Profile picture', p.avatar == null ? '' : p.avatar ? 'Has one' : 'Nothing there'], ['status', 'Status', now(p.status)],
+    ['bio', 'Bio', now(p.bio)], ['playing', 'What they\u2019re doing or playing', now(p.game)]];
+  const boxes = PARTS.map(([k]) => { const c = h('input', { type: 'checkbox', 'data-k': k }); c.checked = true; return c; });
+  const go = h('button', { class: 'primary', onclick: async () => {
+    const parts = boxes.filter(c => c.checked).map(c => c.dataset.k);
+    if (!parts.length) return toast('Tick something to reset', true);
+    go.disabled = true;
+    const d = await act('adminResetProfile', { username: name, parts });
+    go.disabled = false;
+    if (!d) return;
+    md.close();
+    profiles.delete(key(name));
+    const said = PARTS.filter(([k]) => (d.reset || parts).includes(k)).map(([, label]) => label.toLowerCase());
+    toast(said.length === PARTS.length ? `${d.username}\u2019s profile is reset` : `Reset ${d.username}\u2019s ${said.join(', ').replace(/, ([^,]*)$/, ' and $1')}`);
+    if (done) done();
+  } }, '\u267B\uFE0F Reset');
+  const md = modal('', h('h2', null, `\u267B\uFE0F Reset ${displayName(name)}\u2019s profile`),
+    h('div', { class: 'hint' }, 'Tick what to clear. Their name, @, banner and posts stay.'),
+    ...PARTS.map(([, label, was], i) => h('label', { class: 'toggle' },
+      h('span', null, label, was && h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;overflow-wrap:anywhere' }, was)), boxes[i])),
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'), go));
 }
 
 // Admins make someone a moderator, or not any more. Idiocy tells them.
@@ -2861,6 +2904,8 @@ function openEditProfile() {
   let banner = p.banner || '';
   const swatches = h('div', { class: 'swatches' });
   const paintSwatches = () => swatches.replaceChildren(
+    ...(me.founder ? [h('button', { type: 'button', class: 'swatch founders' + (banner === FOUNDERS_BANNER ? ' on' : ''), title: 'Founders\u2019 sunset: only for Idiocy\u2019s first 5 members',
+      'aria-label': 'Founders\u2019 sunset banner', style: `background:${FOUNDERS_BG}`, onclick: () => { banner = FOUNDERS_BANNER; paintSwatches(); } })] : []),
     h('button', { type: 'button', class: 'swatch plain' + (!banner ? ' on' : ''), title: 'Default', style: `background:${colorFor(me.name, 80)}`, onclick: () => { banner = ''; paintSwatches(); } }),
     ...Object.keys(BANNERS).map(k => h('button', { type: 'button', class: 'swatch' + (banner === k ? ' on' : ''), title: k, 'aria-label': k + ' banner',
       style: `background:${BANNERS[k]}`, onclick: () => { banner = k; paintSwatches(); } })));
@@ -5347,7 +5392,7 @@ const CARD_COLOURS = [
 // Text and poll cards wear the poster's profile banner; no banner = a colour picked from the post.
 function cardBg(m) {
   const p = profileOf(m.name);
-  return (p && p.banner && BANNERS[p.banner]) || CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length];
+  return (p && p.banner && bannerBg(p.banner)) || CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length];
 }
 function paintCard(el) {
   if (el._m && (el.classList.contains('txtcard') || el.classList.contains('pollcard'))) el.style.setProperty('--card', cardBg(el._m));
