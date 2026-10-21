@@ -2343,6 +2343,7 @@ function openProfile(name) {
       if (serverApi >= 60) btns.push(h('button', { class: 'ghost', onclick: () => resetProfile(p.username || name, () => openProfile(name)) }, '\u267B\uFE0F Reset profile'));
       if (serverApi >= 68) btns.push(h('button', { class: 'ghost', onclick: () => openLimits(p.username || name, p.limits, () => openProfile(name)) }, '\u{1F6AB} Limits' + (limitCount(p.limits) ? ` (${limitCount(p.limits)})` : '')));
     }
+    if (!isMe && me && me.owner && serverApi >= 69 && p.role === 'admin') btns.push(h('button', { class: 'ghost danger', onclick: () => setRank(p.username || name, false, () => { profiles.delete(key(name)); openProfile(name); }) }, 'Remove admin'));
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
@@ -2356,8 +2357,7 @@ function openProfile(name) {
       if (serverApi >= 60) btns.push(h('button', { class: 'ghost', onclick: () => resetProfile(p.username || name, () => openProfile(name)) }, '\u267B\uFE0F Reset profile'));
       if (serverApi >= 42) btns.push(h('button', { class: 'ghost', onclick: () => openIdiocyMessenger(p.username || name) }, '\u{1F4E3} Message as Idiocy'));
       if (serverApi >= 67) btns.push(h('button', { class: 'ghost', onclick: () => openLimits(p.username || name, p.limits, () => openProfile(name)) }, '\u{1F6AB} Limits' + (limitCount(p.limits) ? ` (${limitCount(p.limits)})` : '')));
-      if (serverApi >= 54 && p.role !== 'org') btns.push(h('button', { class: 'ghost', onclick: () => setMod(p.username || name, p.role !== 'mod', () => { profiles.delete(key(name)); openProfile(name); }) },
-        p.role === 'mod' ? '\u{1F6E1}\uFE0F Remove moderator' : '\u{1F6E1}\uFE0F Make moderator'));
+      if (serverApi >= 69 && me.owner && p.role !== 'org') btns.push(h('button', { class: 'ghost', onclick: () => setRank(p.username || name, true, () => { profiles.delete(key(name)); openProfile(name); }) }, '\u{1F6E1}\uFE0F Make admin'));
       if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => close()) }, 'Delete account'));
     }
     const c = state.counts, n = state.posts.total, ns = state.shorts.total;
@@ -2834,6 +2834,14 @@ function openLimits(name, now, done) {
 const limitCount = l => Object.keys(l || {}).length;
 
 // Admins make someone a moderator, or not any more. Idiocy tells them.
+// The owner (the only one who can) makes someone an admin, or stops them being one.
+async function setRank(name, on, done) {
+  if (!confirm(on ? `Make ${name} an admin?\n\nThey get the Admin panel and everything admins can do, except making other admins.` : `Stop ${name} being an admin?`)) return;
+  const d = await act('adminSetRank', { username: name, on });
+  if (!d) return;
+  toast(on ? `${d.username} is an admin now` : `${d.username} isn\u2019t an admin any more`);
+  if (done) done();
+}
 async function setMod(name, on, done) {
   if (!confirm(on ? `Make ${name} a moderator?\n\nThey'll be able to look after Reports, delete posts, Shorts and comments, give timeouts and warn people as Idiocy. They can't ban people or delete accounts.`
     : `Remove ${name} as a moderator?`)) return;
@@ -10112,8 +10120,8 @@ function openAdmin() {
         : timeoutButtons(u.username, load)[1];
       const limitsBtn = u => serverApi >= (mod ? 68 : 67) && h('button', { class: 'ghost', onclick: () => openLimits(u.username, u.limits, l => { u.limits = l; drawUsers(); }) }, '\u{1F6AB} Limits' + (limitCount(u.limits) ? ` (${limitCount(u.limits)})` : ''));
       const resetBtn = u => serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(u.username) }, '\u267B\uFE0F Reset profile');
-      const modBtn = u => serverApi >= 54 && u.role !== 'org' && h('button', { class: 'ghost', onclick: () => setMod(u.username, u.role !== 'mod', load) },
-        u.role === 'mod' ? '\u{1F6E1}\uFE0F Remove moderator' : '\u{1F6E1}\uFE0F Make moderator');
+      const modBtn = u => serverApi >= 69 && me.owner && u.role !== 'org' && key(u.username) !== key(me.name) && h('button', { class: u.role === 'admin' ? 'ghost danger' : 'ghost', onclick: () => setRank(u.username, u.role !== 'admin', load) },
+        u.role === 'admin' ? 'Remove admin' : '\u{1F6E1}\uFE0F Make admin');
       const drawUsers = () => list.replaceChildren(...data.users
         .filter(u => u.username && key(u.username).includes(key(query)))
         .slice(0, 100)
@@ -10133,7 +10141,7 @@ function openAdmin() {
           u.fo && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: FO_ABOUT }, 'FOLLOWERS ONLY'),
           limitCount(u.limits) > 0 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: LIMIT_PARTS.filter(([k]) => u.limits[k]).map(([, l]) => l).join(', ') }, 'LIMITED'),
           serverApi >= 15 && (u.verified ? h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713') : h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
-          u.role === 'admin' && serverApi >= 41 && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, badgesBtn(u), idiocyBtn(u)), // admins get badges too
+          u.role === 'admin' && serverApi >= 41 && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, badgesBtn(u), idiocyBtn(u), modBtn(u)), // admins get badges too
           u.role !== 'admin' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' },
             serverApi >= 15 && h('button', { class: 'ghost', onclick: () => adminSetEmail(u.username, load) }, '\u2709\uFE0F Set email'),
             badgesBtn(u),
