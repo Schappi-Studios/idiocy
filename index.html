@@ -2309,6 +2309,7 @@ function openProfile(name) {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
       btns.push(h('button', { class: 'ghost', onclick: () => openIdiocyMessenger(p.username || name) }, '\u{1F4E3} Message as Idiocy'));
+      if (serverApi >= 60) btns.push(h('button', { class: 'ghost', onclick: () => resetProfile(p.username || name, () => openProfile(name)) }, '\u267B\uFE0F Reset profile'));
     }
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
@@ -2320,6 +2321,7 @@ function openProfile(name) {
         p.fo ? '\u{1F50A} Back in feeds' : '\u{1F507} Followers only'));
       if (serverApi >= 7) btns.push(h('button', { class: 'ghost', onclick: () => renameUser(p.username || name, true, () => close()) }, 'Rename'));
       if (serverApi >= 15) btns.push(h('button', { class: 'ghost', onclick: () => adminSetEmail(p.username || name, () => { profiles.delete(key(name)); openProfile(name); }) }, '✉️ Set email'));
+      if (serverApi >= 60) btns.push(h('button', { class: 'ghost', onclick: () => resetProfile(p.username || name, () => openProfile(name)) }, '\u267B\uFE0F Reset profile'));
       if (serverApi >= 42) btns.push(h('button', { class: 'ghost', onclick: () => openIdiocyMessenger(p.username || name) }, '\u{1F4E3} Message as Idiocy'));
       if (serverApi >= 54 && p.role !== 'org') btns.push(h('button', { class: 'ghost', onclick: () => setMod(p.username || name, p.role !== 'mod', () => { profiles.delete(key(name)); openProfile(name); }) },
         p.role === 'mod' ? '\u{1F6E1}\uFE0F Remove moderator' : '\u{1F6E1}\uFE0F Make moderator'));
@@ -2711,6 +2713,16 @@ async function openBadgeEditor(username, onChange) {
 // Followers only (admins): someone's posts and Shorts only come up in the feed and Shorts for their followers.
 const FO_ABOUT = 'Their posts and Shorts only come up in the feed and Shorts for people who follow them. Links to their posts and their profile still work, and they aren\u2019t told.';
 const confirmFollowersOnly = name => confirm(`Make ${name} followers only?\n\n${FO_ABOUT}`);
+// Admins and moderators: clear someone's profile picture, status and bio.
+async function resetProfile(name, done) {
+  if (!confirm(`Reset ${name}\u2019s profile?\n\nTheir profile picture, status and bio are cleared. Their name, @ and posts stay.`)) return;
+  const d = await act('adminResetProfile', { username: name });
+  if (!d) return;
+  profiles.delete(key(name));
+  toast(`${d.username}\u2019s profile is reset`);
+  if (done) done();
+}
+
 // Admins make someone a moderator, or not any more. Idiocy tells them.
 async function setMod(name, on, done) {
   if (!confirm(on ? `Make ${name} a moderator?\n\nThey'll be able to look after Reports, delete posts, Shorts and comments, give timeouts and warn people as Idiocy. They can't ban people or delete accounts.`
@@ -9803,6 +9815,7 @@ function openAdmin() {
           serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, r.account ? '\u26A0\uFE0F About your account: ' : `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `) }, '\u{1F4E3} Warn'),
           ...timeoutButtons(r.sender, load),
           !mod && h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); load(); } } }, 'Ban'),
+          r.account && serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status and bio', onclick: () => resetProfile(r.sender) }, '\u267B\uFE0F Reset profile'),
           !mod && r.account && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(r.sender, load) }, 'Delete account')))) :
         [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, 'No open reports. Everyone\u2019s behaving (for now).')]),
         mod && h('div', { class: 'actnote' }, 'Reports about admins and moderators go to the admins. Only admins can ban people or delete accounts, so if someone needs that, tell an admin.'));
@@ -9829,6 +9842,7 @@ function openAdmin() {
       const endOrTimeout = u => u.muted > Date.now()
         ? h('button', { class: 'ghost', onclick: async () => { if (await act('timeout', { username: u.username, minutes: 0 })) load(); } }, 'End timeout')
         : timeoutButtons(u.username, load)[1];
+      const resetBtn = u => serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status and bio', onclick: () => resetProfile(u.username) }, '\u267B\uFE0F Reset profile');
       const modBtn = u => serverApi >= 54 && u.role !== 'org' && h('button', { class: 'ghost', onclick: () => setMod(u.username, u.role !== 'mod', load) },
         u.role === 'mod' ? '\u{1F6E1}\uFE0F Remove moderator' : '\u{1F6E1}\uFE0F Make moderator');
       const drawUsers = () => list.replaceChildren(...data.users
@@ -9839,7 +9853,7 @@ function openAdmin() {
           h('span', { class: 'nm ' + rankClass(u.role), onclick: () => openProfile(u.username) }, u.username),
           rankBadge(u.role),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
-          u.role !== 'admin' && u.role !== 'mod' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, idiocyBtn(u), endOrTimeout(u)))
+          u.role !== 'admin' && u.role !== 'mod' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, idiocyBtn(u), endOrTimeout(u), resetBtn(u)))
         : h('div', { class: 'urow' },
           avatar(u.username),
           h('span', { class: 'nm ' + rankClass(u.role), onclick: () => openProfile(u.username) }, u.username),
@@ -9867,6 +9881,7 @@ function openAdmin() {
               onclick: async () => { if (await act('adminShortsReset', { username: u.username })) { toast(`${u.username} has a fresh day of Shorts`); load(); } },
             }, 'Reset Shorts'),
             endOrTimeout(u),
+            resetBtn(u),
             modBtn(u),
             u.banned
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('unban', { username: u.username })) load(); } }, 'Unban')
