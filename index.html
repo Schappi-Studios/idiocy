@@ -10118,7 +10118,8 @@ function openAdmin() {
             h('span', { class: 'when' }, new Date(c.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })),
             c.sys ? c.t : [h('b', null, c.n), ': ', c.t || '(no text)']))),
         h('div', { class: 'meta' }, 'Reason: ' + r.reason),
-        r.removed ? h('div', { class: 'meta' }, '\u{1F5D1}\uFE0F Already there, so ADAM took it down')
+        r.face ? h('div', { class: 'meta' }, '\u{1F642} Already up, and ADAM thinks it shows a real person\u2019s face (faces aren\u2019t allowed in pictures now). You decide.')
+          : r.removed ? h('div', { class: 'meta' }, '\u{1F5D1}\uFE0F Already there, so ADAM took it down')
           : r.stopped && h('div', { class: 'meta' }, '\u{1F6D1} Stopped before it went up, so nobody saw it'),
         h('div', { class: 'btns' },
           !r.account && !r.stopped && r.post && h('button', { class: 'ghost', title: 'Open the post (for a comment, the post it\u2019s on)', onclick: () => { md.close(); openPost(r.post); } }, '\u{1F440} See it'),
@@ -10233,7 +10234,7 @@ function openAdmin() {
         ...(serverApi >= 48 ? [h('div', { style: 'margin-top:18px' }, h('b', null, (serverApi >= 58 ? '\u{1F916} ADAM, the AI admin: ' : '\u{1F916} AI admin: ') + (data.ai ? 'on' : 'off')),
           h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin-top:4px' }, data.ai
             ? (serverApi >= 55
-              ? 'It checks every post, comment, Short, embed, project, profile picture and new emoji, and every picture sent in a group chat, before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and gets a message from ADAM saying so; you see who tried in Reports). If it can\u2019t check in time, it goes up and anything wrong is reported here instead. DMs are never checked, and in group chats it only sees pictures (and their captions).'
+              ? 'It checks every post, comment, Short, embed, project, profile picture and new emoji, and every picture sent in a group chat, before it goes up (pictures showing real people\u2019s faces aren\u2019t allowed in posts, profile and group pictures, or group chats), and stops anything that looks like it breaks the rules (the person is told why, and gets a message from ADAM saying so; you see who tried in Reports). If it can\u2019t check in time, it goes up and anything wrong is reported here instead. DMs are never checked, and in group chats it only sees pictures (and their captions).'
               : 'It checks every post, comment, Short, embed and project before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and you see who tried in Reports). If it can\u2019t check in time, the post goes up and anything wrong is reported here instead. DMs and group chats are never checked.')
             : 'It needs an OpenAI key on the server. Until then, nothing is checked by AI.'))] : []),
         ...(data.adamHello ? [adamHelloCard(data.adamHello, () => load())] : []));
