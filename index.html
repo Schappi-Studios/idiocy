@@ -4472,10 +4472,11 @@ function setMuted(id, on) {
   renderSide();
 }
 
-// A group's swear filter (the server applies it; DMs are never filtered).
+// A group's swear filter (the server applies it; DMs are never filtered). Since api 55 it can't be
+// turned off: slurs are never allowed in a group.
 const FILTER_LEVELS = ['Off', 'No slurs', 'Clean'];
-const groupFilter = c => (c.flt == null ? 1 : c.flt); // groups start on No slurs
-const FILTER_HINT = 'No slurs: messages with slurs aren\u2019t sent. Clean: no slurs, and swears show as ****.';
+const groupFilter = c => Math.max(serverApi >= 55 ? 1 : 0, c.flt == null ? 1 : c.flt); // groups start on No slurs
+const filterHint = () => serverApi >= 55 ? 'Slurs are never allowed in groups, and pictures sent here are checked by Idiocy AI. Clean: swears show as **** too.' : 'No slurs: messages with slurs aren\u2019t sent. Clean: no slurs, and swears show as ****.';
 
 function openGroupInfo(id) {
   const md = modal('ginfo scroll');
@@ -4497,7 +4498,7 @@ function openGroupInfo(id) {
     const mute = h('input', { type: 'checkbox' });
     mute.checked = isMuted(id);
     mute.onchange = () => setMuted(id, mute.checked);
-    const filterChips = h('div', { class: 'notifychips' }, ...FILTER_LEVELS.map((label, lv) =>
+    const filterChips = h('div', { class: 'notifychips' }, ...FILTER_LEVELS.map((label, lv) => !(lv === 0 && serverApi >= 55) &&
       h('button', { class: groupFilter(c) === lv ? 'primary' : 'ghost', onclick: async () => {
         if (groupFilter(c) === lv) return;
         if (await act('setGroupFilter', { convo: id, level: lv }, null, s => { const x = s.convos.find(x => x.id === id); if (x) x.flt = lv; })) draw();
@@ -4574,7 +4575,7 @@ function openGroupInfo(id) {
             },
           }, 'Remove'))))),
       serverApi >= 26 && h('div', { class: 'toggle' }, h('span', null, 'Swear filter',
-          h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, canManage ? FILTER_HINT : FILTER_HINT + ' The owner and admins choose it.')),
+          h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, canManage ? filterHint() : filterHint() + ' The owner and admins choose it.')),
         canManage ? filterChips : h('b', null, FILTER_LEVELS[groupFilter(c)])),
       serverApi >= 16
         ? h('div', { class: 'toggle' }, h('span', null, 'Notifications',
@@ -8857,7 +8858,7 @@ function handlePings(pings) {
     : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
     : p.kind === 'newuser' ? `\u{1F44B} @${p.from} just joined Idiocy${p.text ? ` (${p.text})` : ''}. Click to see their profile.`
     : p.kind === 'neworg' ? `\u{1F3E2} @${p.by} made an organisation: @${p.from}${p.text ? ` (${p.text})` : ''}. Click to see it.`
-    : p.kind === 'aiflag' ? `${p.urgent ? '\u26A0\uFE0F ' : ''}\u{1F916} Idiocy AI ${p.stopped ? 'stopped' : 'flagged'} a ${p.what || 'post'} by @${p.from}: ${p.text}. Click to see it in Reports.`
+    : p.kind === 'aiflag' ? `${p.urgent ? '\u26A0\uFE0F ' : ''}\u{1F916} Idiocy AI ${p.stopped ? 'stopped' : 'flagged'} a ${({ group: 'picture in a group', grouppic: 'group picture', avatar: 'profile picture', emoji: 'new emoji' })[p.what] || p.what || 'post'} by @${p.from}: ${p.text}. Click to see it in Reports.`
     : `${from} ${where}: ${tame(noStyle(p.text))}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
@@ -9798,7 +9799,9 @@ function openAdmin() {
         }, sec ? sec + 's' : 'Off'))),
         ...(serverApi >= 48 ? [h('div', { style: 'margin-top:18px' }, h('b', null, '\u{1F916} AI admin: ' + (data.ai ? 'on' : 'off')),
           h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin-top:4px' }, data.ai
-            ? 'It checks every post, comment, Short, embed and project before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and you see who tried in Reports). If it can\u2019t check in time, the post goes up and anything wrong is reported here instead. DMs and group chats are never checked.'
+            ? (serverApi >= 55
+              ? 'It checks every post, comment, Short, embed, project, profile picture and new emoji, and every picture sent in a group chat, before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and you see who tried in Reports). If it can\u2019t check in time, it goes up and anything wrong is reported here instead. DMs are never checked, and in group chats it only sees pictures (and their captions).'
+              : 'It checks every post, comment, Short, embed and project before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and you see who tried in Reports). If it can\u2019t check in time, the post goes up and anything wrong is reported here instead. DMs and group chats are never checked.')
             : 'It needs an OpenAI key on the server. Until then, nothing is checked by AI.'))] : []));
     }
   };
