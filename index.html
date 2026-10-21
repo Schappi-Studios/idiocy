@@ -2353,6 +2353,7 @@ function openProfile(name) {
         big,
         fullName(p) && h('div', { class: 'pfull' }, fullName(p)),
         h('div', { class: 'pname ' + rankClass(p.role) }, fullName(p) ? '@' + (p.username || name) : p.username || name, rankBadge(p.role),
+          p.invisible && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: isMe ? 'Everyone else sees a normal member' : 'Invisible: only admins and moderators see this' }, '\u{1F47B} INVISIBLE'),
           g && h('span', { class: 'badge orgbadge' }, '\u{1F3E2} ORGANISATION'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
@@ -2743,6 +2744,27 @@ async function openBadgeEditor(username, onChange) {
 // Followers only (admins): someone's posts and Shorts only come up in the feed and Shorts for their followers.
 const FO_ABOUT = 'Their posts and Shorts only come up in the feed and Shorts for people who follow them. Links to their posts and their profile still work, and they aren\u2019t told.';
 const confirmFollowersOnly = name => confirm(`Make ${name} followers only?\n\n${FO_ABOUT}`);
+// Invisible mode, for admins and moderators: everyone else sees a normal member (no badge, no coloured name);
+// other admins and moderators still see who they are. A switch for Settings and Edit profile.
+function invisibleRow() {
+  if (!isStaff() || serverApi < 62) return null;
+  const box = h('input', { type: 'checkbox' });
+  box.checked = !!me.invisible;
+  box.onchange = async () => {
+    const on = box.checked;
+    box.disabled = true;
+    const d = await act('setInvisible', { on });
+    box.disabled = false;
+    if (!d) { box.checked = !on; return; }
+    me.invisible = !!d.invisible;
+    sideSig = '';
+    renderSide();
+    toast(on ? '\u{1F47B} Invisible: you look like everyone else now' : `Visible again: your ${me.role === 'admin' ? 'ADMIN' : 'MOD'} badge is back`);
+  };
+  return h('label', { class: 'toggle' }, h('span', null, '\u{1F47B} Invisible mode',
+    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, `Hides your ${me.role === 'admin' ? 'ADMIN' : 'MOD'} badge and coloured name, on your profile and everything you\u2019ve posted, so you look like everyone else. Other admins and moderators can still tell, and you keep all your powers.`)), box);
+}
+
 // Admins and moderators: clear someone's profile picture, status, bio and what they're doing or playing, or
 // just the parts they tick.
 function resetProfile(name, done) {
@@ -2947,6 +2969,7 @@ function openEditProfile() {
       h('div', { class: 'avrow' }, preview, file,
         h('button', { class: 'ghost', type: 'button', onclick: () => file.click() }, 'Upload picture'),
         h('button', { class: 'ghost', type: 'button', onclick: () => { pic = ''; paintPreview(); } }, 'Remove')),
+      invisibleRow(),
       h('label', { class: 'field' }, 'Status', status),
       h('div', { class: 'chips' }, STATUS_PRESETS.map(t =>
         h('button', { class: 'ghost', type: 'button', onclick: () => { status.value = t; } }, t)),
@@ -4129,7 +4152,7 @@ function renderSide() {
   const mine = profileOf(me.name);
   $('mename').replaceChildren(avatar(me.name, { dot: true, click: false }),
     h('span', { class: 'two' },
-      h('b', { class: rankClass(me.role) || null }, rankBadge(me.role), displayName(me.name)),
+      h('b', { class: (!me.invisible && rankClass(me.role)) || null }, me.invisible ? h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: 'Invisible: everyone else sees a normal member' }, '\u{1F47B}') : rankBadge(me.role), displayName(me.name)),
       h('span', { class: 'st' }, (mine && tame(mine.status)) || 'Set a status')));
 
   const convos = st.convos.slice().sort((a, b) =>
@@ -5581,7 +5604,7 @@ async function sendComment(postEl, input) {
   if (!text || !me) return;
   input.value = '';
   const list = postEl._cmts && postEl._cmts.firstElementChild;
-  const pending = buildComment(postEl, { name: me.name, by: me.actor, admin: me.role === 'admin', mod: me.role === 'mod', text, ce: emojisIn(text) }, true);
+  const pending = buildComment(postEl, { name: me.name, by: me.actor, admin: me.role === 'admin' && !me.invisible, mod: me.role === 'mod' && !me.invisible, text, ce: emojisIn(text) }, true);
   if (list) { list.querySelectorAll('.shimmer, .muted').forEach(x => x.remove()); list.append(pending); }
   try {
     const d = await api('send', { convo: 'p:' + postEl._m.id, text, ...(emojisIn(text) && { emojis: emojisIn(text) }) });
@@ -7991,7 +8014,7 @@ async function send(text, att, extra = {}) {
   const rp = !isFeed() && replying ? replying : null;
   const as = isFeed() ? postAsData() : {};
   const pending = buildMessage({
-    name: isFeed() ? postingAs() : me ? me.name : '', by: isFeed() ? postBy() : me && me.actor, admin: me && me.role === 'admin' && !('as' in as && as.as), mod: me && me.role === 'mod' && !('as' in as && as.as), text,
+    name: isFeed() ? postingAs() : me ? me.name : '', by: isFeed() ? postBy() : me && me.actor, admin: me && me.role === 'admin' && !me.invisible && !('as' in as && as.as), mod: me && me.role === 'mod' && !me.invisible && !('as' in as && as.as), text,
     ...(att && { img: 'local', local: att.data, w: att.w, h: att.h }),
     ...(rp && { rp: { id: rp.id, name: rp.name, text: (rp.text || (rp.fl ? '\u{1F4CE} ' + rp.fl.n : '[image]')).slice(0, 100) } }),
     ...(extra.poll && { pl: { o: extra.poll, v: {} } }),
@@ -9143,6 +9166,7 @@ function openSettings() {
     serverApi >= 13 && !(me && me.actor) && emailSection(() => { md.close(); openSettings(); }),
     serverApi >= 12 && st && st.blocked && st.blocked.length > 0 && h('div', null,
       h('div', { style: 'font-weight:600;margin:4px 0' }, '\u{1F6AB} Blocked accounts'), blockedList),
+    invisibleRow(),
     h('label', { class: 'toggle' }, h('span', null, 'Hide swear words', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Shows them as **** instead. Just for you.')), hideSw),
     serverApi >= 31 && h('div', { class: 'toggle' }, h('span', null, 'Custom emojis', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'GIFs and pictures to react with')),
       h('button', { class: 'ghost', onclick: () => { md.close(); openEmojis(null); } }, '\u{1F600} Yours')),
