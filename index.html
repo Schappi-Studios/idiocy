@@ -4545,6 +4545,7 @@ function openGroupInfo(id) {
         groupIcon(c, 'gpic'), file,
         h('div', { class: 'gname' }, c.name),
         h('div', { class: 'gsub' }, `${c.members.length} member${c.members.length === 1 ? '' : 's'} \u00b7 owned by ${c.owner ? displayName(c.owner) : 'nobody'}`),
+        c.ag && h('div', { class: 'gsub' }, '\u{1F6E1}\uFE0F Idiocy\u2019s official admin group'),
         canManage && h('div', { class: 'btns', style: 'justify-content:center' },
           h('button', {
             class: 'ghost', onclick: async () => {
@@ -4575,8 +4576,19 @@ function openGroupInfo(id) {
             },
           }, 'Remove'))))),
       serverApi >= 26 && h('div', { class: 'toggle' }, h('span', null, 'Swear filter',
-          h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, canManage ? filterHint() : filterHint() + ' The owner and admins choose it.')),
+          h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, canManage ? filterHint() : filterHint() + ' The owner and admins choose it.',
+            c.ag && ' Admins and moderators aren\u2019t filtered or checked here (it\u2019s the official admin group).')),
         canManage ? filterChips : h('b', null, FILTER_LEVELS[groupFilter(c)])),
+      me.role === 'admin' && serverApi >= 56 && h('div', { class: 'toggle' }, h('span', null, '\u{1F6E1}\uFE0F Official admin group',
+          h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Admins and moderators here can talk about what people did, quoting what they said and sharing screenshots, without the slur filter or the AI admin stopping them. Anyone else in it is checked as usual. There\u2019s only one.')),
+        h('button', { class: c.ag ? 'ghost' : 'primary', onclick: async () => {
+          const on = !c.ag;
+          if (on && !confirm('Make this Idiocy\u2019s official admin group? If another group is the admin group now, it goes back to normal.')) return;
+          if (await act('setAdminGroup', { convo: id, on }, null, s => s.convos.forEach(x => { if (x.type === 'group') x.ag = on && x.id === id ? 1 : undefined; }))) {
+            toast(on ? 'This is now the official admin group' : 'It\u2019s a normal group again');
+            draw();
+          }
+        } }, c.ag ? 'Make it normal' : 'Make it official')),
       serverApi >= 16
         ? h('div', { class: 'toggle' }, h('span', null, 'Notifications',
             h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Mentions only: just when someone @mentions or replies to you.')), notify)
