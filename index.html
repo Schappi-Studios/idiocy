@@ -200,6 +200,8 @@
   .avatar { position: relative; background-size: cover; background-position: center; }
   .avatar[data-user] { cursor: pointer; }
   .avatar.idiocyav { background-color: #fff; box-shadow: 0 0 0 1px var(--border); }
+  .avatar.aiav { background-color: #1e2235; background-size: 86%; background-repeat: no-repeat; box-shadow: none; }
+  .badge.aibadge { background: #1e2235; color: #e3e01d; }
   .presence {
     position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 50%;
     background: var(--ok); border: 2px solid var(--panel);
@@ -2151,8 +2153,16 @@ function storeProfiles(map) {
 // Messages from Idiocy itself (an admin wrote them) go by this name, which nobody can take.
 const IDIOCY = 'Idiocy', IDIOCY_LOGO = document.getElementById('favicon').href;
 const isIdiocy = n => key(n) === key(IDIOCY);
+// The AI admin, who has its own chat with each person (an 'idiocy' chat whose id starts ai_). Its picture is
+// the "shield" bot from bot-avatar.js (bot-avatars by Jakub Antalik, MIT; files.littlebird.com.au/bot-avatars),
+// drawn once and kept here, so no outside script runs in Idiocy.
+const IDIOCY_AI = 'Idiocy AI';
+const AI_AVATAR = 'data:image/webp;base64,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';
+const isIdiocyAi = n => key(n) === key(IDIOCY_AI); // (a reserved name: nobody can have it)
+const isAiChat = c => !!c && c.type === 'idiocy' && String(c.id).startsWith('ai_');
 function avatar(n, opts = {}) {
   if (isIdiocy(n)) return h('div', { class: 'avatar idiocyav', title: IDIOCY, style: `background-image:url("${IDIOCY_LOGO}")` });
+  if (isIdiocyAi(n)) return h('div', { class: 'avatar aiav', title: IDIOCY_AI, style: `background-image:url("${AI_AVATAR}")` });
   const el = h('div', {
     class: 'avatar',
     'data-user': key(n),
@@ -4007,7 +4017,7 @@ const isUnread = id => id !== openId && read && (latest[id] || 0) > (read[id] ||
 function convoLabel(c) {
   if (c.type === 'global') return 'Global feed';
   if (c.type === 'group') return c.name;
-  if (c.type === 'idiocy') return IDIOCY; // their chat with Idiocy itself
+  if (c.type === 'idiocy') return isAiChat(c) ? IDIOCY_AI : IDIOCY; // their chat with Idiocy itself (or its AI admin)
   return c.members.find(n => key(n) !== key(me.name)) || 'DM';
 }
 // What a chat is called on screen: a DM goes by the other person's name.
@@ -4058,7 +4068,7 @@ function renderSide() {
     a.type === 'global' ? -1 : b.type === 'global' ? 1 : (latest[b.id] || 0) - (latest[a.id] || 0));
   const rows = convos.map(c => {
     const label = convoLabel(c);
-    const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : c.type === 'idiocy' ? avatar(IDIOCY) : h('div', { class: 'avatar icon' }, '#');
+    const icon = c.type === 'dm' ? avatar(label, { dot: true }) : c.type === 'group' ? groupIcon(c) : c.type === 'idiocy' ? avatar(convoLabel(c)) : h('div', { class: 'avatar icon' }, '#');
     const unread = isUnread(c.id);
     return fresh(h('button', {
       class: 'row' + (c.id === openId && !shortsOpen && !codeTab() ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
@@ -4168,7 +4178,7 @@ function renderHeader() {
   const hsig = c ? c.id + (c.pv || '') + picVer + (c.type === 'dm' ? profileVer : '') : '';
   if ($('hicon').dataset.sig !== hsig) {
     $('hicon').dataset.sig = hsig;
-    $('hicon').replaceChildren(...(!c || c.type === 'global' ? [] : c.type === 'dm' ? [avatar(convoLabel(c), { dot: true })] : c.type === 'idiocy' ? [avatar(IDIOCY)] : [groupIcon(c)]));
+    $('hicon').replaceChildren(...(!c || c.type === 'global' ? [] : c.type === 'dm' ? [avatar(convoLabel(c), { dot: true })] : c.type === 'idiocy' ? [avatar(convoLabel(c))] : [groupIcon(c)]));
   }
   if (c) pendingTitle = null;
   $('title').textContent = codeTab() ? 'Idiocy Code' : c ? convoTitle(c) : pendingTitle ? displayName(pendingTitle) : openId === 'global' ? 'Global' : 'Loading\u2026';
@@ -4176,7 +4186,7 @@ function renderHeader() {
     : !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
     : c.type === 'global' ? 'Posts from everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
     : c.type === 'dm' ? streakText(c.id) || 'Direct message'
-    : c.type === 'idiocy' ? 'Messages from the people who run Idiocy'
+    : c.type === 'idiocy' ? (isAiChat(c) ? 'Messages from Idiocy\u2019s AI admin' : 'Messages from the people who run Idiocy')
     : `${c.members.length} members: ${c.members.map(displayName).join(', ')}`;
   $('searchbtn').classList.toggle('hidden', !(serverApi >= 18 && c));
   $('feedtabs').classList.toggle('hidden', !isFeed() || serverApi < 53);
@@ -4665,10 +4675,13 @@ function buildMessage(m, pending) {
     return el;
   }
   if (m.idiocy) {
-    // From Idiocy itself: no profile to open, and nothing to react to, reply to or report.
-    const el = h('div', { class: 'msg official', 'data-user': key(IDIOCY), 'data-time': m.time || Date.now() },
-      avatar(IDIOCY),
-      h('div', { class: 'head' }, h('span', { class: 'name' }, IDIOCY), h('span', { class: 'badge offbadge', title: 'From the people who run Idiocy' }, '\u2713 OFFICIAL'),
+    // From Idiocy itself (or its AI admin): no profile to open, and nothing to react to, reply to or report.
+    const who = m.ai ? IDIOCY_AI : IDIOCY;
+    const el = h('div', { class: 'msg official', 'data-user': key(who), 'data-time': m.time || Date.now() },
+      avatar(who),
+      h('div', { class: 'head' }, h('span', { class: 'name' }, who), m.ai
+        ? h('span', { class: 'badge aibadge', title: 'Idiocy\u2019s AI admin' }, '\u{1F916} AI ADMIN')
+        : h('span', { class: 'badge offbadge', title: 'From the people who run Idiocy' }, '\u2713 OFFICIAL'),
         stamp(h('span', { class: 'time' }), m.time)),
       h('div', { class: 'body' }, h('span', { class: 'txt' })),
       h('div', { class: 'reacts' }));
@@ -5789,7 +5802,7 @@ function previewText(c) {
     const who = !p.name ? '' : me && key(p.name) === key(me.name) ? 'You: ' : c.type === 'group' ? displayName(p.name) + ': ' : '';
     return who + tame(noStyle(p.text));
   }
-  return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : c.type === 'idiocy' ? 'Messages from Idiocy' : '';
+  return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : c.type === 'idiocy' ? 'Messages from ' + convoLabel(c) : '';
 }
 // Short: "now", "5m", "2h", then the day: "Yesterday", "19 Oct" (with the year if it isn't this one).
 function ago(t) {
@@ -7846,7 +7859,7 @@ function updateComposer() {
   const slowLeft = Math.ceil((slowUntil - Date.now()) / 1000);
   const waiting = isPendingChat(openId); // DM still being created
   const locked = mustVerify();
-  const official = !!(st && (st.convos.find(c => c.id === openId) || {}).type === 'idiocy'); // only Idiocy writes in it
+  const oc = st && st.convos.find(c => c.id === openId), official = !!oc && oc.type === 'idiocy'; // only Idiocy (or its AI admin) writes in it
   document.body.classList.toggle('idiocychat', official);
   textEl.disabled = !!muted || waiting || locked || official;
   $('attach').disabled = !!muted || waiting || locked;
@@ -7874,7 +7887,7 @@ function updateComposer() {
   document.querySelectorAll('.verifybar').forEach(b => b.classList.toggle('hidden', !locked));
   paintTip();
   if (official) {
-    note.textContent = '\u{1F4E3} Only Idiocy can send messages here, so you can\u2019t reply.';
+    note.textContent = isAiChat(oc) ? '\u{1F916} Only Idiocy\u2019s AI admin sends messages here, so you can\u2019t reply. If you think it got something wrong, tell an admin.' : '\u{1F4E3} Only Idiocy can send messages here, so you can\u2019t reply.';
     note.className = 'composer-note';
   } else if (locked) {
     note.textContent = '\u{1F4E7} Verify your email to post and send messages. Tap here.';
@@ -9856,7 +9869,7 @@ function openAdmin() {
         ...(serverApi >= 48 ? [h('div', { style: 'margin-top:18px' }, h('b', null, '\u{1F916} AI admin: ' + (data.ai ? 'on' : 'off')),
           h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin-top:4px' }, data.ai
             ? (serverApi >= 55
-              ? 'It checks every post, comment, Short, embed, project, profile picture and new emoji, and every picture sent in a group chat, before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and you see who tried in Reports). If it can\u2019t check in time, it goes up and anything wrong is reported here instead. DMs are never checked, and in group chats it only sees pictures (and their captions).'
+              ? 'It checks every post, comment, Short, embed, project, profile picture and new emoji, and every picture sent in a group chat, before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and gets a message from Idiocy AI saying so; you see who tried in Reports). If it can\u2019t check in time, it goes up and anything wrong is reported here instead. DMs are never checked, and in group chats it only sees pictures (and their captions).'
               : 'It checks every post, comment, Short, embed and project before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and you see who tried in Reports). If it can\u2019t check in time, the post goes up and anything wrong is reported here instead. DMs and group chats are never checked.')
             : 'It needs an OpenAI key on the server. Until then, nothing is checked by AI.'))] : []));
     }
