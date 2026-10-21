@@ -2877,7 +2877,7 @@ async function setMod(name, on, done) {
 }
 const foToast = (name, on) => on ? `${name}\u2019s posts now only reach their followers` : `${name}\u2019s posts reach everyone again`;
 
-async function openIdiocyMessenger(username, draft) {
+async function openIdiocyMessenger(username, draft, onSent) {
   const list = h('div', { class: 'idclist' }, h('div', { class: 'shimmer', style: 'height:56px;border-radius:10px' }));
   const text = h('textarea', { rows: 4, maxlength: 2000, 'aria-label': 'Message', placeholder: 'e.g. \u26A0\uFE0F Please don\u2019t spam the Global feed. If it keeps happening, you\u2019ll be timed out.' });
   text.value = draft || '';
@@ -2900,6 +2900,7 @@ async function openIdiocyMessenger(username, draft) {
     paint(d);
     text.value = '';
     toast(`Sent to ${displayName(d.username)} as Idiocy`);
+    if (onSent) onSent();
   } }, text, h('div', { class: 'btns' }, send));
   text.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); form.requestSubmit(); } };
   const md = modal('scroll idcmsg', h('h2', null, `\u{1F4E3} Message ${displayName(username)} as Idiocy`),
@@ -4142,6 +4143,7 @@ async function poll() {
     lastError = '';
     setStatus(true);
     me = d.me;
+    if (me.rv && me.rv !== reportsSeen) { const was = reportsSeen; reportsSeen = me.rv; if (was && adminRefresh) adminRefresh(); } // Reports changed
     if (d.terms && me.terms === false) askTerms();
     if (serverApi >= 63 && me.muted > Date.now() && !me.actor) openJail('timeout', null, me.muted);
     else if (jailMd && !jailMd.banned) closeJail(); // lifted early
@@ -9868,6 +9870,7 @@ function adamHelloCard(a, done) {
       : h('div', { class: 'btns', style: 'justify-content:flex-start;margin-top:8px' }, go));
 }
 
+let adminRefresh = null, reportsSeen = ''; // an open Admin panel's update, and the last Reports version seen
 function openAdmin() {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const body = h('div', { class: 'alist' });
@@ -9965,6 +9968,17 @@ function openAdmin() {
   const stillsBar = h('div', { class: 'stillsbar hidden' });
   const md = modal('wide scroll', h('div', { class: 'ahead' }, h('h2', null, mod ? 'Mod panel' : 'Admin panel'), !mod && banButton(() => (data && data.users) || [], () => load())),
     count, stillsBar, h('div', { class: 'tabbar atabs' + (TABS.length > 5 ? ' many' : '') }, tabs), body);
+  // Someone (any admin) changed Reports: update, quietly (Reports redraws; other tabs keep what they're showing).
+  adminRefresh = async () => {
+    if (!md.overlay.isConnected) { adminRefresh = null; return; }
+    try {
+      const d = await api('adminData', {});
+      if (!d.ok || !md.overlay.isConnected) return;
+      data = d;
+      if (tab === 'reports') draw();
+      else tabs[0].textContent = data.reports.length ? `Reports (${data.reports.length})` : 'Reports';
+    } catch (e) {}
+  };
   const load = async () => {
     progress(1);
     try {
@@ -10108,6 +10122,8 @@ function openAdmin() {
           h('button', { class: 'ghost', title: 'Leave it as it is', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Say no'),
           serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy (they see it when they\u2019re back)', onclick: () => openIdiocyMessenger(r.sender, 'About your request: ') }, '\u{1F4E3} Message'),
           h('button', { class: 'ghost', onclick: () => openProfile(r.sender) }, 'See profile')));
+      // Doing something about a report from its card closes it, for every admin.
+      const handled = r => async () => { if (await act('resolveReport', { id: r.id, what: 'handled' })) { toast('\u2713 Handled: the report is closed for every admin'); load(); } };
       body.replaceChildren(...(data.reports.length ? data.reports.map(r => r.appeal ? appealCard(r) : h('div', { class: 'card enter' },
         h('div', { class: 'meta' }, r.account ? ['\u{1F464} ', h('b', { style: 'color:var(--text)' }, '@' + r.sender), '\u2019s account'] : [h('b', { style: 'color:var(--text)' }, r.sender), ` in ${r.where}`],
           ` \u00b7 reported by ${r.reporter} \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
@@ -10126,10 +10142,10 @@ function openAdmin() {
           r.account ? h('button', { class: 'primary', onclick: () => openProfile(r.sender) }, 'See profile')
             : !r.stopped && h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
           h('button', { class: 'ghost', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Dismiss'),
-          serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, r.account ? '\u26A0\uFE0F About your account: ' : `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `) }, '\u{1F4E3} Warn'),
-          ...timeoutButtons(r.sender, load),
-          !mod && h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); load(); } } }, 'Ban'),
-          r.account && serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(r.sender) }, '\u267B\uFE0F Reset profile'),
+          serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, r.account ? '\u26A0\uFE0F About your account: ' : `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `, serverApi >= 72 ? handled(r) : null) }, '\u{1F4E3} Warn'),
+          ...timeoutButtons(r.sender, serverApi >= 72 ? handled(r) : load),
+          !mod && h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); if (serverApi >= 72) handled(r)(); else load(); } } }, 'Ban'),
+          r.account && serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(r.sender, serverApi >= 72 ? handled(r) : null) }, '\u267B\uFE0F Reset profile'),
           !mod && r.account && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(r.sender, load) }, 'Delete account')))) :
         [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, 'No open reports. Everyone\u2019s behaving (for now).')]),
         mod && h('div', { class: 'actnote' }, 'Reports about admins and moderators go to the admins. Only admins can ban people or delete accounts, so if someone needs that, tell an admin.'));
