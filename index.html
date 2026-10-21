@@ -2341,6 +2341,7 @@ function openProfile(name) {
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
       btns.push(h('button', { class: 'ghost', onclick: () => openIdiocyMessenger(p.username || name) }, '\u{1F4E3} Message as Idiocy'));
       if (serverApi >= 60) btns.push(h('button', { class: 'ghost', onclick: () => resetProfile(p.username || name, () => openProfile(name)) }, '\u267B\uFE0F Reset profile'));
+      if (serverApi >= 68) btns.push(h('button', { class: 'ghost', onclick: () => openLimits(p.username || name, p.limits, () => openProfile(name)) }, '\u{1F6AB} Limits' + (limitCount(p.limits) ? ` (${limitCount(p.limits)})` : '')));
     }
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
@@ -9819,7 +9820,7 @@ function openAdmin() {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
-  const TABS = mod ? ['reports', 'users'] : ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
+  const TABS = mod ? ['reports', 'users', ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
   const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t[0].toUpperCase() + t.slice(1)));
   let adam = null, adamSince = 30, adamAll = false, adamBy = 'day';
   const loadAdam = async () => {
@@ -10109,6 +10110,7 @@ function openAdmin() {
       const endOrTimeout = u => u.muted > Date.now()
         ? h('button', { class: 'ghost', onclick: async () => { if (await act('timeout', { username: u.username, minutes: 0 })) load(); } }, 'End timeout')
         : timeoutButtons(u.username, load)[1];
+      const limitsBtn = u => serverApi >= (mod ? 68 : 67) && h('button', { class: 'ghost', onclick: () => openLimits(u.username, u.limits, l => { u.limits = l; drawUsers(); }) }, '\u{1F6AB} Limits' + (limitCount(u.limits) ? ` (${limitCount(u.limits)})` : ''));
       const resetBtn = u => serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(u.username) }, '\u267B\uFE0F Reset profile');
       const modBtn = u => serverApi >= 54 && u.role !== 'org' && h('button', { class: 'ghost', onclick: () => setMod(u.username, u.role !== 'mod', load) },
         u.role === 'mod' ? '\u{1F6E1}\uFE0F Remove moderator' : '\u{1F6E1}\uFE0F Make moderator');
@@ -10120,7 +10122,8 @@ function openAdmin() {
           h('span', { class: 'nm ' + rankClass(u.role), onclick: () => openProfile(u.username) }, u.username),
           rankBadge(u.role),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
-          u.role !== 'admin' && u.role !== 'mod' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, idiocyBtn(u), endOrTimeout(u), resetBtn(u)))
+          limitCount(u.limits) > 0 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: LIMIT_PARTS.filter(([k]) => u.limits[k]).map(([, l]) => l).join(', ') }, 'LIMITED'),
+          u.role !== 'admin' && u.role !== 'mod' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, idiocyBtn(u), endOrTimeout(u), resetBtn(u), limitsBtn(u)))
         : h('div', { class: 'urow' },
           avatar(u.username),
           h('span', { class: 'nm ' + rankClass(u.role), onclick: () => openProfile(u.username) }, u.username),
@@ -10150,7 +10153,7 @@ function openAdmin() {
             }, 'Reset Shorts'),
             endOrTimeout(u),
             resetBtn(u),
-            serverApi >= 67 && h('button', { class: 'ghost', onclick: () => openLimits(u.username, u.limits, l => { u.limits = l; drawUsers(); }) }, '\u{1F6AB} Limits' + (limitCount(u.limits) ? ` (${limitCount(u.limits)})` : '')),
+            serverApi >= 67 && limitsBtn(u),
             modBtn(u),
             u.banned
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('unban', { username: u.username })) load(); } }, 'Unban')
