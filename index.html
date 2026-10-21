@@ -119,6 +119,14 @@
     vertical-align: 2px; margin-right: 6px;
   }
   .badge.modbadge { background: var(--mod); color: #fff; }
+  /* The badge someone picked to show next to their name. */
+  .pbadge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; font-weight: 600; line-height: 1; padding: 2px 7px; border-radius: 999px;
+    background: var(--panel-2); color: var(--muted); vertical-align: 1px; margin-right: 6px; white-space: nowrap; }
+  .pbadge:empty { display: none; }
+  .pbadge .bdpic { width: 13px; height: 13px; }
+  .pbchoice { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pbchoice button { display: inline-flex; align-items: center; gap: 4px; }
+  .pbchoice button.on { border-color: var(--accent); color: var(--accent); }
 
   /* ---------- auth ---------- */
   #auth {
@@ -2166,6 +2174,16 @@ async function fetchProfiles() {
   if (profileWanted.size) profileTimer = setTimeout(fetchProfiles, 50);
 }
 
+// The badge someone picked, next to their name: filled in (and kept up to date) from their profile.
+const pickChip = n => { const el = h('span', { class: 'pbadge', 'data-pb': n }); paintPick(el); return el; };
+function paintPick(el) {
+  const p = profileOf(el.dataset.pb), b = p && p.pick;
+  const sig = b ? b.k + b.e + b.t : '';
+  if (el.dataset.sig === sig) return;
+  el.dataset.sig = sig;
+  el.title = b ? b.t : '';
+  el.replaceChildren(...(b ? [typeof badgeIcon === 'function' ? badgeIcon(b.e) : b.e, b.t] : []));
+}
 function storeProfiles(map) {
   for (const [k, p] of Object.entries(map)) {
     profiles.set(k, { data: p, at: Date.now() });
@@ -2174,6 +2192,7 @@ function storeProfiles(map) {
   paintNamesSoon();
   profileVer++;
   document.querySelectorAll('.avatar[data-user]').forEach(paintAvatar);
+  document.querySelectorAll('[data-pb]').forEach(paintPick);
   document.querySelectorAll('.msg.post.txtcard, .msg.post.pollcard').forEach(paintCard); // banners may have arrived or changed
   renderSide();
 }
@@ -2368,7 +2387,7 @@ function openProfile(name) {
       h('div', { class: 'inner' },
         big,
         fullName(p) && h('div', { class: 'pfull' }, fullName(p)),
-        h('div', { class: 'pname ' + rankClass(p.role) }, fullName(p) ? '@' + (p.username || name) : p.username || name, rankBadge(p.role),
+        h('div', { class: 'pname ' + rankClass(p.role) }, fullName(p) ? '@' + (p.username || name) : p.username || name, rankBadge(p.role), pickChip(p.username || name),
           p.invisible && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: isMe ? 'Everyone else sees a normal member' : 'Invisible: only admins and moderators see this' }, '\u{1F47B} INVISIBLE'),
           g && h('span', { class: 'badge orgbadge' }, '\u{1F3E2} ORGANISATION'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
@@ -2992,6 +3011,24 @@ function openEditProfile() {
   first.value = p.first || '';
   last.value = p.last || '';
 
+  // The badge next to your name: one of yours, or none (admins show it after ADMIN).
+  let pick = (p.pick && p.pick.k) || '';
+  const picks = h('div', { class: 'pbchoice' }, h('span', { class: 'hint' }, 'Loading your badges\u2026'));
+  const pickRow = !isOrg && serverApi >= 70 && h('div', { class: 'field' }, 'Badge next to your name',
+    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin:2px 0 6px' }, me.role === 'admin' ? 'Shown next to your name everywhere, after ADMIN.' : 'Shown next to your name everywhere.'), picks);
+  if (pickRow) api('badges', { username: me.name }).then(d => {
+    if (!d.ok) return picks.replaceChildren();
+    const opts = [['', '', 'None']];
+    if (d.no) opts.push(['no', '\u{1F39F}\uFE0F', 'Member #' + d.no]);
+    if (d.no && d.no <= FOUNDERS) opts.push(['founder', '\u{1F305}', 'Founder']);
+    if (d.no && d.no <= EARLY_MEMBERS) opts.push(['early', '\u{1F331}', 'Early member']);
+    const years = d.created ? Math.floor((Date.now() - d.created) / (365 * 864e5)) : 0;
+    if (years >= 1) opts.push(['years', '\u{1F382}', years + (years > 1 ? ' years' : ' year')]);
+    (d.given || []).forEach(g => opts.push(['g:' + g.i, g.e, g.t]));
+    const paint = () => picks.replaceChildren(...opts.map(([k, e, t]) => h('button', { type: 'button', class: 'ghost' + (pick === k ? ' on' : ''), 'aria-pressed': String(pick === k),
+      onclick: () => { pick = k; paint(); } }, e ? badgeIcon(e) : '', t)));
+    paint();
+  }).catch(() => picks.replaceChildren());
   const save = h('button', { class: 'primary', type: 'submit' }, 'Save');
   const cur = h('input', { type: 'password', placeholder: 'Current password', autocomplete: 'current-password' });
   const next = h('input', { type: 'password', placeholder: 'New password', autocomplete: 'new-password' });
@@ -3007,7 +3044,7 @@ function openEditProfile() {
         e.preventDefault();
         save.disabled = true;
         const d = await act('updateProfile', { avatar: pic, status: status.value, bio: bio.value,
-          ...(serverApi >= 12 && { banner, game: game.value }), ...(serverApi >= 24 && { first: first.value, last: last.value }) });
+          ...(serverApi >= 12 && { banner, game: game.value }), ...(serverApi >= 24 && { first: first.value, last: last.value }), ...(pickRow && { pickBadge: pick }) });
         save.disabled = false;
         if (d) { storeProfiles(d.profiles); toast('Profile saved'); m.close(); }
       },
@@ -3018,6 +3055,7 @@ function openEditProfile() {
         h('button', { class: 'ghost', type: 'button', disabled: me.limits && me.limits.pic ? '' : null, title: me.limits && me.limits.pic ? 'An admin has stopped you changing your profile picture' : null, onclick: () => file.click() }, 'Upload picture'),
         h('button', { class: 'ghost', type: 'button', onclick: () => { pic = ''; paintPreview(); } }, 'Remove')),
       invisibleRow(),
+      pickRow,
       h('label', { class: 'field' }, 'Status', status),
       h('div', { class: 'chips' }, STATUS_PRESETS.map(t =>
         h('button', { class: 'ghost', type: 'button', onclick: () => { status.value = t; } }, t)),
@@ -4898,7 +4936,7 @@ function buildMessage(m, pending) {
     avatar(m.name),
     h('div', { class: 'head' },
       nameEl(m.name, 'span', { class: 'name ' + rankClass(msgRank(m)), style: `color:${colorFor(m.name)}`, onclick: () => openProfile(m.name) }),
-      rankBadge(msgRank(m)),
+      rankBadge(msgRank(m)), pickChip(m.name),
       byLine(m),
       time, h('span', { class: 'edtag' })),
     h('div', { class: 'body' },
@@ -5554,7 +5592,7 @@ function buildPost(m, pending) {
       h('div', { class: 'who2' },
         h('div', { class: 'line' },
           nameEl(m.name, 'span', { class: 'name ' + rankClass(msgRank(m)), onclick: () => openProfile(m.name) }),
-          rankBadge(msgRank(m)),
+          rankBadge(msgRank(m)), pickChip(m.name),
           m.by && h('span', { class: 'sep' }, '\u2022'), byLine(m),
           h('span', { class: 'sep' }, '\u2022'), time, h('span', { class: 'edtag' })))),
     !media && body,
@@ -5656,7 +5694,7 @@ function buildComment(postEl, c, pending) {
     h('div', { class: 'col' },
       h('div', { class: 'bubble' },
         nameEl(c.name, 'b', { class: rankClass(msgRank(c)), style: `color:${colorFor(c.name)}`, onclick: () => openProfile(c.name) }),
-        rankBadge(msgRank(c)),
+        rankBadge(msgRank(c)), pickChip(c.name),
         byLine(c),
         richText(c.text || '', c.ce)),
       h('div', { class: 'meta' },
