@@ -2715,7 +2715,7 @@ const FO_ABOUT = 'Their posts and Shorts only come up in the feed and Shorts for
 const confirmFollowersOnly = name => confirm(`Make ${name} followers only?\n\n${FO_ABOUT}`);
 // Admins and moderators: clear someone's profile picture, status and bio.
 async function resetProfile(name, done) {
-  if (!confirm(`Reset ${name}\u2019s profile?\n\nTheir profile picture, status and bio are cleared. Their name, @ and posts stay.`)) return;
+  if (!confirm(`Reset ${name}\u2019s profile?\n\nTheir profile picture, status, bio and what they\u2019re doing or playing are cleared. Their name, @ and posts stay.`)) return;
   const d = await act('adminResetProfile', { username: name });
   if (!d) return;
   profiles.delete(key(name));
@@ -9815,7 +9815,7 @@ function openAdmin() {
           serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, r.account ? '\u26A0\uFE0F About your account: ' : `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `) }, '\u{1F4E3} Warn'),
           ...timeoutButtons(r.sender, load),
           !mod && h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); load(); } } }, 'Ban'),
-          r.account && serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status and bio', onclick: () => resetProfile(r.sender) }, '\u267B\uFE0F Reset profile'),
+          r.account && serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(r.sender) }, '\u267B\uFE0F Reset profile'),
           !mod && r.account && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(r.sender, load) }, 'Delete account')))) :
         [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, 'No open reports. Everyone\u2019s behaving (for now).')]),
         mod && h('div', { class: 'actnote' }, 'Reports about admins and moderators go to the admins. Only admins can ban people or delete accounts, so if someone needs that, tell an admin.'));
@@ -9842,7 +9842,7 @@ function openAdmin() {
       const endOrTimeout = u => u.muted > Date.now()
         ? h('button', { class: 'ghost', onclick: async () => { if (await act('timeout', { username: u.username, minutes: 0 })) load(); } }, 'End timeout')
         : timeoutButtons(u.username, load)[1];
-      const resetBtn = u => serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status and bio', onclick: () => resetProfile(u.username) }, '\u267B\uFE0F Reset profile');
+      const resetBtn = u => serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(u.username) }, '\u267B\uFE0F Reset profile');
       const modBtn = u => serverApi >= 54 && u.role !== 'org' && h('button', { class: 'ghost', onclick: () => setMod(u.username, u.role !== 'mod', load) },
         u.role === 'mod' ? '\u{1F6E1}\uFE0F Remove moderator' : '\u{1F6E1}\uFE0F Make moderator');
       const drawUsers = () => list.replaceChildren(...data.users
