@@ -939,6 +939,14 @@
   .cmt .meta { font-size: 11px; color: var(--muted); margin: 2px 0 0 10px; display: flex; gap: 10px; }
   .cmt .meta button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 11px; padding: 0; }
   .cmt .meta button:hover { text-decoration: underline; color: var(--text); }
+  /* The heart on a comment (under it in the feed, beside it on a Short). */
+  .clike { display: inline-flex; align-items: center; gap: 3px; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 11px; padding: 0; }
+  .clike svg { width: 13px; height: 13px; }
+  .clike.on { color: #ff3040; }
+  .clike.on svg { fill: #ff3040; }
+  .clike.pop svg { animation: likepop .35s ease; }
+  @media (prefers-reduced-motion: reduce) { .clike.pop svg { animation: none; } }
+  .cmt .meta .clike:hover { text-decoration: none; }
   .cmt.pending { opacity: .55; }
   .cmt.mentioned .bubble { background: rgba(255, 200, 87, .25); }
   .cform { display: flex; gap: 6px; }
@@ -1557,7 +1565,9 @@
   .modal.shortcmts .clist { display: flex; flex-direction: column; gap: 10px; max-height: 50vh; overflow-y: auto; margin: 6px 0 10px; }
   .modal.shortcmts .crow { display: flex; gap: 8px; align-items: flex-start; }
   .modal.shortcmts .crow .avatar { width: 28px; height: 28px; font-size: 12px; flex: none; }
-  .modal.shortcmts .crow .ct { font-size: 14px; overflow-wrap: anywhere; }
+  .modal.shortcmts .crow .ct { flex: 1; min-width: 0; font-size: 14px; overflow-wrap: anywhere; }
+  .modal.shortcmts .crow .clike { flex: none; flex-direction: column; gap: 1px; padding: 2px 4px; }
+  .modal.shortcmts .crow .clike svg { width: 16px; height: 16px; }
   .modal.shortcmts .crow .when { color: var(--muted); font-size: 12px; margin-left: 4px; }
   .modal.shortcmts form { display: flex; gap: 8px; }
   .modal.shortcmts form input { flex: 1; min-width: 0; }
@@ -5106,7 +5116,8 @@ async function openShortComments(slide, repaint) {
   const input = h('input', { placeholder: 'Add a comment\u2026', maxlength: 300 });
   attachMentions(input);
   const row = c => h('div', { class: 'crow' }, avatar(c.name),
-    h('div', { class: 'ct' }, nameEl(c.name, 'b'), ' ', styledText(c.text || ''), h('span', { class: 'when' }, ago(c.time))));
+    h('div', { class: 'ct' }, nameEl(c.name, 'b'), ' ', styledText(c.text || ''), h('span', { class: 'when' }, ago(c.time))),
+    commentLike('p:' + m.id, c));
   const form = h('form', { onsubmit: async e => {
     e.preventDefault();
     const text = input.value.trim();
@@ -5437,6 +5448,7 @@ function buildComment(postEl, c, pending) {
         richText(c.text || '', c.ce)),
       h('div', { class: 'meta' },
         pending ? 'sending\u2026' : stamp(h('span'), c.time),
+        !pending && commentLike(convo, c),
         !pending && !isMine(c) && h('button', { onclick: () => openReport(c, convo) }, 'Report'),
         !pending && canDelete(c, true) && h('button', {
           onclick: async () => {
@@ -5449,6 +5461,38 @@ function buildComment(postEl, c, pending) {
           },
         }, 'Delete'))));
   return row;
+}
+
+// The heart on a comment: like it (a heart reaction, like a post's), straight away, then whatever the server says.
+function commentLike(convo, c) {
+  const btn = h('button', { type: 'button', class: 'clike' });
+  const paint = pop => {
+    const names = (c.r && c.r[HEART]) || [];
+    const mine = !!me && names.some(n => key(n) === key(me.name));
+    btn.classList.toggle('on', mine);
+    btn.classList.toggle('pop', !!pop && mine);
+    btn.title = names.length ? 'Liked by ' + names.map(displayName).join(', ') : 'Like';
+    btn.setAttribute('aria-label', (mine ? 'Unlike' : 'Like') + (names.length ? ` (${names.length} like${names.length === 1 ? '' : 's'})` : ''));
+    btn.replaceChildren(icon(ICON_HEART), ...(names.length ? [String(names.length)] : []));
+  };
+  btn.onclick = async () => {
+    if (guest) return askToJoin('like comments');
+    if (!me || btn._busy) return;
+    const before = c.r;
+    const r = JSON.parse(JSON.stringify(c.r || {})), names = r[HEART] || [];
+    const i = names.findIndex(n => key(n) === key(me.name));
+    if (i >= 0) names.splice(i, 1); else names.push(me.name);
+    if (names.length) r[HEART] = names; else delete r[HEART];
+    c.r = r;
+    paint(i < 0);
+    btn._busy = true;
+    const d = await act('react', { convo, id: c.id, emoji: HEART });
+    btn._busy = false;
+    c.r = d ? d.message.r : before;
+    paint();
+  };
+  paint();
+  return btn;
 }
 
 async function sendComment(postEl, input) {
