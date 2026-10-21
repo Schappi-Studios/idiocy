@@ -1723,6 +1723,8 @@
   .atabs button { flex: 1 0 auto; }
   @media (max-width: 420px) { .atabs { gap: 2px; } .atabs button { padding: 7px 5px; font-size: 13px; } }
   @media (max-width: 370px) { .atabs button { padding: 7px 4px; font-size: 12.5px; } }
+  /* Six tabs (admins) don't fit across a phone: two rows of three. */
+  @media (max-width: 480px) { .atabs.many { display: grid; grid-template-columns: repeat(3, 1fr); overflow: visible; } .atabs.many button { padding: 7px 4px; font-size: 13px; } }
   .actp .srank { flex: none; min-width: 22px; padding-top: 9px; text-align: right; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
   .actp .on { color: var(--ok); font-weight: 600; }
   .actp .lst { flex: 1; min-width: 0; }
@@ -9872,7 +9874,7 @@ function openAdmin() {
   const count = h('div', { class: 'acount hidden' });
   const stillsBar = h('div', { class: 'stillsbar hidden' });
   const md = modal('wide scroll', h('div', { class: 'ahead' }, h('h2', null, mod ? 'Mod panel' : 'Admin panel'), !mod && banButton(() => (data && data.users) || [], () => load())),
-    count, stillsBar, h('div', { class: 'tabbar atabs' }, tabs), body);
+    count, stillsBar, h('div', { class: 'tabbar atabs' + (TABS.length > 5 ? ' many' : '') }, tabs), body);
   const load = async () => {
     progress(1);
     try {
