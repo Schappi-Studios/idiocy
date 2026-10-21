@@ -2648,7 +2648,7 @@ const BADGE_PRESETS = [{ e: '~ostrich', t: 'Ostrich', d: 'Did you know an ostric
 // edited: after an admin gives or takes away a badge here (admins get a "+ Badge" button).
 function badgeRow(p, b, edited) {
   const list = [];
-  if (b && b.no) list.push(['\u{1F39F}️', `Member #${b.no}`, 'Idiocy looked deep within my soul and assigned me a number based on the order in which I joined.']);
+  if (b && b.no) list.push(['\u{1F39F}️', `#${b.no}`, 'Idiocy looked deep within my soul and assigned me a number based on the order in which I joined.']);
   if (b && b.no && b.no <= FOUNDERS) list.push(['\u{1F305}', 'Founder', `One of the first ${FOUNDERS} people to join Idiocy`]);
   if (b && b.no && b.no <= EARLY_MEMBERS) list.push(['\u{1F331}', 'Early member', `One of the first ${EARLY_MEMBERS} people to join Idiocy`]);
   ((b && b.given) || []).forEach(g => list.push([g.e, g.t, g.d || 'Given by the Idiocy admins']));
@@ -3019,7 +3019,7 @@ function openEditProfile() {
   if (pickRow) api('badges', { username: me.name }).then(d => {
     if (!d.ok) return picks.replaceChildren();
     const opts = [['', '', 'None']];
-    if (d.no) opts.push(['no', '\u{1F39F}\uFE0F', 'Member #' + d.no]);
+    if (d.no) opts.push(['no', '\u{1F39F}\uFE0F', '#' + d.no]);
     if (d.no && d.no <= FOUNDERS) opts.push(['founder', '\u{1F305}', 'Founder']);
     if (d.no && d.no <= EARLY_MEMBERS) opts.push(['early', '\u{1F331}', 'Early member']);
     const years = d.created ? Math.floor((Date.now() - d.created) / (365 * 864e5)) : 0;
