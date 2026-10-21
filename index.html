@@ -1627,6 +1627,18 @@
   .acount b { font-size: 16px; }
   .acount span { color: var(--muted); font-size: 12px; }
   .actsum { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 12px; }
+  /* The Reports filter. */
+  .rfilter { display: flex; flex-direction: column; gap: 8px; margin: 2px 0 12px; padding: 10px; border-radius: 12px; background: var(--panel-2); }
+  .rfrow { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .rfrow input[type="search"] { flex: 1; min-width: 160px; }
+  .rfchips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .rfchips button { font-size: 12.5px; padding: 4px 10px; }
+  .rfchips button.on { border-color: var(--accent); color: var(--accent); }
+  .rfchips button.off { opacity: .5; text-decoration: line-through; }
+  .bhmodes { justify-content: center; margin-bottom: 8px; }
+  .bhmodes button.on { border-color: var(--danger); color: var(--danger); }
+  .bhmsg { position: relative; overflow: visible; }
+  .bhmsg textarea { width: 100%; box-sizing: border-box; }
   /* ADAM's stats: a bar for each rule or kind of post. */
   .abars { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 8px; }
   .abar { display: grid; grid-template-columns: minmax(0, 11em) 1fr 3em; gap: 8px; align-items: center; font-size: 13px; }
@@ -1706,14 +1718,14 @@
     transform: translate(-50%, -50%) rotate(-12deg); animation: banstamp .45s cubic-bezier(.2, 1.6, .4, 1) .12s both;
   }
   @keyframes banstamp { from { opacity: 0; transform: translate(-50%, -50%) rotate(-12deg) scale(3.2); } to { opacity: 1; transform: translate(-50%, -50%) rotate(-12deg) scale(1); } }
-  .bhcard .banham { position: absolute; right: 6px; top: -34px; font-size: 54px; transform-origin: 80% 80%; pointer-events: none; animation: banswing .6s ease-in both; }
+  .bhcard .banham, .bhmsg .banham { position: absolute; right: 6px; top: -34px; font-size: 54px; transform-origin: 80% 80%; pointer-events: none; animation: banswing .6s ease-in both; }
   @keyframes banswing { 0% { opacity: 0; transform: rotate(70deg) translate(20px, -20px); } 40% { opacity: 1; transform: rotate(70deg); } 70% { transform: rotate(-25deg); } 85% { transform: rotate(-10deg); } 100% { opacity: 0; transform: rotate(-20deg); } }
   .banshard { position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; border-radius: 2px; pointer-events: none; animation: banshard .7s ease-out .12s both; }
   @keyframes banshard { from { opacity: 1; transform: rotate(var(--a)) translateX(0); } to { opacity: 0; transform: rotate(var(--a)) translateX(var(--d)) rotate(200deg); } }
   @media (prefers-reduced-motion: reduce) {
     .modal.shake, .bigred.open, .banflash { animation: none; }
     .bigred.open .bbcover { transition: opacity .3s; transform: none; }
-    .banflash, .banshard, .bhcard .banham { display: none; }
+    .banflash, .banshard, .bhcard .banham, .bhmsg .banham { display: none; }
     .banstamp { animation: fadein .3s both; }
   }
   /* ---------- admin stats ---------- */
@@ -3053,7 +3065,7 @@ function openEditProfile() {
         const d = await act('updateProfile', { avatar: pic, status: status.value, bio: bio.value,
           ...(serverApi >= 12 && { banner, game: game.value }), ...(serverApi >= 24 && { first: first.value, last: last.value }), ...(pickRow && { pickBadge: pick }) });
         save.disabled = false;
-        if (d) { storeProfiles(d.profiles); toast('Profile saved'); m.close(); }
+        if (d) { storeProfiles(d.profiles); toast(d.covered ? COVERED_NOTE : 'Profile saved'); m.close(); }
       },
     },
       serverApi >= 24 && (isOrg ? h('label', { class: 'field' }, 'Its name', first) : h('div', { class: 'sutwo' },
@@ -3203,6 +3215,9 @@ let stateGen = 0;
 function goneOnServer(error) {
   if (/^(Message not found|That post was deleted)$/.test(error || '') && openRev) openRev = 'stale';
 }
+
+// Pictures can't show real faces, so ADAM covers them with cartoon faces instead of turning the picture down.
+const COVERED_NOTE = '\u{1F642} ADAM covered the faces in your picture with cartoon faces';
 
 async function act(action, data, onOk, optimistic) {
   const btn = takePressed();
@@ -4758,7 +4773,8 @@ function openGroupInfo(id) {
       if (!f) return;
       try {
         const avatar = await shrinkImage(f);
-        if (await act('setGroupPic', { convo: id, avatar })) toast('Group picture updated');
+        const d = await act('setGroupPic', { convo: id, avatar });
+        if (d) toast(d.covered ? COVERED_NOTE : 'Group picture updated');
       } catch (e) { toast("Couldn't read that image", true); }
     };
     const mute = h('input', { type: 'checkbox' });
@@ -8193,7 +8209,8 @@ async function send(text, att, extra = {}) {
     if (sentTo !== 'global') notePreview(sentTo, d.message);
     if (myEpoch !== epoch || !pending.isConnected) return true; // polling will deliver it
     const m = d.message;
-    if (att && m.img) rememberImage(m.img, att.data); // no need to download what we just sent
+    if (att && m.img && !d.covered) rememberImage(m.img, att.data); // no need to download what we just sent
+    if (d.covered) toast(COVERED_NOTE);
     if (extra.voice && m.img) rememberImage(m.img, extra.voice);
     if (openId === 'global' && settings.slow && !isStaff()) slowUntil = Date.now() + settings.slow * 1000;
     lastActivity = Date.now();
@@ -9763,7 +9780,29 @@ function openBanHammer(users, onBanned) {
   const hold = h('button', { type: 'button', class: 'bigred hold', disabled: '', 'aria-label': 'Hold to ban' }, h('span', { class: 'bbring' }), h('span', { class: 'bbtext' }, 'HOLD'));
   const note = h('div', { class: 'hint bhnote' }, 'Press and hold for a second. They\u2019re logged out and can\u2019t log back in. You can undo it.');
   const after = h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'));
-  const md = modal('banhammer', h('h2', null, '\u{1F528} The Ban Hammer'), search, results, card, h('div', { class: 'bhstage' }, hold), note, after);
+  // The owner's other side of the big red button: a message to everyone, from Idiocy.
+  let mode = 'ban';
+  const canMsg = !!(me && me.owner && serverApi >= 73);
+  const everyone = (users || []).filter(u => u.username && u.role !== 'org' && !u.banned && key(u.username) !== key(me.name)).length;
+  const title = h('h2', null, '\u{1F528} The Ban Hammer');
+  const msgText = h('textarea', { rows: 4, maxlength: 2000, placeholder: 'Your message to everyone on Idiocy\u2026' });
+  const msgWrap = h('div', { class: 'bhmsg hidden' }, msgText, h('div', { class: 'hint' }, `It goes to all ${everyone} accounts (not organisations or banned ones), from Idiocy, in their Idiocy chat, with a notification. They can\u2019t reply.`));
+  msgText.oninput = () => { if (mode === 'msg') hold.disabled = !msgText.value.trim(); };
+  const modeBtn = (m, label) => h('button', { type: 'button', class: 'ghost', 'data-m': m, onclick: () => setMode(m) }, label);
+  const modes = canMsg && h('div', { class: 'chips bhmodes' }, modeBtn('ban', '\u{1F528} Ban someone'), modeBtn('msg', '\u{1F4E3} Message everyone'));
+  function setMode(m) {
+    mode = m;
+    modes.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+    title.textContent = m === 'msg' ? '\u{1F4E3} Message everyone' : '\u{1F528} The Ban Hammer';
+    [search, results, card].forEach(e => e.classList.toggle('hidden', m === 'msg'));
+    msgWrap.classList.toggle('hidden', m !== 'msg');
+    hold.disabled = m === 'msg' ? !msgText.value.trim() : !target;
+    hold.setAttribute('aria-label', m === 'msg' ? 'Hold to send to everyone' : 'Hold to ban');
+    note.textContent = m === 'msg' ? 'Press and hold for a second to send it to everyone. It can\u2019t be taken back.' : 'Press and hold for a second. They\u2019re logged out and can\u2019t log back in. You can undo it.';
+    if (m === 'msg') setTimeout(() => msgText.focus(), 50);
+  }
+  const md = modal('banhammer', title, modes, search, results, card, msgWrap, h('div', { class: 'bhstage' }, hold), note, after);
+  if (canMsg) setMode('ban');
   const who = u => [avatar(u.username, { click: false }), h('span', { class: 'bhwho' }, h('b', null, displayName(u.username)), h('span', null, '@' + u.username))];
   const list = () => {
     const q = key(search.value);
@@ -9791,7 +9830,7 @@ function openBanHammer(users, onBanned) {
     raf = requestAnimationFrame(tick);
   };
   const start = e => {
-    if (!target || hold.disabled || t0) return;
+    if ((mode === 'ban' && !target) || hold.disabled || t0) return;
     e.preventDefault();
     t0 = performance.now();
     hold.classList.add('pressing');
@@ -9811,6 +9850,7 @@ function openBanHammer(users, onBanned) {
   hold.addEventListener('contextmenu', e => e.preventDefault()); // a long press on a phone isn't a menu
   hold.addEventListener('click', e => e.preventDefault());
   async function fire() {
+    if (mode === 'msg') return fireMsg();
     const u = target;
     hold.disabled = true;
     hold.querySelector('.bbtext').textContent = '\u2026';
@@ -9836,7 +9876,20 @@ function openBanHammer(users, onBanned) {
       h('button', { class: 'primary', onclick: () => md.close() }, 'Done'));
   }
   // The hammer comes down.
-  function boom() {
+  async function fireMsg() {
+    hold.disabled = true;
+    hold.querySelector('.bbtext').textContent = '\u2026';
+    const d = await act('adminBroadcast', { text: msgText.value });
+    hold.style.setProperty('--p', 0);
+    if (!d) { hold.disabled = false; hold.querySelector('.bbtext').textContent = 'HOLD'; return; }
+    boom(msgWrap, 'SENT', '\u{1F4E3}');
+    msgText.disabled = true;
+    modes.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    hold.querySelector('.bbtext').textContent = '\u2713';
+    note.textContent = `\u{1F4E3} Sent to ${d.sent} ${d.sent === 1 ? 'person' : 'people'}.`;
+    after.replaceChildren(h('button', { class: 'primary', onclick: () => md.close() }, 'Done'));
+  }
+  function boom(where = card, word = 'BANNED', icon = '\u{1F528}') {
     if (prefs.sound) thud();
     try { navigator.vibrate && navigator.vibrate([60, 40, 120]); } catch (e) {}
     const flash = h('div', { class: 'banflash' });
@@ -9845,7 +9898,7 @@ function openBanHammer(users, onBanned) {
     md.box.classList.remove('shake');
     void md.box.offsetWidth; // so it shakes again for the next one
     md.box.classList.add('shake');
-    card.append(h('span', { class: 'banham', 'aria-hidden': 'true' }, '\u{1F528}'), h('span', { class: 'banstamp' }, 'BANNED'),
+    where.append(h('span', { class: 'banham', 'aria-hidden': 'true' }, icon), h('span', { class: 'banstamp' }, word),
       ...Array.from({ length: 12 }, (_, i) => h('span', { class: 'banshard', 'aria-hidden': 'true',
         style: `--a:${i * 30 + Math.random() * 20}deg;--d:${50 + Math.random() * 60}px;background:${i % 3 ? '#ff2b3d' : '#fff'}` })));
   }
@@ -9873,6 +9926,7 @@ function adamHelloCard(a, done) {
 let adminRefresh = null, reportsSeen = ''; // an open Admin panel's update, and the last Reports version seen
 function openAdmin() {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
+  const rf = { hide: new Set(), who: new Map(), q: '', sort: 'new' }; // the Reports filter
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
   const TABS = mod ? ['reports', 'users', ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
@@ -9932,7 +9986,7 @@ function openAdmin() {
       h('div', { class: 'chips', role: 'tablist', style: 'margin-top:14px' }, [[7, 'Last 7 days'], [30, 'Last 30 days'], [0, 'All time']].map(([k, label]) => h('button', {
         class: 'ghost', role: 'tab', 'aria-selected': String(adamSince === k), style: adamSince === k ? 'border-color:var(--accent);color:var(--accent)' : '',
         onclick: () => { adamSince = k; drawAdam(); } }, label))),
-      h('div', { class: 'actnote' }, `${plural(inRange.filter(e => e.kind === 'stopped').length, 'thing')} stopped before going up, ${inRange.filter(e => e.kind === 'flagged').length} flagged after going up (when ADAM was too slow to check first), ${plural(inRange.filter(e => e.kind === 'removed').length, 'old picture')} taken down.`),
+      h('div', { class: 'actnote' }, `${plural(inRange.filter(e => e.kind === 'stopped').length, 'thing')} stopped before going up, ${inRange.filter(e => e.kind === 'flagged').length} flagged after going up (when ADAM was too slow to check first), ${plural(inRange.filter(e => e.kind === 'removed').length, 'old picture')} taken down, ${plural(inRange.filter(e => e.kind === 'covered').length, 'picture')} with faces covered.`),
       h('h3', null, 'Why'),
       inRange.length ? bars(count(inRange, e => e.rules)) : h('div', { class: 'actnote' }, 'Nothing in this time.'),
       h('h3', null, 'What'),
@@ -10124,7 +10178,7 @@ function openAdmin() {
           h('button', { class: 'ghost', onclick: () => openProfile(r.sender) }, 'See profile')));
       // Doing something about a report from its card closes it, for every admin.
       const handled = r => async () => { if (await act('resolveReport', { id: r.id, what: 'handled' })) { toast('\u2713 Handled: the report is closed for every admin'); load(); } };
-      body.replaceChildren(...(data.reports.length ? data.reports.map(r => r.appeal ? appealCard(r) : h('div', { class: 'card enter' },
+      const reportCard = r => r.appeal ? appealCard(r) : h('div', { class: 'card enter' },
         h('div', { class: 'meta' }, r.account ? ['\u{1F464} ', h('b', { style: 'color:var(--text)' }, '@' + r.sender), '\u2019s account'] : [h('b', { style: 'color:var(--text)' }, r.sender), ` in ${r.where}`],
           ` \u00b7 reported by ${r.reporter} \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
         h('q', null, r.text || (r.account ? '(no name, status or bio)' : '(no text)')),
@@ -10146,9 +10200,64 @@ function openAdmin() {
           ...timeoutButtons(r.sender, serverApi >= 72 ? handled(r) : load),
           !mod && h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); if (serverApi >= 72) handled(r)(); else load(); } } }, 'Ban'),
           r.account && serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(r.sender, serverApi >= 72 ? handled(r) : null) }, '\u267B\uFE0F Reset profile'),
-          !mod && r.account && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(r.sender, load) }, 'Delete account')))) :
-        [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, 'No open reports. Everyone\u2019s behaving (for now).')]),
-        mod && h('div', { class: 'actnote' }, 'Reports about admins and moderators go to the admins. Only admins can ban people or delete accounts, so if someone needs that, tell an admin.'));
+          !mod && r.account && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(r.sender, load) }, 'Delete account')));
+      // The filter: which kinds, which people (only them, or hide them), a search, and the order. It stays while the panel's open.
+      const all = data.reports, kindOf = r => r.appeal ? 'appeal' : r.face ? 'face' : r.removed ? 'removed'
+        : /^\u{1F916}/u.test(r.reporter) ? (r.stopped ? 'stopped' : 'flagged') : r.account ? 'account' : 'people';
+      const KINDS = [['people', '\u{1F6A9} Reported posts and messages'], ['account', '\u{1F464} Accounts'], ['stopped', '\u{1F6D1} Stopped by ADAM'], ['flagged', '\u{1F916} Flagged by ADAM'],
+        ['face', '\u{1F642} Faces'], ['removed', '\u{1F5D1}\uFE0F Taken down'], ['appeal', '\u{1F64F} Unban requests']];
+      const shownNow = () => {
+        const only = [...rf.who].filter(([, v]) => v === 'only').map(([k]) => k), q = rf.q.trim().toLowerCase();
+        let out = all.filter(r => !rf.hide.has(kindOf(r)) && rf.who.get(key(r.sender)) !== 'hide' && (!only.length || only.includes(key(r.sender)))
+          && (!q || [r.sender, r.reporter, r.text, r.reason, r.where].join(' ').toLowerCase().includes(q)));
+        if (rf.sort === 'old') out = out.slice().reverse();
+        if (rf.sort === 'who') {
+          const n = new Map();
+          out.forEach(r => n.set(key(r.sender), (n.get(key(r.sender)) || 0) + 1));
+          out = out.slice().sort((a, b) => (n.get(key(b.sender)) - n.get(key(a.sender))) || key(a.sender).localeCompare(key(b.sender)) || b.time - a.time);
+        }
+        return out;
+      };
+      const kinds = h('div', { class: 'chips rfchips' }), people = h('div', { class: 'chips rfchips' }), list = h('div'), shownCount = h('span', { class: 'hint' });
+      const search = h('input', { type: 'search', placeholder: 'Search reports: who, what, why', value: rf.q });
+      const sort = h('select', { 'aria-label': 'Order' }, ...[['new', 'Newest first'], ['old', 'Oldest first'], ['who', 'By person']].map(([v, t]) => h('option', { value: v }, t)));
+      sort.value = rf.sort;
+      const dismissAll = h('button', { class: 'ghost danger', onclick: async () => {
+        const ids = shownNow().map(r => r.id);
+        if (!ids.length || !confirm(`Dismiss these ${ids.length} report${ids.length === 1 ? '' : 's'}? They\u2019re closed for every admin.`)) return;
+        dismissAll.disabled = true;
+        const d = await act('resolveReports', { ids, what: 'dismiss' });
+        dismissAll.disabled = false;
+        if (d) { toast(`Dismissed ${d.done}`); load(); }
+      } });
+      const paintBar = () => {
+        kinds.replaceChildren(...KINDS.filter(([k]) => all.some(r => kindOf(r) === k)).map(([k, label]) => h('button', {
+          class: 'ghost' + (rf.hide.has(k) ? ' off' : ' on'), title: rf.hide.has(k) ? 'Hidden: tap to show' : 'Tap to hide',
+          onclick: () => { if (rf.hide.has(k)) rf.hide.delete(k); else rf.hide.add(k); paintBar(); paintList(); } }, `${label} ${all.filter(r => kindOf(r) === k).length}`)));
+        const counts = new Map();
+        all.forEach(r => { const k = key(r.sender), c = counts.get(k) || { name: r.sender, n: 0 }; c.n++; counts.set(k, c); });
+        const top = [...counts].sort((a, b) => b[1].n - a[1].n).slice(0, 12).concat([...rf.who.keys()].filter(k => !counts.has(k)).map(k => [k, { name: k, n: 0 }]));
+        people.replaceChildren(h('span', { class: 'hint' }, 'People:'), ...top.map(([k, c]) => { const st = rf.who.get(k); return h('button', {
+          class: 'ghost' + (st === 'only' ? ' on' : st === 'hide' ? ' off' : ''), title: st === 'only' ? 'Only them. Tap to hide them instead' : st === 'hide' ? 'Hidden. Tap to show them again' : 'Tap: only them. Tap again: hide them',
+          onclick: () => { const next = !st ? 'only' : st === 'only' ? 'hide' : null; if (next) rf.who.set(k, next); else rf.who.delete(k); paintBar(); paintList(); } },
+          (st === 'only' ? '\u2713 ' : st === 'hide' ? '\u2715 ' : '') + '@' + c.name + (c.n ? ' ' + c.n : '')); }));
+      };
+      const paintList = () => {
+        const shown = shownNow();
+        shownCount.textContent = shown.length === all.length ? `${all.length} open` : `Showing ${shown.length} of ${all.length}`;
+        dismissAll.textContent = `Dismiss these (${shown.length})`;
+        dismissAll.classList.toggle('hidden', !shown.length);
+        list.replaceChildren(...(shown.length ? shown.map(reportCard)
+          : [h('div', { class: 'muted', style: 'padding:20px;text-align:center' }, all.length ? 'Nothing matches the filter.' : 'No open reports. Everyone\u2019s behaving (for now).')]));
+      };
+      search.oninput = () => { rf.q = search.value; paintList(); };
+      sort.onchange = () => { rf.sort = sort.value; paintList(); };
+      paintBar();
+      paintList();
+      body.replaceChildren(
+        ...(all.length && serverApi >= 73 ? [h('div', { class: 'rfilter' }, h('div', { class: 'rfrow' }, search, sort), kinds, people, h('div', { class: 'rfrow' }, shownCount, dismissAll))] : []),
+        list,
+        ...(mod ? [h('div', { class: 'actnote' }, 'Reports about admins and moderators go to the admins. Only admins can ban people or delete accounts, so if someone needs that, tell an admin.')] : []));
     } else if (tab === 'activity') {
       if (!activity) {
         body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
