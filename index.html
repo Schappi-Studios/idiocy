@@ -1158,15 +1158,22 @@
   .swatch { height: 34px; border-radius: 10px; border: 2px solid transparent; cursor: pointer; }
   .swatch.on { border-color: var(--text); box-shadow: 0 0 0 2px var(--panel) inset; }
   .swatch.founders { grid-column: span 2; }
-  /* The Founders' sunset (Idiocy's first 5 members): on their profile the sun glows and the sea shimmers. */
+  /* The Founders' sunrise (Idiocy's first 5 members): on their profile the sun's rays turn slowly, it glows, and the sea shimmers. */
   .banner.founders { position: relative; overflow: hidden; }
-  .banner.founders::before { content: ''; position: absolute; left: 50%; top: 80%; width: 34%; aspect-ratio: 1; max-width: 240px; transform: translate(-50%, -50%);
-    border-radius: 50%; background: radial-gradient(circle, rgba(255, 230, 150, .55), rgba(255, 170, 80, 0) 65%); animation: fsunglow 5s ease-in-out infinite alternate; }
-  .banner.founders::after { content: ''; position: absolute; left: 0; right: 0; top: 81%; bottom: 0;
-    background: repeating-linear-gradient(90deg, rgba(255, 215, 150, 0) 0 22px, rgba(255, 215, 150, .22) 22px 30px, rgba(255, 215, 150, 0) 30px 52px);
+  @property --frays { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+  .banner.founders::before { content: ''; position: absolute; inset: 0; /* the rays: only in the sky, above the sea */
+    background: radial-gradient(circle at 50% 72%, rgba(255, 244, 200, .5) 0 5%, rgba(255, 230, 160, 0) 22%),
+      repeating-conic-gradient(from var(--frays) at 50% 72%, rgba(255, 240, 190, .22) 0deg 5deg, rgba(255, 240, 190, 0) 5deg 15deg);
+    -webkit-mask: radial-gradient(circle at 50% 72%, #000 6%, transparent 48%), linear-gradient(180deg, #000 72%, transparent 72%);
+    -webkit-mask-composite: source-in;
+    mask: radial-gradient(circle at 50% 72%, #000 6%, transparent 48%), linear-gradient(180deg, #000 72%, transparent 72%);
+    mask-composite: intersect;
+    animation: frays 60s linear infinite; }
+  .banner.founders::after { content: ''; position: absolute; left: 0; right: 0; top: 72%; bottom: 0;
+    background: repeating-linear-gradient(90deg, rgba(255, 225, 160, 0) 0 22px, rgba(255, 225, 160, .25) 22px 30px, rgba(255, 225, 160, 0) 30px 52px);
     -webkit-mask: radial-gradient(ellipse 30% 100% at 50% 0%, #000, transparent); mask: radial-gradient(ellipse 30% 100% at 50% 0%, #000, transparent);
     animation: fsea 9s linear infinite; }
-  @keyframes fsunglow { from { opacity: .55; transform: translate(-50%, -50%) scale(.9); } to { opacity: 1; transform: translate(-50%, -50%) scale(1.12); } }
+  @keyframes frays { to { --frays: 360deg; } }
   @keyframes fsea { to { background-position: 104px 0; } }
   @media (prefers-reduced-motion: reduce) { .banner.founders::before, .banner.founders::after { animation: none; } }
   .blockedlist .row { padding: 6px 0; }
@@ -2624,16 +2631,15 @@ const BANNERS = {
   sky: 'linear-gradient(135deg, #89f7fe, #66a6ff)',
 };
 const EARLY_MEMBERS = 100; // member numbers up to this are early members (organisations and test accounts have none)
-// The Founders' sunset: only Idiocy's first 5 members can have it (the server says who: founder). Layers, top
-// first: the sun's reflection on the sea, the sea, a few stars, the sun and its glow, the sky.
+// The Founders' sunrise: only Idiocy's first 5 members can have it (the server says who: founder). Layers, top
+// first: the sun's path on the sea, the sea, the last stars fading, the sun coming up and its glow, the dawn sky.
 const FOUNDERS = 5, FOUNDERS_BANNER = 'founders';
 const FOUNDERS_BG = [
-  'radial-gradient(ellipse 15% 9% at 50% 86%, rgba(255, 208, 120, .8), rgba(255, 208, 120, 0) 70%)',
-  'linear-gradient(180deg, rgba(0, 0, 0, 0) 81%, #4a1a55 81%, #1d0a2e 100%)',
-  'radial-gradient(circle at 18% 14%, #fff 0 1px, transparent 2px)', 'radial-gradient(circle at 34% 30%, rgba(255,255,255,.8) 0 1px, transparent 2px)',
-  'radial-gradient(circle at 71% 10%, #fff 0 1px, transparent 2px)', 'radial-gradient(circle at 86% 26%, rgba(255,255,255,.7) 0 1px, transparent 2px)',
-  'radial-gradient(circle at 50% 81%, #fff6cf 0 6%, #ffd166 9%, rgba(255, 150, 70, .65) 16%, rgba(255, 120, 60, 0) 34%)',
-  'linear-gradient(180deg, #1b0a3a 0%, #4f1d78 24%, #b8336f 52%, #ff6f3c 71%, #ffb04a 81%)',
+  'radial-gradient(ellipse 12% 22% at 50% 76%, rgba(255, 226, 150, .85), rgba(255, 226, 150, 0) 72%)',
+  'linear-gradient(180deg, rgba(0, 0, 0, 0) 72%, #3d6aa0 72%, #24467a 86%, #142a52 100%)',
+  'radial-gradient(circle at 14% 10%, rgba(255, 255, 255, .75) 0 1px, transparent 2px)', 'radial-gradient(circle at 84% 7%, rgba(255, 255, 255, .55) 0 1px, transparent 2px)',
+  'radial-gradient(circle at 50% 68%, #fffdf0 0 7%, #ffe9a8 9.5%, rgba(255, 214, 140, .7) 15%, rgba(255, 190, 130, .25) 26%, rgba(255, 180, 130, 0) 40%)',
+  'linear-gradient(180deg, #1f2f63 0%, #4a64b3 20%, #9f86c9 36%, #f19ab8 52%, #ffb48e 63%, #ffd99a 72%)',
 ].join(', ');
 const bannerBg = id => id === FOUNDERS_BANNER ? FOUNDERS_BG : BANNERS[id];
 
@@ -2998,8 +3004,8 @@ function openEditProfile() {
   let banner = p.banner || '';
   const swatches = h('div', { class: 'swatches' });
   const paintSwatches = () => swatches.replaceChildren(
-    ...(me.founder ? [h('button', { type: 'button', class: 'swatch founders' + (banner === FOUNDERS_BANNER ? ' on' : ''), title: 'Founders\u2019 sunset: only for Idiocy\u2019s first 5 members',
-      'aria-label': 'Founders\u2019 sunset banner', style: `background:${FOUNDERS_BG}`, onclick: () => { banner = FOUNDERS_BANNER; paintSwatches(); } })] : []),
+    ...(me.founder ? [h('button', { type: 'button', class: 'swatch founders' + (banner === FOUNDERS_BANNER ? ' on' : ''), title: 'Founders\u2019 sunrise: only for Idiocy\u2019s first 5 members',
+      'aria-label': 'Founders\u2019 sunrise banner', style: `background:${FOUNDERS_BG}`, onclick: () => { banner = FOUNDERS_BANNER; paintSwatches(); } })] : []),
     h('button', { type: 'button', class: 'swatch plain' + (!banner ? ' on' : ''), title: 'Default', style: `background:${colorFor(me.name, 80)}`, onclick: () => { banner = ''; paintSwatches(); } }),
     ...Object.keys(BANNERS).map(k => h('button', { type: 'button', class: 'swatch' + (banner === k ? ' on' : ''), title: k, 'aria-label': k + ' banner',
       style: `background:${BANNERS[k]}`, onclick: () => { banner = k; paintSwatches(); } })));
