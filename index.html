@@ -345,6 +345,13 @@
   .card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
   .card .meta { color: var(--muted); font-size: 12px; }
   .card q { display: block; background: var(--panel-2); border-radius: 8px; padding: 6px 10px; overflow-wrap: anywhere; quotes: none; }
+  /* A group report: what was said around the reported message. */
+  .rctx { margin: 8px 0 4px; font-size: 13px; }
+  .rctx summary { cursor: pointer; color: var(--muted); font-weight: 600; padding: 2px 0; }
+  .rctx .rcl { padding: 4px 8px; border-left: 3px solid transparent; border-radius: 4px; overflow-wrap: anywhere; }
+  .rctx .rcl.it { background: rgba(255, 77, 94, .12); border-left-color: var(--danger); }
+  .rctx .rcl.sys { color: var(--muted); font-style: italic; }
+  .rctx .rcl .when { color: var(--muted); font-size: 11px; margin-right: 6px; font-style: normal; }
   .card .btns { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
   .urow { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   .urow .nm { flex: 1; min-width: 120px; cursor: pointer; font-weight: 600; }
@@ -7449,7 +7456,9 @@ function openReport(m, convo = openId) {
       h('q', null, m.text || '[image]')),
     h('div', { class: 'chips' }, chips),
     other,
-    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Admins will see this message and who reported it.'),
+    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, (st && st.convos.some(c => c.id === convo && c.type === 'group'))
+      ? 'Admins and moderators will see this message, the few messages around it, and who reported it.'
+      : 'Admins and moderators will see this message and who reported it.'),
     h('div', { class: 'btns' },
       h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'),
       h('button', {
@@ -9684,6 +9693,11 @@ function openAdmin() {
         h('div', { class: 'meta' }, r.account ? ['\u{1F464} ', h('b', { style: 'color:var(--text)' }, '@' + r.sender), '\u2019s account'] : [h('b', { style: 'color:var(--text)' }, r.sender), ` in ${r.where}`],
           ` \u00b7 reported by ${r.reporter} \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
         h('q', null, r.text || (r.account ? '(no name, status or bio)' : '(no text)')),
+        r.context && r.context.length > 1 && h('details', { class: 'rctx', open: '' },
+          h('summary', null, `\u{1F4AC} What was said around it (${r.context.length} messages, as they were when it was reported)`),
+          ...r.context.map(c => h('div', { class: 'rcl' + (c.it ? ' it' : '') + (c.sys ? ' sys' : '') },
+            h('span', { class: 'when' }, new Date(c.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })),
+            c.sys ? c.t : [h('b', null, c.n), ': ', c.t || '(no text)']))),
         h('div', { class: 'meta' }, 'Reason: ' + r.reason),
         r.stopped && h('div', { class: 'meta' }, '\u{1F6D1} Stopped before it went up, so nobody saw it'),
         h('div', { class: 'btns' },
