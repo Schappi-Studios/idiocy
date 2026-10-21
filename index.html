@@ -2310,7 +2310,10 @@ function openProfile(name) {
       if (rel === 'incoming') btns.push(
         h('button', { class: 'primary', onclick: () => { close(); openDm(p.username || name); } }, 'Message'),
         h('button', { class: 'ghost', onclick: then(() => removeFollower(name)) }, 'Remove follower'));
-    } else if (rel === 'friend') btns.push(
+    } else if (rel === 'friend' && (st.auto || []).some(n => key(n) === key(name))) btns.push( // a test account and an admin: friends without following
+      h('button', { class: 'primary', onclick: () => { close(); openDm(p.username || name); } }, 'Message'),
+      h('span', { class: 'hint', style: 'align-self:center' }, '\u{1F9EA} Test account friends'));
+    else if (rel === 'friend') btns.push(
       h('button', { class: 'primary', onclick: () => { close(); openDm(p.username || name); } }, 'Message'),
       h('button', { class: 'ghost', onclick: () => { if (confirm(unfollowQuestion(name))) then(() => unfollowUser(name))(); } }, 'Unfollow'));
     else if (rel === 'incoming') btns.push(
