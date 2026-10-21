@@ -5920,7 +5920,7 @@ function renderTabs() {
   else paintAvatar(mine);
   $('myou').replaceChildren(
     h('button', { onclick: () => openProfile(me.name) }, '\u{1F464}', me.actor ? ' Its profile' : ' Your profile'),
-    serverApi >= 37 && ((me.orgs || []).length || (me.orgInvites || []).length || me.actor
+    serverApi >= 37 && ((me.orgs || []).length || (me.orgInvites || []).length || me.actor || (me.tests || []).length
       ? h('button', { onclick: openAccounts }, '\u{1F3E2}', ' Switch account', (me.orgInvites || []).length > 0 && h('span', { class: 'ocount' }, String(me.orgInvites.length)))
       : h('button', { onclick: openNewOrg }, '\u{1F3E2}', ' New organisation')),
     serverApi >= 29 && h('button', { onclick: () => openProjects() }, '\u{1F9EA}', ' Your projects'),
@@ -9301,7 +9301,8 @@ function useAccount(name, msg) {
   forgetAccount();
   openId = 'global';
   start();
-  toast(msg || (name ? `\u{1F3E2} You’re using ${displayName(name)}. Everything you do is as it.` : `Back to you${home ? ', ' + displayName(home) : ''}`));
+  const test = name && me && (me.tests || []).some(n => key(n) === key(name));
+  toast(msg || (name ? test ? `\u{1F9EA} You\u2019re using the test account ${displayName(name)}. Everything you do is as it.` : `\u{1F3E2} You’re using ${displayName(name)}. Everything you do is as it.` : `Back to you${home ? ', ' + displayName(home) : ''}`));
 }
 
 // The sidebar's "Using Idiocy Studios" bar, the switch-account button, and "Posting as" on the feed box.
@@ -9311,10 +9312,10 @@ function paintOrgBits() {
   const bar = $('orgbar');
   bar.classList.toggle('hidden', !me.actor);
   if (me.actor) bar.replaceChildren(
-    h('span', { class: 'two obtext' }, nameEl(me.name, 'b'), h('span', { class: 'st' }, '\u{1F3E2} Using it as ', nameEl(me.actor))),
+    h('span', { class: 'two obtext' }, nameEl(me.name, 'b'), h('span', { class: 'st' }, me.test ? '\u{1F9EA} Test account, used by ' : '\u{1F3E2} Using it as ', nameEl(me.actor))),
     h('button', { type: 'button', class: 'ghost', onclick: () => useAccount('') }, 'Switch back'));
   const btn = $('acctbtn');
-  btn.classList.toggle('hidden', !orgs.length && !invites.length && !me.actor);
+  btn.classList.toggle('hidden', !orgs.length && !invites.length && !me.actor && !(me.tests || []).length);
   btn.classList.toggle('unread', invites.length > 0);
   $('newgroup').classList.toggle('hidden', orgMe()); // groups are made from friends, and organisations have none
   $('mnew').classList.toggle('hidden', orgMe());
@@ -9334,6 +9335,8 @@ function openAccounts() {
     h('div', { class: 'alist' },
       row(home, '@' + home + ' · you', !actingAs, () => useAccount('')),
       ...orgs.map(o => row(o.name, '@' + o.name + ' · ' + (o.owner ? 'owner' : 'member'), key(o.name) === key(actingAs), () => useAccount(o.name)))),
+    (me.tests || []).length > 0 && h('div', { class: 'sec-head' }, '\u{1F9EA} Test accounts'),
+    (me.tests || []).length > 0 && h('div', { class: 'alist' }, ...me.tests.map(n => row(n, '@' + n + ' \u00b7 test account', key(n) === key(actingAs), () => useAccount(n)))),
     invites.length > 0 && h('div', { class: 'sec-head' }, 'Invites'),
     invites.length > 0 && h('div', { class: 'alist' }, ...invites.map(n => h('div', { class: 'row acct' },
       avatar(n), h('span', { class: 'label two' }, nameEl(n, 'b'), h('span', { class: 'st' }, 'wants you to help run it')),
