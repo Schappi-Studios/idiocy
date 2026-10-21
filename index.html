@@ -53,6 +53,7 @@
     --gold: #ffc857;
     --admin: #d11a2a;
     --mod: #0e8a63;
+    --adam: #9a7400;
     color-scheme: light;
   }
   /* Dark mode: chosen in Settings, or following the device when set to Auto. */
@@ -70,6 +71,7 @@
     --ok: #2ecc8a;
     --admin: #ff4d5e;
     --mod: #2fd39a;
+    --adam: #f0dc3a;
     color-scheme: dark;
   }
   :root[data-theme="dark"] .ment.you { color: #ffd98a; }
@@ -109,6 +111,7 @@
   .hidden { display: none !important; }
   .admin-name { color: var(--admin) !important; }
   .mod-name { color: var(--mod) !important; }
+  .adam-name { color: var(--adam) !important; }
   .badge {
     display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .5px;
     background: var(--gold); color: #1a1400; border-radius: 4px; padding: 1px 5px;
@@ -1756,6 +1759,7 @@
     --gold: #ffc20e;
     --admin: #ff3b52;
     --mod: #22e3a0;
+    --adam: #ffe14d;
     --bevel: inset 2px 2px 0 rgba(255, 255, 255, .07), inset -2px -2px 0 rgba(0, 0, 0, .35);
     --title: "Luckiest Guy", "Arial Rounded MT Bold", system-ui, sans-serif;
     --round: "Nunito", "Arial Rounded MT Bold", system-ui, sans-serif;
@@ -4137,7 +4141,7 @@ function renderSide() {
       class: 'row' + (c.id === openId && !shortsOpen && !codeTab() ? ' on' : '') + (unread ? ' unread' : '') + (c.type === 'global' ? ' global' : ''),
       'data-at': c.type === 'dm' ? label : null,
       onclick: () => { if (profileOpen) profileOpen.close(); if (shortsOpen) shortsOpen.close(); switchTo(c.id, 'global'); },
-    }, icon, h('span', { class: 'label' }, h('span', { class: 'nm' }, convoTitle(c), streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
+    }, icon, h('span', { class: 'label' }, h('span', { class: 'nm ' + (c.type === 'dm' ? rankClass((profileOf(label) || {}).role) : isAiChat(c) ? 'adam-name' : '') }, convoTitle(c), streakChip(c.id)), h('span', { class: 'prev' }, previewText(c))),
       isMuted(c.id) && h('span', { class: 'muteicon', title: 'Muted' }, '\u{1F515}'),
       notifyLevel(c.id) === 'mentions' && h('span', { class: 'muteicon', title: 'Mentions only' }, '@'),
       h('span', { class: 'when' }, ago(latest[c.id])),
@@ -4742,7 +4746,7 @@ function buildMessage(m, pending) {
     const who = m.ai ? IDIOCY_AI : IDIOCY;
     const el = h('div', { class: 'msg official', 'data-user': key(who), 'data-time': m.time || Date.now() },
       avatar(who),
-      h('div', { class: 'head' }, h('span', { class: 'name', title: m.ai ? ADAM_FULL : null }, m.ai ? ADAM : IDIOCY), m.ai
+      h('div', { class: 'head' }, h('span', { class: 'name' + (m.ai ? ' adam-name' : ''), title: m.ai ? ADAM_FULL : null }, m.ai ? ADAM : IDIOCY), m.ai
         ? h('span', { class: 'badge aibadge', title: 'Idiocy\u2019s AI admin' }, '\u{1F916} AI ADMIN')
         : h('span', { class: 'badge offbadge', title: 'From the people who run Idiocy' }, '\u2713 OFFICIAL'),
         stamp(h('span', { class: 'time' }), m.time)),
