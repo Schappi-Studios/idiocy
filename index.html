@@ -53,7 +53,7 @@
     --gold: #ffc857;
     --admin: #d11a2a;
     --mod: #0e8a63;
-    --adam: #9a7400;
+    --adam: #7c3aed;
     color-scheme: light;
   }
   /* Dark mode: chosen in Settings, or following the device when set to Auto. */
@@ -71,7 +71,7 @@
     --ok: #2ecc8a;
     --admin: #ff4d5e;
     --mod: #2fd39a;
-    --adam: #f0dc3a;
+    --adam: #b794ff;
     color-scheme: dark;
   }
   :root[data-theme="dark"] .ment.you { color: #ffd98a; }
@@ -112,6 +112,7 @@
   .admin-name { color: var(--admin) !important; }
   .mod-name { color: var(--mod) !important; }
   .adam-name { color: var(--adam) !important; }
+  aside .admin-name, aside .mod-name, aside .adam-name { font-weight: 700 !important; } /* in the chat and friends lists, names in a colour are bold too */
   .badge {
     display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .5px;
     background: var(--gold); color: #1a1400; border-radius: 4px; padding: 1px 5px;
@@ -1759,7 +1760,7 @@
     --gold: #ffc20e;
     --admin: #ff3b52;
     --mod: #22e3a0;
-    --adam: #ffe14d;
+    --adam: #c58cff;
     --bevel: inset 2px 2px 0 rgba(255, 255, 255, .07), inset -2px -2px 0 rgba(0, 0, 0, .35);
     --title: "Luckiest Guy", "Arial Rounded MT Bold", system-ui, sans-serif;
     --round: "Nunito", "Arial Rounded MT Bold", system-ui, sans-serif;
