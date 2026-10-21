@@ -1367,6 +1367,8 @@
   .modal.terms .termsbody p { margin: 0 0 8px; }
   .modal.terms .termsbody ul { margin: 0 0 8px; padding-left: 20px; }
   .modal.terms .termsbody li { margin-bottom: 6px; }
+  .modal.jail textarea { width: 100%; box-sizing: border-box; margin: 6px 0; }
+  .modal.jail .jailask h3 { margin: 14px 0 4px; font-size: 15px; }
   .modal.terms .btns { position: sticky; bottom: -20px; margin: 8px -20px -20px; padding: 12px 20px 20px; background: var(--panel); border-top: 1px solid var(--border); }
   body.guest .msg .acts { display: none !important; } /* report, edit, delete: nothing to do signed out */
   /* ---------- Idiocy Shorts ---------- */
@@ -3068,7 +3070,8 @@ async function apiRaw(action, data) {
     location.reload();
     return new Promise(() => {}); // the page is reloading
   }
-  if (!d.ok && d.auth) signOut(d.error);
+  if (!d.ok && d.auth && d.banned) { const t = token; if (t) { signOut(); openJail('ban', t); } }
+  else if (!d.ok && d.auth) signOut(d.error);
   if (d.names) noteNames(d.names);
   return d;
 }
@@ -3473,6 +3476,7 @@ $('authform').addEventListener('submit', async e => {
   $('autherr').textContent = '';
   try {
     const d = await api('login', { username: $('auser').value, password: $('apass').value });
+    if (!d.ok && d.banned && d.token) { $('apass').value = ''; openJail('ban', d.token); return; }
     if (!d.ok) { $('autherr').textContent = d.error; return; }
     signedIn(d.token);
     $('apass').value = '';
@@ -3665,11 +3669,17 @@ We reserve the right to update or modify these Terms at any time. We will notify
 # 8. Contact Information
 - Contact Us: If you have questions regarding these Terms, please contact an Idiocy admin.
 - More contacts: If you have any questions regarding behaviour and/or reports, please use the report feature and our admins will try their best to resolve it.`;
-function termsBody() {
+// part: [first heading, the one after the last] to show just some of it, e.g. ['# 2.', '# 4.'] for the rules.
+function termsBody(part) {
   const out = [];
   let list = null;
   const line = t => { const m = /^([^:.]{2,45}):\s(.+)$/.exec(t); return m ? [h('b', null, m[1] + ':'), ' ' + m[2]] : [t]; };
-  TERMS.split('\n').forEach(t => {
+  let lines = TERMS.split('\n');
+  if (part) {
+    const a = lines.findIndex(t => t.startsWith(part[0])), b = lines.findIndex((t, i) => i > a && t.startsWith(part[1]));
+    lines = lines.slice(Math.max(0, a), b < 0 ? undefined : b);
+  }
+  lines.forEach(t => {
     if (t.startsWith('- ')) { if (!list) out.push(list = h('ul')); list.append(h('li', null, ...line(t.slice(2)))); return; }
     list = null;
     out.push(t.startsWith('## ') ? h('h4', null, t.slice(3)) : t.startsWith('# ') ? h('h3', null, t.slice(2)) : h('p', null, ...line(t)));
@@ -3701,6 +3711,57 @@ function openTerms(agree) {
   return md;
 }
 const askTerms = () => { if (me && !document.querySelector('.modal.terms.asking')) openTerms(true); };
+
+// ---------- banned or timed out ----------
+// A screen with the rules and a way to ask for it to be lifted. Banned: there's no getting past it (appealToken
+// is a login that can only ask). Timed out: it counts down, and goes by itself when the timeout ends.
+let jailMd = null;
+function openJail(kind, appealToken, until) {
+  if (jailMd && jailMd.overlay.isConnected) return;
+  const banned = kind === 'ban';
+  const left = h('b');
+  const tick = () => {
+    if (banned) return;
+    const ms = (until || 0) - Date.now();
+    if (ms <= 0) { closeJail(); toast('Your timeout is over. Welcome back!'); return; }
+    const m = Math.ceil(ms / 60000);
+    left.textContent = m >= 120 ? `${Math.round(m / 60)} hours` : m >= 60 ? '1 hour' + (m > 60 ? ` and ${m - 60} minute${m - 60 === 1 ? '' : 's'}` : '') : `${m} minute${m === 1 ? '' : 's'}`;
+  };
+  tick();
+  const timer = banned ? 0 : setInterval(tick, 15000);
+  const text = h('textarea', { rows: 4, maxlength: 500, placeholder: banned ? 'What happened, and why should you be unbanned?' : 'What happened, and why should your timeout end early?' });
+  const sendBtn = h('button', { class: 'primary' }, banned ? 'Ask to be unbanned' : 'Ask to end it early');
+  const ask = h('div', { class: 'jailask' }, h('h3', null, banned ? '\u{1F64F} Ask to be unbanned' : '\u{1F64F} Ask to end your timeout'), text, h('div', { class: 'btns', style: 'justify-content:flex-start' }, sendBtn));
+  const asked = () => ask.replaceChildren(h('p', { class: 'termsask' }, '\u2705 Sent. An admin will look at it. You can only ask once at a time.'));
+  const call = (action, data) => fetch(API_URL, { method: 'POST', body: JSON.stringify({ action, token: appealToken || token, ...data }) }).then(r => r.json()).catch(() => ({ ok: false, error: 'Could not reach the server' }));
+  sendBtn.onclick = async () => {
+    if (!text.value.trim()) return toast('Write why first', true);
+    sendBtn.disabled = true;
+    const d = await call('appeal', { text: text.value });
+    sendBtn.disabled = false;
+    if (!d.ok) return toast(d.error || 'Something went wrong', true);
+    asked();
+  };
+  call('appealInfo').then(d => { if (d.ok && d.asked) asked(); else if (d.ok && d.soon) ask.replaceChildren(h('p', { class: 'termsask' }, 'You asked recently. You can ask again tomorrow.')); });
+  const md = modal('terms wide asking jail',
+    h('h2', null, banned ? '\u{1F6AB} You\u2019re banned from Idiocy' : '\u23F3 You\u2019re timed out'),
+    h('p', { class: 'termsask' }, ...(banned ? ['An admin banned this account for breaking Idiocy\u2019s rules, so you can\u2019t use Idiocy right now.']
+      : ['You can\u2019t use Idiocy for ', left, ' because an admin or moderator timed you out for breaking the rules. This screen goes away by itself when it\u2019s over.'])),
+    ask,
+    h('h3', null, '\u{1F4DC} Idiocy\u2019s rules'),
+    h('div', { class: 'termsbody' }, ...termsBody(['# 2.', '# 4.'])),
+    h('p', { class: 'hint' }, h('a', { href: 'https://idiocy.schappistudios.com/terms', target: '_blank', rel: 'noopener' }, 'Read all of the Terms and Conditions')),
+    h('div', { class: 'btns' }, h('button', { class: 'ghost danger', onclick: () => { closeJail(); if (banned) showAuth(); else logOut(); } }, banned ? 'Back to sign in' : 'Log out')));
+  md.overlay.dataset.keep = '1';
+  Object.assign(md, { timer, banned });
+  jailMd = md;
+}
+function closeJail() {
+  if (!jailMd) return;
+  clearInterval(jailMd.timer);
+  jailMd.close();
+  jailMd = null;
+}
 
 function showAuth(msg) {
   $('app').classList.add('hidden');
@@ -3992,6 +4053,8 @@ async function poll() {
     setStatus(true);
     me = d.me;
     if (d.terms && me.terms === false) askTerms();
+    if (serverApi >= 63 && me.muted > Date.now() && !me.actor) openJail('timeout', null, me.muted);
+    else if (jailMd && !jailMd.banned) closeJail(); // lifted early
     latest = d.latest;
     streaks = d.streaks || {};
     settings = d.settings || settings;
@@ -9018,13 +9081,14 @@ function handlePings(pings) {
     : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
     : p.kind === 'newuser' ? `\u{1F44B} @${p.from} just joined Idiocy${p.text ? ` (${p.text})` : ''}. Click to see their profile.`
     : p.kind === 'neworg' ? `\u{1F3E2} @${p.by} made an organisation: @${p.from}${p.text ? ` (${p.text})` : ''}. Click to see it.`
+    : p.kind === 'appeal' ? `\u{1F64F} @${p.from} ${p.what === 'ban' ? 'asked to be unbanned' : 'asked to end their timeout'}: \u201C${p.text}\u201D. Click to see it in Reports.`
     : p.kind === 'aiflag' ? `${p.urgent ? '\u26A0\uFE0F ' : ''}\u{1F916} ADAM ${p.removed ? 'took down' : p.stopped ? 'stopped' : 'flagged'} a ${({ group: 'picture in a group', grouppic: 'group picture', avatar: 'profile picture', emoji: 'new emoji' })[p.what] || p.what || 'post'} by @${p.from}: ${p.text}. Click to see it in Reports.`
     : `${from} ${where}: ${tame(noStyle(p.text))}`;
   const go = () => (p.kind === 'removed' ? null
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
     : p.kind === 'orginvite' || p.kind === 'newuser' || p.kind === 'neworg' ? openProfile(p.from) : p.kind === 'orgjoin' ? openProfile(p.text)
-    : p.kind === 'aiflag' ? openAdmin()
+    : p.kind === 'aiflag' || p.kind === 'appeal' ? openAdmin()
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && !prefs.push && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
@@ -9869,7 +9933,19 @@ function openAdmin() {
     if (missing) stillsBar.replaceChildren(h('span', null, `\u{1F5BC}\uFE0F ${missing} code post${missing === 1 ? ' doesn\u2019t' : 's don\u2019t'} have a preview yet.`),
       h('button', { class: 'primary', onclick: () => makeStills(todo, () => load()) }, 'Make them now'));
     if (tab === 'reports') {
-      body.replaceChildren(...(data.reports.length ? data.reports.map(r => h('div', { class: 'card enter' },
+      // Someone asking to be unbanned (or for their timeout to end): lift it, say no, or message them.
+      const appealCard = r => h('div', { class: 'card enter' },
+        h('div', { class: 'meta' }, '\u{1F64F} ', h('b', { style: 'color:var(--text)' }, '@' + r.sender), r.appeal === 'ban' ? ' asks to be unbanned' : ' asks for their timeout to end early',
+          ` \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
+        h('q', null, r.text || '(no text)'),
+        h('div', { class: 'btns' },
+          r.appeal === 'ban'
+            ? h('button', { class: 'primary', onclick: async () => { if (confirm(`Unban ${r.sender}?`) && await act('unban', { username: r.sender }) && await act('resolveReport', { id: r.id, what: 'dismiss' })) { toast(`${r.sender} is unbanned`); load(); } } }, 'Unban')
+            : h('button', { class: 'primary', onclick: async () => { if (await act('timeout', { username: r.sender, minutes: 0 }) && await act('resolveReport', { id: r.id, what: 'dismiss' })) { toast(`${r.sender}\u2019s timeout ended`); load(); } } }, 'End timeout'),
+          h('button', { class: 'ghost', title: 'Leave it as it is', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Say no'),
+          serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy (they see it when they\u2019re back)', onclick: () => openIdiocyMessenger(r.sender, 'About your request: ') }, '\u{1F4E3} Message'),
+          h('button', { class: 'ghost', onclick: () => openProfile(r.sender) }, 'See profile')));
+      body.replaceChildren(...(data.reports.length ? data.reports.map(r => r.appeal ? appealCard(r) : h('div', { class: 'card enter' },
         h('div', { class: 'meta' }, r.account ? ['\u{1F464} ', h('b', { style: 'color:var(--text)' }, '@' + r.sender), '\u2019s account'] : [h('b', { style: 'color:var(--text)' }, r.sender), ` in ${r.where}`],
           ` \u00b7 reported by ${r.reporter} \u00b7 ${new Date(r.time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}`),
         h('q', null, r.text || (r.account ? '(no name, status or bio)' : '(no text)')),
