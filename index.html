@@ -9672,8 +9672,8 @@ function linesChart(rows, series) {
     dots.forEach((d, j) => d.classList.toggle('on', j === i));
     marks.forEach((m, k) => { m.style.left = X(i) + '%'; m.style.top = Y(series[k].ns[i]) + '%'; });
     guide.style.left = X(i) + '%';
-    readout.replaceChildren(rows[i].name + ' · ', ...(one ? [h('b', null, series[0].say(series[0].ns[i]))]
-      : series.flatMap((s, k) => [k ? '  ' : '', swatch(s), h('b', null, s.say(s.ns[i]))])));
+    readout.replaceChildren(rows[i].name + ' · ', ...(one ? [h('b', null, series[0].say(series[0].ns[i], i))]
+      : series.flatMap((s, k) => [k ? '  ' : '', swatch(s), h('b', null, s.say(s.ns[i], i))])));
   };
   const plot = h('div', { class: 'lplot', role: 'img', 'aria-label': rows.map((r, i) => `${r.name}: ${series.map(s => (one ? '' : s.label + ' ') + s.ns[i]).join(', ')}`).join(one ? ', ' : '; ') },
     svg, guide, ...dots, ...marks, ...levels.map(v => h('span', { class: 'ylab', style: `top:${Y(v)}%` }, String(v))), ...ticks);
@@ -10012,7 +10012,8 @@ function timeBuckets(by, first) {
 // weeks or months. Remembered on this device.
 const GRAPHS = [
   { k: 'adam', label: '\u{1F916} ADAM stops', need: 'adam', say: n => `${n} stopped`, times: d => d.adam.events.filter(e => e.kind === 'stopped').map(e => e.t) },
-  { k: 'joins', label: '\u{1F44B} People joining', need: 'stats', say: n => `${n} joined`, times: d => d.stats.joined.filter(Boolean) },
+  { k: 'joins', label: '\u{1F44B} People joining', need: 'stats', times: d => d.stats.joined.filter(Boolean),
+    say: (n, r, d) => `${n} joined` + (r && d ? ` (${d.stats.joined.filter(t => !t || t < Math.min(r.b, Date.now())).length} on Idiocy)` : '') },
   { k: 'reports', label: '\u{1F6A9} Reports made', need: 'stats', say: n => `${n} ${n === 1 ? 'report' : 'reports'}`, times: d => d.stats.reported || [] },
 ];
 const GRAPH_COLORS = ['#7c5cff', '#e5484d', '#12a594', '#f76b15', '#0090ff', '#d6409f'];
@@ -10067,7 +10068,7 @@ function graphCard() {
     const rows = timeBuckets(by, Math.min(Date.now(), ...lines.flatMap(x => x.times)));
     const many = lines.length > 1, today = new Date(); today.setHours(0, 0, 0, 0);
     chart.replaceChildren(lines.every(x => !x.times.length) ? h('div', { class: 'actnote' }, 'Nothing yet.')
-      : linesChart(rows, lines.map(x => ({ ns: rows.map(r => x.times.filter(t => t >= r.a && t < r.b).length), say: x.g.say, label: x.g.label, ...(many && { color: colorOf(x.k) }) }))));
+      : linesChart(rows, lines.map(x => ({ ns: rows.map(r => x.times.filter(t => t >= r.a && t < r.b).length), say: (n, i) => x.g.say(n, rows[i], data), label: x.g.label, ...(many && { color: colorOf(x.k) }) }))));
     sum.replaceChildren(...lines.map(x => h('div', null, many && h('span', { class: 'lsw', style: `background:${colorOf(x.k)}` }), many ? x.g.label + ': ' : '',
       `${x.times.filter(t => t >= +today).length} today · ${x.times.filter(t => t >= +today - 6 * 864e5).length} in the last 7 days · ${x.times.length} in all`)));
   };
@@ -10380,7 +10381,8 @@ function openAdmin(start, dock) {
     const rows = [];
     for (let i = 0; i < per.max; i++) {
       const from = per.start(i), to = i ? per.start(i - 1) : new Date(8.64e15);
-      rows.unshift({ name: per.name(from, i), tick: per.tick(from), n: dated.filter(t => t >= +from && t < +to).length });
+      rows.unshift({ name: per.name(from, i), tick: per.tick(from), n: dated.filter(t => t >= +from && t < +to).length,
+        all: s.joined.filter(t => !t || t < Math.min(+to, Date.now())).length }); // everyone by the end of it (no date: from the start)
       if (+from <= first) break;
     }
     const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -10400,7 +10402,7 @@ function openAdmin(start, dock) {
         style: statsBy === k ? 'border-color:var(--accent);color:var(--accent)' : '',
         onclick: () => { statsBy = k; drawStats(); },
       }, label))),
-      lineChart(rows, n => `${n} ${n === 1 ? 'person' : 'people'} joined`),
+      lineChart(rows, (n, i) => `${n} ${n === 1 ? 'person' : 'people'} joined \u00b7 ${rows[i].all} on Idiocy ${i === rows.length - 1 ? 'now' : 'by then'}`),
       h('div', { class: 'actnote' }, 'Counted in your time zone. Not counting organisations, the test accounts ATLAS and P-body, or deleted accounts.'
         + (dated.length < s.joined.length ? ` ${plural(s.joined.length - dated.length, 'account')} from before join dates were kept ${s.joined.length - dated.length === 1 ? 'is' : 'are'} only in the totals.` : '')),
       h('h3', null, 'Most followed'),
