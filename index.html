@@ -2030,7 +2030,7 @@
       </div>
       <div id="feedtabs" class="hidden" role="tablist" aria-label="Which posts"><button type="button" role="tab" data-tab="global">Feed</button><button type="button" role="tab" data-tab="code">&lt;/&gt; Code</button></div>
       <button class="iconbtn hidden" id="searchbtn" title="Search messages (Ctrl+K)" aria-label="Search messages"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></button>
-      <button class="ghost hidden" id="gadd">Add people</button>
+      <button class="ghost hidden" id="gadd">Invite</button>
       <button class="ghost hidden" id="ginfo">Info</button>
       <button class="hidden" id="joincall" title="Join the group call">&#x1F4DE; Join call</button>
       <button class="iconbtn hidden" id="callbtn" title="Voice call" aria-label="Voice call">&#x1F4DE;</button>
@@ -4424,6 +4424,12 @@ function renderSide() {
 
   const reqs = [], asOrg = orgMe();
   wantProfiles(st.incoming); // for their names
+  // Invited to a group: they're in when they say yes.
+  (st.groupInvites || []).forEach(g => reqs.push(fresh(h('div', { class: 'req' },
+    h('b', null, displayName(g.by)), ' invited you to ', h('b', null, g.name),
+    h('div', { class: 'actions' },
+      h('button', { class: 'primary', style: 'padding:4px 12px', onclick: () => answerGroupInvite(g, true) }, 'Join'),
+      h('button', { class: 'ghost', onclick: () => answerGroupInvite(g, false) }, 'Decline'))), 'gi:' + g.convo)));
   document.querySelector('aside .sec.friends .sec-head').textContent = asOrg ? 'Followers' : 'Friends';
   $('addfriend').classList.toggle('hidden', asOrg);
   // People who follow you (follow them back and you're friends), then people you follow.
@@ -4763,7 +4769,7 @@ $('newgroup').onclick = () => picker({
   onSubmit: async (members, name) => {
     if (!name.trim()) { toast('Give the group a name', true); return false; }
     const d = await act('createGroup', { name, members });
-    if (d) switchTo(d.convo);
+    if (d) { switchTo(d.convo); if (d.invited) toast(invitedToast(d.invited)); }
     return !!d;
   },
 });
@@ -4771,10 +4777,18 @@ $('newgroup').onclick = () => picker({
 $('gadd').onclick = () => {
   const c = st.convos.find(c => c.id === openId);
   picker({
-    title: 'Add people', exclude: c.members, button: 'Add',
-    onSubmit: async members => !!(await act('addToGroup', { convo: openId, members })),
+    title: serverApi >= 80 ? 'Invite people' : 'Add people', exclude: c.members.concat((c.inv || []).map(x => x.n)), button: serverApi >= 80 ? 'Invite' : 'Add',
+    onSubmit: async members => { const d = await act('addToGroup', { convo: openId, members }); if (d && d.invited) toast(invitedToast(d.invited)); return !!d; },
   });
 };
+// Nobody's put in a group any more: they're invited, and they're in when they say yes.
+const invitedToast = names => `Invited ${names.length === 1 ? displayName(names[0]) : names.length + ' people'}. They\u2019re in when they say yes.`;
+async function answerGroupInvite(g, yes) {
+  const d = await act('answerGroupInvite', { convo: g.convo, yes }, null, s => { s.groupInvites = (s.groupInvites || []).filter(x => x.convo !== g.convo); });
+  if (!d) return;
+  if (yes) { if (isPhone()) setView('chat'); switchTo(g.convo); toast(`You joined \u201C${g.name}\u201D`); }
+  else toast(`You said no to \u201C${g.name}\u201D`);
+}
 
 async function leaveGroup(id) {
   if (!confirm('Leave this group?')) return false;
@@ -4934,6 +4948,14 @@ function openGroupInfo(id) {
               if (d) { toast(`${displayName(n)} was removed`); draw(); }
             },
           }, 'Remove'))))),
+      (c.inv || []).length > 0 && h('h3', null, `Invited (${c.inv.length})`),
+      (c.inv || []).length > 0 && h('div', { class: 'members' }, c.inv.map(x => h('div', { class: 'mrow' },
+        avatar(x.n),
+        h('span', { class: 'nm', onclick: () => openProfile(x.n) }, displayName(x.n), h('span', { class: 'muted', style: 'font-weight:400' }, ` \u00b7 invited by ${key(x.by) === key(me.name) ? 'you' : displayName(x.by)}`)),
+        (canManage || key(x.by) === key(me.name)) && h('button', { class: 'ghost', title: 'Take the invite back', onclick: async () => {
+          const d = await act('cancelGroupInvite', { convo: id, username: x.n }, null, s => { const g = s.convos.find(y => y.id === id); if (g) g.inv = (g.inv || []).filter(y => key(y.n) !== key(x.n)); });
+          if (d) { toast(`Took back the invite to ${displayName(x.n)}`); draw(); }
+        } }, 'Take back')))),
       serverApi >= 26 && h('div', { class: 'toggle' }, h('span', null, 'Swear filter',
           h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, canManage ? filterHint() : filterHint() + ' The owner and admins choose it.',
             c.ag && ' Admins and moderators aren\u2019t filtered or checked here (it\u2019s the official admin group).')),
@@ -4956,7 +4978,7 @@ function openGroupInfo(id) {
       h('div', { class: 'btns', style: 'justify-content:space-between' },
         h('button', { class: 'ghost danger', onclick: async () => { if (await leaveGroup(id)) md.close(); } }, 'Leave group'),
         h('div', { style: 'display:flex;gap:8px' },
-          h('button', { class: 'ghost', onclick: () => { md.close(); if (openId !== id) switchTo(id); $('gadd').click(); } }, 'Add people'),
+          h('button', { class: 'ghost', onclick: () => { md.close(); if (openId !== id) switchTo(id); $('gadd').click(); } }, serverApi >= 80 ? 'Invite people' : 'Add people'),
           h('button', { class: 'primary', onclick: () => md.close() }, 'Done'))));
   };
   draw();
@@ -6098,7 +6120,7 @@ function renderTabs() {
   };
   badge('chats', st.convos.filter(c => c.type !== 'global' && isUnread(c.id)).length);
   badge('feed', isUnread('global') ? 1 : 0, true);
-  badge('friends', orgMe() ? 0 : asking().length); // an organisation's followers aren't waiting for anything
+  badge('friends', orgMe() ? 0 : asking().length + ((st && st.groupInvites) || []).length); // an organisation's followers aren't waiting for anything
   const mine = $('mtabme');
   if (mine.dataset.name !== me.name) mine.replaceWith(Object.assign(avatar(me.name, { click: false }), { id: 'mtabme' }));
   else paintAvatar(mine);
@@ -9186,7 +9208,7 @@ function handlePings(pings) {
   if (!pings.length) return;
   // Skip what you're already looking at (comments live inside the feed, so they always count).
   // Friend requests/accepts change the friends list: fetch it on the very next poll.
-  if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' || p.kind === 'orginvite' || p.kind === 'orgjoin')) { uv = null; pollNow(); }
+  if (pings.some(p => p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' || p.kind === 'orginvite' || p.kind === 'orgjoin' || p.kind === 'groupinvite')) { uv = null; pollNow(); }
   const shown = pings.filter(p => p.kind === 'comment' || p.kind === 'removed' || p.kind === 'friendreq' || p.kind === 'friendaccept' || p.kind === 'invitejoin' || !p.convo ||
       !(p.convo === openId && !document.hidden))
     .filter(p => p.kind === 'removed' || p.kind === 'idiocy' || !p.convo || (!isMuted(p.convo) && !(p.kind === 'group' && notifyLevel(p.convo) === 'mentions' && !forMe(p))));
@@ -9205,13 +9227,14 @@ function handlePings(pings) {
     : p.kind === 'orginvite' ? `\u{1F3E2} ${p.text} invited you to help run ${from}. Click to see it.`
     : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
     : p.kind === 'support' ? `\u{1F4AC} @${p.from} asked Idiocy Support: \u201C${p.text}\u201D. Click to answer.`
+    : p.kind === 'groupinvite' ? `\u{1F465} ${from} invited you to the group \u201C${p.text}\u201D. Click to say yes or no.`
     : p.kind === 'newuser' ? `\u{1F44B} @${p.from} just joined Idiocy${p.text ? ` (${p.text})` : ''}. Click to see their profile.`
     : p.kind === 'neworg' ? `\u{1F3E2} @${p.by} made an organisation: @${p.from}${p.text ? ` (${p.text})` : ''}. Click to see it.`
     : p.kind === 'appeal' ? `\u{1F64F} @${p.from} ${p.what === 'ban' ? 'asked to be unbanned' : 'asked to end their timeout'}: \u201C${p.text}\u201D. Click to see it in Reports.`
     : p.kind === 'aiflag' ? `${p.urgent ? '\u26A0\uFE0F ' : ''}\u{1F916} ADAM ${p.removed ? 'took down' : p.stopped ? 'stopped' : 'flagged'} a ${({ group: 'picture in a group', grouppic: 'group picture', avatar: 'profile picture', emoji: 'new emoji' })[p.what] || p.what || 'post'} by @${p.from}: ${p.text}. Click to see it in Reports.`
     : `${from} ${where}: ${tame(noStyle(p.text))}`;
   const go = () => (p.kind === 'removed' ? null
-    : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
+    : p.kind === 'friendreq' || p.kind === 'groupinvite' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests (and invites) live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
     : p.kind === 'orginvite' || p.kind === 'newuser' || p.kind === 'neworg' ? openProfile(p.from) : p.kind === 'orgjoin' ? openProfile(p.text)
     : p.kind === 'aiflag' || p.kind === 'appeal' ? openAdmin() : p.kind === 'support' ? openAdmin('support')
@@ -9219,7 +9242,7 @@ function handlePings(pings) {
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && !prefs.push && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind.startsWith('new') || p.kind === 'removed' || p.kind === 'invitejoin' || p.kind === 'aiflag' || p.kind === 'support';
+      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind.startsWith('new') || p.kind === 'removed' || p.kind === 'invitejoin' || p.kind === 'aiflag' || p.kind === 'support' || p.kind === 'groupinvite';
       const n = new Notification(plain ? text : `${from} ${where}`,
         { body: plain ? '' : tame(noStyle(p.text)), icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
