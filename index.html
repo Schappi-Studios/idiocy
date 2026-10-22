@@ -8468,7 +8468,7 @@ $('attach').onclick = () => {
     item('\u{1F5BC}\uFE0F', 'Picture', () => $('attachfile').click()),
     item('\u{1F4F7}', 'Take photo', () => takePhoto()),
     serverApi >= 11 && item('\u{1F4CA}', 'Poll', openPollMaker),
-    serverApi >= 51 && curConvo() && curConvo().type === 'dm' && item('\u{1F4CE}', 'File', () => $('anyfile').click()));
+    serverApi >= 51 && curConvo() && (curConvo().type === 'dm' || (serverApi >= 82 && curConvo().type === 'group')) && item('\u{1F4CE}', 'File', () => $('anyfile').click()));
   document.body.append(plusMenu);
   const r = $('attach').getBoundingClientRect();
   plusMenu.style.left = Math.max(8, r.left) + 'px';
