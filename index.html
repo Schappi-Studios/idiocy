@@ -3740,7 +3740,7 @@ async function sendSignupCode() {
   const d = await api('signupStart', Object.assign(signupData(), { email }));
   if (!d.ok) {
     // Back to whichever answer needs fixing.
-    const back = /first name|last name/i.test(d.error) ? 'name' : /username|your @|that @/i.test(d.error) ? 'handle' : /password/i.test(d.error) ? 'password' : null;
+    const back = d.stopped || /first name|last name/i.test(d.error) ? 'name' : /username|your @|that @/i.test(d.error) ? 'handle' : /password/i.test(d.error) ? 'password' : null;
     if (back) showSignupStep(back);
     $('suerr').textContent = d.error;
     return false;
@@ -10387,15 +10387,16 @@ function openAdmin(start, dock) {
         h('div', { class: 'meta' }, 'Reason: ' + r.reason),
         r.face ? h('div', { class: 'meta' }, '\u{1F642} Already up, and ADAM thinks it shows a real person\u2019s face (faces aren\u2019t allowed in pictures now). You decide.')
           : r.removed ? h('div', { class: 'meta' }, '\u{1F5D1}\uFE0F Already there, so ADAM took it down')
-          : r.stopped && h('div', { class: 'meta' }, '\u{1F6D1} Stopped before it went up, so nobody saw it'),
+          : r.stopped && h('div', { class: 'meta' }, r.signup ? '\u{1F6D1} Stopped at sign-up, so the account was never made' : '\u{1F6D1} Stopped before it went up, so nobody saw it'),
         h('div', { class: 'btns' },
           !r.account && !r.stopped && r.post && h('button', { class: 'ghost', title: 'Open the post (for a comment, the post it\u2019s on)', onclick: () => { md.close(); openPost(r.post); } }, '\u{1F440} See it'),
           r.account ? h('button', { class: 'primary', onclick: () => openProfile(r.sender) }, 'See profile')
             : !r.stopped && h('button', { class: 'primary', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'delete' })) { toast('Message deleted'); load(); } } }, 'Delete message'),
           h('button', { class: 'ghost', onclick: async () => { if (await act('resolveReport', { id: r.id, what: 'dismiss' })) load(); } }, 'Dismiss'),
+          ...(r.signup ? [] : [ // (a sign-up ADAM stopped: there's nobody to warn, time out or ban)
           serverApi >= 42 && h('button', { class: 'ghost', title: 'Message them as Idiocy about it', onclick: () => openIdiocyMessenger(r.sender, r.account ? '\u26A0\uFE0F About your account: ' : `\u26A0\uFE0F About your message "${r.text}" in ${r.where}: `, serverApi >= 72 ? handled(r) : null) }, '\u{1F4E3} Warn'),
           ...timeoutButtons(r.sender, serverApi >= 72 ? handled(r) : load),
-          !mod && h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); if (serverApi >= 72) handled(r)(); else load(); } } }, 'Ban'),
+          !mod && h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${r.sender}?`) && await act('ban', { username: r.sender })) { toast(`${r.sender} banned`); if (serverApi >= 72) handled(r)(); else load(); } } }, 'Ban')]),
           r.account && serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(r.sender, serverApi >= 72 ? handled(r) : null) }, '\u267B\uFE0F Reset profile'),
           !mod && r.account && h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(r.sender, load) }, 'Delete account')));
       // The filter: which kinds, which people (only them, or hide them), a search, and the order. It stays while the panel's open.
