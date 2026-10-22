@@ -1754,6 +1754,9 @@
   }
   /* ---------- admin stats ---------- */
   .lchart { margin: 12px 0 8px; }
+  .adamv { border-radius: 8px; padding: 6px 10px; margin: 2px 0; }
+  .adamv.bad { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--text); }
+  .adamv.ok { background: var(--panel-2); }
   .lsw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 5px 0 2px; vertical-align: -1px; flex-shrink: 0; }
   .lkey { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
   .adtrend { font-weight: 600; margin: -4px 0 4px; }
@@ -2999,6 +3002,16 @@ async function openSupportThread(username, waiting, done) {
   if (!d) return md.close();
   paint(d);
   setTimeout(() => text.focus(), 50);
+}
+
+// What ADAM thinks of a report (people's reports, any chat): which rules and how sure, or that it looks fine.
+// It's only its opinion: admins decide.
+function adamVerdict(v) {
+  const pct = x => Math.round(x.p * 100) + '%';
+  const bad = (v.flags || []).length > 0;
+  return h('div', { class: 'meta adamv ' + (bad ? 'bad' : 'ok'), title: 'ADAM\u2019s opinion. You decide.' }, '\u{1F916} ',
+    bad ? ['ADAM thinks it breaks the rules: ', h('b', null, v.flags.map(f => `${f.label} (${pct(f)} sure)`).join(', '))]
+      : ['ADAM thinks it\u2019s fine', (v.top || []).length ? ` (the most it saw: ${v.top[0].label.toLowerCase()}, ${pct(v.top[0])})` : '', '. It might not break the rules.']);
 }
 
 // ---------- blocking ----------
@@ -9962,6 +9975,7 @@ function openBanHammer(users, onBanned) {
 
 // Moderators get the same panel with less in it: Reports, and People (timeouts and warnings for ordinary accounts).
 // ADAM's hello to everyone, once: what it says, then a button (or who sent it and when).
+// ADAM's hello: ADAM sends it to everyone when they join, in their own ADAM chat (older servers: an admin sent it once).
 function adamHelloCard(a, done) {
   const go = h('button', { class: 'primary', onclick: async () => {
     if (!confirm('Send this from ADAM to everyone on Idiocy now? They each get a notification, and it can only be sent once.')) return;
@@ -9973,9 +9987,11 @@ function adamHelloCard(a, done) {
     done();
   } }, '\u{1F44B} Send it to everyone');
   return h('div', { style: 'margin-top:18px' }, h('b', null, '\u{1F44B} ADAM\u2019s hello'),
-    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin:4px 0 8px' }, 'A message from ADAM to everyone (not organisations or banned accounts), in their own ADAM chat. It can only be sent once.'),
+    h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin:4px 0 8px' }, a.auto
+      ? 'ADAM sends this to everyone when they join, in their own ADAM chat (not organisations).'
+      : 'A message from ADAM to everyone (not organisations or banned accounts), in their own ADAM chat. It can only be sent once.'),
     h('div', { class: 'card', style: 'white-space:pre-wrap;font-size:14px' }, a.text),
-    a.sent ? h('div', { class: 'hint', style: 'margin-top:8px' }, `\u2705 Sent to ${a.sent.n} ${a.sent.n === 1 ? 'person' : 'people'} by ${a.sent.by}, ${new Date(a.sent.t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`)
+    a.auto ? null : a.sent ? h('div', { class: 'hint', style: 'margin-top:8px' }, `\u2705 Sent to ${a.sent.n} ${a.sent.n === 1 ? 'person' : 'people'} by ${a.sent.by}, ${new Date(a.sent.t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`)
       : h('div', { class: 'btns', style: 'justify-content:flex-start;margin-top:8px' }, go));
 }
 
@@ -10461,6 +10477,7 @@ function openAdmin(start, dock) {
             h('span', { class: 'when' }, new Date(c.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })),
             c.sys ? c.t : [h('b', null, c.n), ': ', c.t || '(no text)']))),
         h('div', { class: 'meta' }, 'Reason: ' + r.reason),
+        r.adam && adamVerdict(r.adam),
         r.face ? h('div', { class: 'meta' }, '\u{1F642} Already up, and ADAM thinks it shows a real person\u2019s face (faces aren\u2019t allowed in pictures now). You decide.')
           : r.removed ? h('div', { class: 'meta' }, '\u{1F5D1}\uFE0F Already there, so ADAM took it down')
           : r.stopped && h('div', { class: 'meta' }, r.signup ? '\u{1F6D1} Stopped at sign-up, so the account was never made' : '\u{1F6D1} Stopped before it went up, so nobody saw it'),
@@ -10640,7 +10657,7 @@ function openAdmin(start, dock) {
         ...(serverApi >= 48 ? [h('div', { style: 'margin-top:18px' }, h('b', null, (serverApi >= 58 ? '\u{1F916} ADAM, the AI admin: ' : '\u{1F916} AI admin: ') + (data.ai ? 'on' : 'off')),
           h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin-top:4px' }, data.ai
             ? (serverApi >= 55
-              ? 'It checks every post, comment, Short, embed, project, profile picture and new emoji, and every picture sent in a group chat, before it goes up (pictures showing real people\u2019s faces aren\u2019t allowed in posts, profile and group pictures, or group chats), and stops anything that looks like it breaks the rules (the person is told why, and gets a message from ADAM saying so; you see who tried in Reports). If it can\u2019t check in time, it goes up and anything wrong is reported here instead. DMs are never checked, and in group chats it only sees pictures (and their captions).'
+              ? `It checks every post, comment, Short, embed, project, profile picture and new emoji, and every picture sent in a group chat, before it goes up (pictures showing real people\u2019s faces aren\u2019t allowed in posts, profile and group pictures, or group chats), and stops anything that looks like it breaks the rules (the person is told why, and gets a message from ADAM saying so; you see who tried in Reports). If it can\u2019t check in time, it goes up and anything wrong is reported here instead. DMs are never checked, and in group chats it only sees pictures (and their captions)${serverApi >= 81 ? ', unless someone reports a message: then it takes it down if it\u2019s sure it breaks the rules (90% or more), closes the report if it\u2019s clearly fine (everything under 15%), and otherwise leaves it for you with its opinion. It tells the admin group what it did. Account reports, admins\u2019 messages and anything about self-harm are always left for you' : ''}.`
               : 'It checks every post, comment, Short, embed and project before it goes up, and stops anything that looks like it breaks the rules (the person is told why, and you see who tried in Reports). If it can\u2019t check in time, the post goes up and anything wrong is reported here instead. DMs and group chats are never checked.')
             : 'It needs an OpenAI key on the server. Until then, nothing is checked by AI.'))] : []),
         ...(data.adamHello ? [adamHelloCard(data.adamHello, () => load())] : []));
