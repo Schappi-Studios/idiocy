@@ -625,7 +625,7 @@
   .ginfo .mrow { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 8px; }
   .ginfo .mrow:hover { background: var(--hover); }
   .ginfo .mrow .nm { flex: 1; min-width: 0; cursor: pointer; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .ginfo .members { display: flex; flex-direction: column; max-height: 260px; overflow-y: auto; }
+  .ginfo .members { display: flex; flex-direction: column; flex-shrink: 0; } /* all of them: the window scrolls (they were squashed to nothing in a busy one) */
   .ginfo .ownerbadge { font-size: 11px; color: var(--muted); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
 
   /* ---------- Global feed ---------- */
@@ -4972,7 +4972,8 @@ function openGroupInfo(id) {
       (c.inv || []).length > 0 && h('h3', null, `Invited (${c.inv.length})`),
       (c.inv || []).length > 0 && h('div', { class: 'members' }, c.inv.map(x => h('div', { class: 'mrow' },
         avatar(x.n),
-        h('span', { class: 'nm', onclick: () => openProfile(x.n) }, displayName(x.n), h('span', { class: 'muted', style: 'font-weight:400' }, ` \u00b7 invited by ${key(x.by) === key(me.name) ? 'you' : displayName(x.by)}`)),
+        h('div', { style: 'flex:1;min-width:0' }, h('span', { class: 'nm', onclick: () => openProfile(x.n) }, displayName(x.n)),
+          h('div', { style: 'font-size:12px;color:var(--muted)' }, `invited by ${key(x.by) === key(me.name) ? 'you' : displayName(x.by)}`)),
         (canManage || key(x.by) === key(me.name)) && h('button', { class: 'ghost', title: 'Take the invite back', onclick: async () => {
           const d = await act('cancelGroupInvite', { convo: id, username: x.n }, null, s => { const g = s.convos.find(y => y.id === id); if (g) g.inv = (g.inv || []).filter(y => key(y.n) !== key(x.n)); });
           if (d) { toast(`Took back the invite to ${displayName(x.n)}`); draw(); }
