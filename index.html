@@ -52,7 +52,7 @@
     --ok: #1fae6e;
     --gold: #ffc857;
     --admin: #d11a2a;
-    --mod: #0e8a63;
+    --mod: #b0179e;
     --adam: #7c3aed;
     color-scheme: light;
   }
@@ -70,7 +70,7 @@
     --danger: #ff5a70;
     --ok: #2ecc8a;
     --admin: #ff4d5e;
-    --mod: #2fd39a;
+    --mod: #f472d0;
     --adam: #b794ff;
     color-scheme: dark;
   }
@@ -1829,7 +1829,7 @@
     --ok: #12c46b;
     --gold: #ffc20e;
     --admin: #ff3b52;
-    --mod: #22e3a0;
+    --mod: #ff6fd8;
     --adam: #c58cff;
     --bevel: inset 2px 2px 0 rgba(255, 255, 255, .07), inset -2px -2px 0 rgba(0, 0, 0, .35);
     --title: "Luckiest Guy", "Arial Rounded MT Bold", system-ui, sans-serif;
@@ -2429,6 +2429,7 @@ function openProfile(name) {
       if (serverApi >= 42) btns.push(h('button', { class: 'ghost', onclick: () => openIdiocyMessenger(p.username || name) }, '\u{1F4E3} Message as Idiocy'));
       if (serverApi >= 67) btns.push(h('button', { class: 'ghost', onclick: () => openLimits(p.username || name, p.limits, () => openProfile(name)) }, '\u{1F6AB} Limits' + (limitCount(p.limits) ? ` (${limitCount(p.limits)})` : '')));
       if (serverApi >= 69 && me.owner && p.role !== 'org') btns.push(h('button', { class: 'ghost', onclick: () => setRank(p.username || name, true, () => { profiles.delete(key(name)); openProfile(name); }) }, '\u{1F6E1}\uFE0F Make admin'));
+      if (serverApi >= 69 && me.owner && p.role !== 'org') btns.push(h('button', { class: p.role === 'mod' ? 'ghost danger' : 'ghost', onclick: () => setMod(p.username || name, p.role !== 'mod', () => { profiles.delete(key(name)); openProfile(name); }) }, p.role === 'mod' ? 'Remove moderator' : '\u{1F530} Make moderator'));
       if (serverApi >= 5) btns.push(h('button', { class: 'ghost danger', onclick: () => adminDeleteAccount(p.username || name, () => close()) }, 'Delete account'));
     }
     const c = state.counts, n = state.posts.total, ns = state.shorts.total;
@@ -2913,7 +2914,7 @@ async function setRank(name, on, done) {
   if (done) done();
 }
 async function setMod(name, on, done) {
-  if (!confirm(on ? `Make ${name} a moderator?\n\nThey'll be able to look after Reports, delete posts, Shorts and comments, give timeouts and warn people as Idiocy. They can't ban people or delete accounts.`
+  if (!confirm(on ? `Make ${name} a moderator?\n\nThey get the Mod panel: Reports, Support, ADAM\u2019s stats and Users. They can delete posts, Shorts and comments, give timeouts, warn people as Idiocy, set limits and reset profiles. They can\u2019t ban, delete accounts, rename people, give badges or change settings, and can\u2019t do anything to admins or other moderators. Their name goes purple.`
     : `Remove ${name} as a moderator?`)) return;
   const d = await act('adminSetMod', { username: name, on });
   if (!d) return;
@@ -10044,7 +10045,8 @@ async function apiOk(action, data = {}) {
 function graphCard() {
   let sel = null;
   try { sel = JSON.parse(store.get('graph_sel') || 'null'); } catch (e) {}
-  sel = Array.isArray(sel) ? sel.filter(k => typeof k === 'string' && graphOf(k)).slice(0, GRAPH_COLORS.length) : [];
+  const can = k => me.role !== 'mod' || graphOf(k).need === 'adam'; // (moderators don't see Stats)
+  sel = Array.isArray(sel) ? sel.filter(k => typeof k === 'string' && graphOf(k) && can(k)).slice(0, GRAPH_COLORS.length) : [];
   if (!sel.length) sel = [GRAPHS.some(g => g.k === store.get('graph_kind')) ? store.get('graph_kind') : 'adam'];
   let by = ['hour', 'day', 'week', 'month'].includes(store.get('graph_by')) ? store.get('graph_by') : 'day';
   const data = {}; // adam: adamStats, stats: adminStats (fetched when a line needs them)
@@ -10070,7 +10072,7 @@ function graphCard() {
     load();
   };
   const paint = () => {
-    picks.replaceChildren(...GRAPHS.map(g => g.k).concat(sel.filter(k => k.startsWith('p:'))).map(k => {
+    picks.replaceChildren(...GRAPHS.map(g => g.k).filter(can).concat(sel.filter(k => k.startsWith('p:'))).map(k => {
       const g = graphOf(k), on = sel.includes(k);
       return h('button', { class: 'ghost', 'aria-pressed': String(on), title: on ? 'Take this line off' : 'Add this line', style: on ? `border-color:${colorOf(k)};color:var(--text)` : '', onclick: () => toggle(k) },
         on && h('span', { class: 'lsw', style: `background:${colorOf(k)}` }), g.label, on && k.startsWith('p:') ? ' ×' : '');
@@ -10590,6 +10592,8 @@ function openAdmin(start, dock) {
       const resetBtn = u => serverApi >= 60 && h('button', { class: 'ghost', title: 'Clear their profile picture, status, bio and what they\u2019re playing', onclick: () => resetProfile(u.username) }, '\u267B\uFE0F Reset profile');
       const modBtn = u => serverApi >= 69 && me.owner && u.role !== 'org' && key(u.username) !== key(me.name) && h('button', { class: u.role === 'admin' ? 'ghost danger' : 'ghost', onclick: () => setRank(u.username, u.role !== 'admin', load) },
         u.role === 'admin' ? 'Remove admin' : '\u{1F6E1}\uFE0F Make admin');
+      const modRankBtn = u => serverApi >= 69 && me.owner && u.role !== 'org' && u.role !== 'admin' && key(u.username) !== key(me.name) && h('button', { class: u.role === 'mod' ? 'ghost danger' : 'ghost', onclick: () => setMod(u.username, u.role !== 'mod', load) },
+        u.role === 'mod' ? 'Remove moderator' : '\u{1F530} Make moderator');
       const drawUsers = () => list.replaceChildren(...data.users
         .filter(u => u.username && key(u.username).includes(key(query)))
         .slice(0, 100)
@@ -10630,7 +10634,7 @@ function openAdmin(start, dock) {
             endOrTimeout(u),
             resetBtn(u),
             serverApi >= 67 && limitsBtn(u),
-            modBtn(u),
+            modBtn(u), modRankBtn(u),
             u.banned
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('unban', { username: u.username })) load(); } }, 'Unban')
               : h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${u.username}?`) && await act('ban', { username: u.username })) load(); } }, 'Ban'),
