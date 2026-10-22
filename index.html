@@ -290,6 +290,7 @@
   .msg.official .txt { white-space: pre-wrap; }
   .badge.offbadge { background: var(--accent); color: #fff; }
   body.idiocychat #send, body.idiocychat #attachbar, body.idiocychat #replybar { display: none; }
+  body.supportchat #attach, body.supportchat #mic, body.supportchat #chatcam, body.supportchat #emojibtn, body.supportchat #replybar { display: none !important; }
   body.idiocychat #composernote { padding: 12px 16px max(12px, env(safe-area-inset-bottom)); text-align: center; font-size: 13px; }
   .idcmsg textarea { width: 100%; box-sizing: border-box; resize: vertical; min-height: 90px; font: inherit; }
   .idcmsg .idclist { display: flex; flex-direction: column; gap: 8px; }
@@ -297,6 +298,12 @@
   .idcmsg .idcmeta { font-size: 12px; color: var(--muted); }
   .idcmsg .idctext { grid-column: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
   .idcmsg .idcrow button { grid-column: 2; grid-row: 1 / span 2; }
+  .idcmsg .idclist.sup { max-height: 48vh; overflow-y: auto; margin: 4px 0 8px; }
+  .idcmsg .idcrow.them { background: var(--panel2, rgba(127,127,127,.08)); border-left: 3px solid var(--accent); }
+  .supcard { cursor: pointer; }
+  .supcard .supst { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; margin-left: 6px; }
+  .supcard .supst.waiting { background: var(--accent); color: #fff; }
+  .supcard .supst.answered, .supcard .supst.closed { border: 1px solid var(--border); color: var(--muted); }
   .msg.pending .acts { display: none !important; }
 
   .reacts { grid-column: 2; display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
@@ -2218,7 +2225,7 @@ function storeProfiles(map) {
 
 // opts.dot shows an online dot; opts.click = false disables opening the profile.
 // Messages from Idiocy itself (an admin wrote them) go by this name, which nobody can take.
-const IDIOCY = 'Idiocy', IDIOCY_LOGO = document.getElementById('favicon').href;
+const IDIOCY = 'Idiocy', IDIOCY_LOGO = document.getElementById('favicon').href, SUPPORT = 'Idiocy Support';
 const isIdiocy = n => key(n) === key(IDIOCY);
 // The AI admin, who has its own chat with each person (an 'idiocy' chat whose id starts ai_). Its picture is
 // the "shield" bot (round glasses) from bot-avatar.js (bot-avatars by Jakub Antalik, MIT; files.littlebird.com.au/bot-avatars),
@@ -2894,7 +2901,7 @@ async function openIdiocyMessenger(username, draft, onSent) {
   const text = h('textarea', { rows: 4, maxlength: 2000, 'aria-label': 'Message', placeholder: 'e.g. \u26A0\uFE0F Please don\u2019t spam the Global feed. If it keeps happening, you\u2019ll be timed out.' });
   text.value = draft || '';
   const paint = d => list.replaceChildren(...(d.messages.length ? d.messages.slice().reverse().map(m => h('div', { class: 'idcrow' },
-    h('div', { class: 'idcmeta' }, new Date(m.time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }), m.by && [' \u00b7 sent by ', nameEl(m.by, 'b')]),
+    h('div', { class: 'idcmeta' }, new Date(m.time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }), m.them ? [' \u00b7 ', nameEl(d.username, 'b'), ' asked Idiocy Support'] : m.by && [' \u00b7 sent by ', nameEl(m.by, 'b')]),
     h('div', { class: 'idctext' }, m.text),
     (me.role === 'admin' || key(m.by) === key(me.name)) && h('button', { class: 'ghost danger', title: 'Delete it from their chat', onclick: async () => {
       if (!confirm('Delete this message from their Idiocy chat?')) return;
@@ -2916,13 +2923,59 @@ async function openIdiocyMessenger(username, draft, onSent) {
   } }, text, h('div', { class: 'btns' }, send));
   text.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); form.requestSubmit(); } };
   const md = modal('scroll idcmsg', h('h2', null, `\u{1F4E3} Message ${displayName(username)} as Idiocy`),
-    h('div', { class: 'hint' }, 'It goes to their own Idiocy chat, from Idiocy (not from you, though admins and moderators can see who sent it). They get a notification even if they\u2019ve muted things, and they can\u2019t reply.'),
+    h('div', { class: 'hint' }, `It goes to their own Idiocy chat, from Idiocy (not from you, though admins and moderators can see who sent it). They get a notification even if they\u2019ve muted things${serverApi >= 75 ? '. They can answer there, and what they write shows up in the Admin panel\u2019s Support tab.' : ', and they can\u2019t reply.'}`),
     form, h('h3', null, 'Sent to them before'), list,
     h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
   setTimeout(() => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); }, 50);
   const d = await act('adminIdiocy', { username });
   if (!d) return md.close();
   paint(d);
+}
+
+// Idiocy Support: their own Idiocy chat, where they can ask the people who run Idiocy for help.
+async function contactSupport() {
+  const d = await act('supportOpen', {});
+  if (d) switchTo(d.convo);
+}
+
+// Admins: someone's chat with Idiocy Support, oldest first. Any admin can answer (as Idiocy), or close it
+// without answering (it opens again if they write again).
+async function openSupportThread(username, waiting, done) {
+  const list = h('div', { class: 'idclist sup' }, h('div', { class: 'shimmer', style: 'height:56px;border-radius:10px' }));
+  const text = h('textarea', { rows: 3, maxlength: 2000, 'aria-label': 'Your answer', placeholder: 'Your answer. It comes from Idiocy.' });
+  const when = t => new Date(t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  const paint = d => {
+    list.replaceChildren(...(d.messages.length ? d.messages.map(m => h('div', { class: 'idcrow' + (m.them ? ' them' : '') },
+      h('div', { class: 'idcmeta' }, ...(m.them ? [nameEl(d.username, 'b')] : [h('b', null, IDIOCY), ...(m.by ? [' (', nameEl(m.by), ')'] : [])]), ' \u00b7 ', when(m.time)),
+      h('div', { class: 'idctext' }, m.text))) : [h('div', { class: 'muted' }, 'Nothing here yet.')]));
+    list.scrollTop = list.scrollHeight;
+  };
+  const shut = h('button', { class: 'ghost', type: 'button', onclick: async () => {
+    if (await act('adminSupportClose', { username })) { toast('Closed. It opens again if they write again.'); md.close(); if (done) done(); }
+  } }, 'Close without answering');
+  const send = h('button', { class: 'primary', type: 'submit' }, '\u{1F4AC} Answer as Idiocy');
+  const form = h('form', { onsubmit: async e => {
+    e.preventDefault();
+    if (!text.value.trim() || send.disabled) return;
+    send.disabled = true;
+    const d = await act('adminIdiocySend', { username, text: text.value });
+    send.disabled = false;
+    if (!d) return;
+    paint(d);
+    text.value = '';
+    shut.remove();
+    toast(`Answered ${displayName(d.username)}`);
+    if (done) done();
+  } }, text, h('div', { class: 'btns' }, waiting && shut, send));
+  text.onkeydown = e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); form.requestSubmit(); } };
+  const md = modal('scroll idcmsg', h('h2', null, '\u{1F4AC} ', nameEl(username), ' asked ' + SUPPORT),
+    h('div', { class: 'hint' }, 'Your answer goes to their Idiocy Support chat, from Idiocy. They don\u2019t see which admin answered, but admins do.'),
+    list, form,
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => openProfile(username) }, 'Their profile'), h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
+  const d = await act('adminIdiocy', { username });
+  if (!d) return md.close();
+  paint(d);
+  setTimeout(() => text.focus(), 50);
 }
 
 // ---------- blocking ----------
@@ -3457,7 +3510,7 @@ function openLink(search) {
   else if (post) openPost(post, !quiet);
   else if (u) openProfile(u);
   else if (v) openPublicLink(v); // a public link, opened logged in
-  else if (q.get('admin') && isStaff()) openAdmin();
+  else if (q.get('admin') && isStaff()) openAdmin(q.get('admin') === 'support' ? 'support' : undefined);
 }
 
 // The address bar names the post, Short or profile you're on, like YouTube's, so refreshing (or
@@ -4278,7 +4331,7 @@ const isUnread = id => id !== openId && read && (latest[id] || 0) > (read[id] ||
 function convoLabel(c) {
   if (c.type === 'global') return 'Global feed';
   if (c.type === 'group') return c.name;
-  if (c.type === 'idiocy') return isAiChat(c) ? ADAM : IDIOCY; // their chat with Idiocy itself (or its AI admin, ADAM)
+  if (c.type === 'idiocy') return isAiChat(c) ? ADAM : SUPPORT; // their chat with Idiocy itself, where they can ask for help (or with its AI admin, ADAM)
   return c.members.find(n => key(n) !== key(me.name)) || 'DM';
 }
 // What a chat is called on screen: a DM goes by the other person's name.
@@ -4447,7 +4500,7 @@ function renderHeader() {
     : !c ? (pendingTitle ? 'Direct message' : openId === 'global' ? 'Everyone' : '')
     : c.type === 'global' ? 'Posts from everyone' + (settings.slow ? ` \u00b7 Slow mode: ${settings.slow}s` : '')
     : c.type === 'dm' ? streakText(c.id) || 'Direct message'
-    : c.type === 'idiocy' ? (isAiChat(c) ? ADAM_FULL + ', Idiocy\u2019s AI admin' : 'Messages from the people who run Idiocy')
+    : c.type === 'idiocy' ? (isAiChat(c) ? ADAM_FULL + ', Idiocy\u2019s AI admin' : 'Ask the people who run Idiocy for help. An admin will answer here.')
     : `${c.members.length} members: ${c.members.map(displayName).join(', ')}`;
   $('searchbtn').classList.toggle('hidden', !(serverApi >= 18 && c));
   $('feedtabs').classList.toggle('hidden', !isFeed() || serverApi < 53);
@@ -4462,7 +4515,7 @@ function renderHeader() {
   $('vcallbtn').classList.toggle('hidden', !canCall);
   $('joincall').classList.toggle('hidden', !groupCallOn);
   if (groupCallOn) $('joincall').replaceChildren('\u{1F4DE} ', h('span', { class: 'jlabel' }, 'Join call \u00b7 '), String(openGcall.people.length));
-  textEl.placeholder = c ? `Message ${c.type === 'global' ? 'everyone' : convoTitle(c)}…` : 'Say something…';
+  textEl.placeholder = c ? (c.type === 'idiocy' ? 'Ask Idiocy Support something…' : `Message ${c.type === 'global' ? 'everyone' : convoTitle(c)}…`) : 'Say something…';
   paintPin(c);
 }
 
@@ -6064,7 +6117,7 @@ function previewText(c) {
     const who = !p.name ? '' : me && key(p.name) === key(me.name) ? 'You: ' : c.type === 'group' ? displayName(p.name) + ': ' : '';
     return who + tame(noStyle(p.text));
   }
-  return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : c.type === 'idiocy' ? 'Messages from ' + convoLabel(c) : '';
+  return c.type === 'group' ? `${(c.members || []).length} members` : c.type === 'dm' ? 'Tap to chat' : c.type === 'idiocy' ? (isAiChat(c) ? 'Messages from ' + convoLabel(c) : 'Ask for help, or hear from Idiocy') : '';
 }
 // Short: "now", "5m", "2h", then the day: "Yesterday", "19 Oct" (with the year if it isn't this one).
 function ago(t) {
@@ -8121,8 +8174,9 @@ function updateComposer() {
   const slowLeft = Math.ceil((slowUntil - Date.now()) / 1000);
   const waiting = isPendingChat(openId); // DM still being created
   const locked = mustVerify();
-  const oc = st && st.convos.find(c => c.id === openId), official = !!oc && oc.type === 'idiocy'; // only Idiocy (or its AI admin) writes in it
+  const oc = st && st.convos.find(c => c.id === openId), official = isAiChat(oc) || (!!oc && oc.type === 'idiocy' && serverApi < 75); // only ADAM writes in its chat
   document.body.classList.toggle('idiocychat', official);
+  document.body.classList.toggle('supportchat', !official && !!oc && oc.type === 'idiocy'); // Idiocy Support: words only
   textEl.disabled = !!muted || waiting || locked || official;
   $('attach').disabled = !!muted || waiting || locked;
   $('posttext').disabled = !!muted || locked;
@@ -9188,6 +9242,7 @@ function handlePings(pings) {
     : p.kind === 'invitejoin' ? `\u{1F389} ${from} joined you with your invite link! Click to say hi.`
     : p.kind === 'orginvite' ? `\u{1F3E2} ${p.text} invited you to help run ${from}. Click to see it.`
     : p.kind === 'orgjoin' ? `\u{1F3E2} ${from} joined ${displayName(p.text)}!`
+    : p.kind === 'support' ? `\u{1F4AC} @${p.from} asked Idiocy Support: \u201C${p.text}\u201D. Click to answer.`
     : p.kind === 'newuser' ? `\u{1F44B} @${p.from} just joined Idiocy${p.text ? ` (${p.text})` : ''}. Click to see their profile.`
     : p.kind === 'neworg' ? `\u{1F3E2} @${p.by} made an organisation: @${p.from}${p.text ? ` (${p.text})` : ''}. Click to see it.`
     : p.kind === 'appeal' ? `\u{1F64F} @${p.from} ${p.what === 'ban' ? 'asked to be unbanned' : 'asked to end their timeout'}: \u201C${p.text}\u201D. Click to see it in Reports.`
@@ -9197,12 +9252,12 @@ function handlePings(pings) {
     : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
     : p.kind === 'orginvite' || p.kind === 'newuser' || p.kind === 'neworg' ? openProfile(p.from) : p.kind === 'orgjoin' ? openProfile(p.text)
-    : p.kind === 'aiflag' || p.kind === 'appeal' ? openAdmin()
+    : p.kind === 'aiflag' || p.kind === 'appeal' ? openAdmin() : p.kind === 'support' ? openAdmin('support')
     : p.kind === 'comment' || (p.convo === 'global' && p.id) ? openPost(p.post || p.id) : switchTo(p.convo));
   if (!document.hidden) toast(text, false, go);
   if (prefs.desktop && !prefs.push && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
     try {
-      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind.startsWith('new') || p.kind === 'removed' || p.kind === 'invitejoin' || p.kind === 'aiflag';
+      const plain = p.kind.startsWith('friend') || p.kind.startsWith('org') || p.kind.startsWith('new') || p.kind === 'removed' || p.kind === 'invitejoin' || p.kind === 'aiflag' || p.kind === 'support';
       const n = new Notification(plain ? text : `${from} ${where}`,
         { body: plain ? '' : tame(noStyle(p.text)), icon: $('favicon').href, tag: 'idiocy-' + (p.convo || p.kind) });
       n.onclick = () => { window.focus(); go(); n.close(); };
@@ -9348,6 +9403,8 @@ function openSettings() {
       h('button', { class: 'ghost', onclick: () => { md.close(); installApp(); } }, 'Install')),
     h('div', { class: 'toggle' }, h('span', null, 'Terms and Conditions', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'What everyone on Idiocy agrees to')),
       h('button', { class: 'ghost', onclick: () => openTerms() }, '\u{1F4DC} Read')),
+    serverApi >= 75 && h('div', { class: 'toggle' }, h('span', null, SUPPORT, h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Need help? Message the people who run Idiocy')),
+      h('button', { class: 'ghost', onclick: () => { md.close(); contactSupport(); } }, '\u{1F4AC} Message')),
     h('div', { class: 'btns', style: 'justify-content:space-between' },
       h('button', { class: 'ghost danger', onclick: () => { md.close(); logOut(); } }, 'Log out'),
       h('button', { class: 'primary', onclick: () => md.close() }, 'Done')),
@@ -9924,13 +9981,39 @@ function adamHelloCard(a, done) {
 }
 
 let adminRefresh = null, reportsSeen = ''; // an open Admin panel's update, and the last Reports version seen
-function openAdmin() {
+function openAdmin(start) {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const rf = { hide: new Set(), who: new Map(), q: '', sort: 'new' }; // the Reports filter
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
-  const TABS = mod ? ['reports', 'users', ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
-  const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t[0].toUpperCase() + t.slice(1)));
+  const sup = serverApi >= 75 ? ['support'] : [];
+  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
+  if (TABS.includes(start)) tab = start;
+  const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; if (t === 'support') support = null; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t[0].toUpperCase() + t.slice(1)));
+  // Idiocy Support: everyone who's asked, waiting ones first. Any admin can answer.
+  let support = null;
+  const supTab = tabs[TABS.indexOf('support')];
+  const paintSupTab = () => { if (supTab && data) supTab.textContent = data.support ? `Support (${data.support})` : 'Support'; };
+  const loadSupport = async () => {
+    try {
+      const d = await api('adminSupport', {});
+      if (!d.ok) { if (!d.auth) toast(d.error, true); return; }
+      support = d;
+      if (data) data.support = d.threads.filter(t => t.status === 'waiting').length;
+      paintSupTab();
+      if (tab === 'support') draw();
+    } catch (e) { toast('Could not reach the server', true); }
+  };
+  const STATUS = { waiting: 'Waiting', answered: 'Answered', closed: 'Closed' };
+  const drawSupport = () => {
+    const th = support.threads, waiting = th.filter(t => t.status === 'waiting').length;
+    body.replaceChildren(
+      h('div', { class: 'actnote' }, th.length ? `${waiting ? waiting + ' waiting for an answer' : 'Nobody\u2019s waiting'}. People ask from Settings > ${SUPPORT}. Any admin can answer, as Idiocy.` : `Nobody has asked ${SUPPORT} anything yet. People ask from Settings > ${SUPPORT}.`),
+      ...th.map(t => h('div', { class: 'card enter supcard', onclick: () => openSupportThread(t.username, t.status === 'waiting', () => loadSupport()) },
+        h('div', { class: 'meta' }, h('b', { style: 'color:var(--text)' }, '@' + t.username), h('span', { class: 'supst ' + t.status }, STATUS[t.status]),
+          ` \u00b7 ${seenAgo(t.time)}`, t.by && (t.status === 'closed' ? ` \u00b7 closed by ${t.by}` : t.status === 'answered' ? ` \u00b7 answered by ${t.by}` : '')),
+        h('q', null, t.text || '(nothing)'))));
+  };
   let adam = null, adamSince = 30, adamAll = false, adamBy = 'day';
   const loadAdam = async () => {
     try {
@@ -10030,7 +10113,8 @@ function openAdmin() {
       if (!d.ok || !md.overlay.isConnected) return;
       data = d;
       if (tab === 'reports') draw();
-      else tabs[0].textContent = data.reports.length ? `Reports (${data.reports.length})` : 'Reports';
+      else { tabs[0].textContent = data.reports.length ? `Reports (${data.reports.length})` : 'Reports'; paintSupTab(); }
+      if (tab === 'support') loadSupport();
     } catch (e) {}
   };
   const load = async () => {
@@ -10154,6 +10238,7 @@ function openAdmin() {
       return;
     }
     tabs[0].textContent = data.reports.length ? `Reports (${data.reports.length})` : 'Reports';
+    paintSupTab();
     if (data.people != null) {
       count.replaceChildren(h('b', null, `\u{1F465} ${data.people} ${data.people === 1 ? 'person' : 'people'} on Idiocy`),
         h('span', null, 'Not counting organisations or the test accounts ATLAS and P-body'));
@@ -10272,6 +10357,13 @@ function openAdmin() {
         return;
       }
       drawAdam();
+    } else if (tab === 'support') {
+      if (!support) {
+        body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
+        loadSupport();
+        return;
+      }
+      drawSupport();
     } else if (tab === 'stats') {
       if (!stats) {
         body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
