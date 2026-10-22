@@ -172,6 +172,16 @@
     overflow-y: auto;
   }
   main { flex: 1; min-width: 0; display: flex; flex-direction: column; position: relative; }
+  /* On a computer, the official admin group has the Admin panel beside it (never on phones or narrow windows). */
+  #adock { width: 420px; flex-shrink: 0; border-left: 1px solid var(--border); background: var(--panel); overflow-y: auto; }
+  @media (max-width: 1099px) { #adock { display: none !important; } }
+  #adock .adockin { max-width: none; max-height: none; border: 0; border-radius: 0; background: transparent; padding: 16px 16px 28px; overflow: visible; }
+  #adock .gcard { border: 1px solid var(--border); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  #adock .gcard .grow { display: flex; gap: 8px; align-items: center; }
+  #adock .gcard select { flex: 1; min-width: 0; font: inherit; font-weight: 600; color: var(--text); background: var(--panel-2); border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; }
+  #adock .atabs { flex-wrap: wrap; overflow: visible; } /* narrow: the tabs go onto two rows instead of sliding */
+  #adock .ahead { padding-right: 10px; }
+  #adock .gcard .gsum { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 12px; }
 
 
   .me {
@@ -1755,6 +1765,7 @@
   .atabs { overflow-x: auto; scrollbar-width: none; } /* five tabs: on a small phone they slide sideways if they don't fit */
   .atabs::-webkit-scrollbar { display: none; }
   .atabs button { flex: 1 0 auto; }
+  @media (min-width: 721px) { .atabs { flex-wrap: wrap; overflow: visible; } } /* on a computer, two rows if they don't fit */
   @media (max-width: 420px) { .atabs { gap: 2px; } .atabs button { padding: 7px 5px; font-size: 13px; } }
   @media (max-width: 370px) { .atabs button { padding: 7px 4px; font-size: 12.5px; } }
   /* Six tabs (admins) don't fit across a phone: two rows of three. */
@@ -2073,6 +2084,7 @@
       <button class="primary" type="submit">Send</button>
     </form>
   </main>
+  <section id="adock" class="hidden" aria-label="Admin panel"></section>
   <nav id="mtabs" aria-label="Sections">
     <button data-tab="chats"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>Chats<span class="tb hidden"></span></button>
     <button data-tab="feed"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 9h15M4 15h15M10 3 8 21M16 3l-2 18"/></svg>Feed<span class="tb hidden"></span></button>
@@ -4211,7 +4223,7 @@ async function poll() {
     lastError = '';
     setStatus(true);
     me = d.me;
-    if (me.rv && me.rv !== reportsSeen) { const was = reportsSeen; reportsSeen = me.rv; if (was && adminRefresh) adminRefresh(); } // Reports changed
+    if (me.rv && me.rv !== reportsSeen) { const was = reportsSeen; reportsSeen = me.rv; if (was) adminRefreshers.forEach(f => f()); } // Reports changed
     if (d.terms && me.terms === false) askTerms();
     if (serverApi >= 63 && me.muted > Date.now() && !me.actor) openJail('timeout', null, me.muted);
     else if (jailMd && !jailMd.banned) closeJail(); // lifted early
@@ -4483,6 +4495,7 @@ function requestFriend(n) {
 
 function renderHeader() {
   if (isFeed() && (me || guest) && !$('fbrow').querySelector('.avatar')) $('fbrow').prepend(me ? avatar(me.name, { click: false }) : ghostAvatar());
+  paintAdminDock();
   const c = st && st.convos.find(c => c.id === openId);
   const isGroup = c && c.type === 'group';
   $('title').classList.toggle('link', !!c && (c.type === 'dm' || isGroup));
@@ -9980,8 +9993,99 @@ function adamHelloCard(a, done) {
       : h('div', { class: 'btns', style: 'justify-content:flex-start;margin-top:8px' }, go));
 }
 
-let adminRefresh = null, reportsSeen = ''; // an open Admin panel's update, and the last Reports version seen
-function openAdmin(start) {
+const adminRefreshers = new Set(); let reportsSeen = ''; // open Admin panels' updates, and the last Reports version seen
+// Counts of times (ms) per hour (the last day), day, week (from Monday) or month, oldest first, going back no
+// further than the first one. For lineChart.
+function timeSeries(times, by) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const daysBack = n => { const d = new Date(today); d.setDate(d.getDate() - n); return +d; };
+  const hourNow = new Date(); hourNow.setMinutes(0, 0, 0);
+  const fmt = (d, o) => d.toLocaleString([], o);
+  const PER = {
+    hour: { start: i => +hourNow - i * 36e5, max: 24, name: (d, i) => i === 0 ? 'This hour' : fmt(d, { weekday: 'short', hour: 'numeric' }), tick: d => fmt(d, { hour: 'numeric' }) },
+    day: { start: i => daysBack(i), max: 30, name: (d, i) => i === 0 ? 'Today' : i === 1 ? 'Yesterday' : fmt(d, { weekday: 'short', day: 'numeric', month: 'short' }), tick: d => fmt(d, { day: 'numeric', month: 'short' }) },
+    week: { start: i => daysBack((today.getDay() + 6) % 7 + 7 * i), max: 12, name: (d, i) => i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of ' + fmt(d, { day: 'numeric', month: 'short' }), tick: d => fmt(d, { day: 'numeric', month: 'short' }) },
+    month: { start: i => +new Date(today.getFullYear(), today.getMonth() - i, 1), max: 24, name: (d, i) => i === 0 ? 'This month' : fmt(d, { month: 'long', year: 'numeric' }), tick: d => fmt(d, d.getMonth() ? { month: 'short' } : { month: 'short', year: 'numeric' }) },
+  }[by];
+  const first = times.length ? Math.min(...times) : +today, rows = [];
+  for (let i = 0; i < PER.max; i++) {
+    const a = PER.start(i), b = i ? PER.start(i - 1) : 8.64e15, d = new Date(a);
+    rows.unshift({ name: PER.name(d, i), tick: PER.tick(d), n: times.filter(t => t >= a && t < b).length });
+    if (a <= first) break;
+  }
+  return rows;
+}
+
+// The graph at the top of the Admin panel beside the admin group: pick which (ADAM, people joining, reports), and
+// by hours, days, weeks or months. Remembered on this device.
+const GRAPHS = [
+  { k: 'adam', label: '\u{1F916} ADAM: things stopped', say: n => `${n} ${n === 1 ? 'thing' : 'things'} stopped`,
+    load: async () => (await apiOk('adamStats')).events.filter(e => e.kind === 'stopped').map(e => e.t) },
+  { k: 'joins', label: '\u{1F44B} People joining', say: n => `${n} ${n === 1 ? 'person' : 'people'} joined`,
+    load: async () => (await apiOk('adminStats')).joined.filter(Boolean) },
+  { k: 'reports', label: '\u{1F6A9} Reports made', say: n => `${n} ${n === 1 ? 'report' : 'reports'}`,
+    load: async () => (await apiOk('adminStats')).reported || [] },
+];
+async function apiOk(action) {
+  const d = await api(action, {});
+  if (!d.ok) throw new Error(d.error || 'Something went wrong');
+  return d;
+}
+function graphCard() {
+  let kind = GRAPHS.some(g => g.k === store.get('graph_kind')) ? store.get('graph_kind') : 'adam';
+  let by = ['hour', 'day', 'week', 'month'].includes(store.get('graph_by')) ? store.get('graph_by') : 'day';
+  let times = null;
+  const pick = h('select', { 'aria-label': 'Which graph', onchange: () => { kind = pick.value; store.set('graph_kind', kind); load(); } },
+    ...GRAPHS.map(g => h('option', { value: g.k }, g.label)));
+  pick.value = kind;
+  const chips = h('div', { class: 'chips', role: 'tablist' });
+  const chart = h('div'), sum = h('div', { class: 'gsum' });
+  const paint = () => {
+    chips.replaceChildren(...[['hour', 'Hours'], ['day', 'Days'], ['week', 'Weeks'], ['month', 'Months']].map(([k, label]) => h('button', {
+      class: 'ghost', role: 'tab', 'aria-selected': String(by === k), style: by === k ? 'border-color:var(--accent);color:var(--accent)' : '',
+      onclick: () => { by = k; store.set('graph_by', by); paint(); } }, label)));
+    if (!times) return;
+    const g = GRAPHS.find(x => x.k === kind), today = new Date(); today.setHours(0, 0, 0, 0);
+    chart.replaceChildren(times.length ? lineChart(timeSeries(times, by), g.say) : h('div', { class: 'actnote' }, 'Nothing yet.'));
+    sum.replaceChildren(h('span', null, `${times.filter(t => t >= +today).length} today`), h('span', null, `${times.filter(t => t >= +today - 6 * 864e5).length} in the last 7 days`), h('span', null, `${times.length} in all`));
+  };
+  const load = async quiet => {
+    const want = kind;
+    if (!quiet) { times = null; chart.replaceChildren(h('div', { class: 'shimmer', style: 'height:150px;border-radius:10px' })); sum.replaceChildren(); }
+    try {
+      const got = await GRAPHS.find(x => x.k === want).load();
+      if (want !== kind) return;
+      times = got;
+      paint();
+    } catch (e) { if (!quiet) chart.replaceChildren(h('div', { class: 'actnote' }, e.message || 'Could not reach the server')); }
+  };
+  const card = h('div', { class: 'gcard' },
+    h('div', { class: 'grow' }, pick, h('button', { class: 'ghost', style: 'padding:4px 12px', title: 'Refresh', onclick: () => load() }, '↻')),
+    chips, chart, sum);
+  const again = () => { if (!card.isConnected) { adminRefreshers.delete(again); return; } load(true); }; // new reports or stops: update it
+  adminRefreshers.add(again);
+  paint();
+  load();
+  return card;
+}
+
+// On a computer (a wide window, not a phone), the official admin group has the Admin panel beside it.
+// (dock._for: the chat it's beside.)
+function paintAdminDock() {
+  const dock = $('adock'), c = st && st.convos.find(x => x.id === openId), wide = matchMedia('(min-width: 1100px)');
+  if (!dock._watching) { dock._watching = true; wide.addEventListener('change', paintAdminDock); }
+  const want = !!(c && c.ag && isStaff() && wide.matches && serverApi >= 76);
+  if (!want) {
+    if (dock._for) { dock.replaceChildren(); dock.classList.add('hidden'); dock._for = null; }
+    return;
+  }
+  if (dock._for === openId && dock.firstChild) return;
+  dock._for = openId;
+  dock.classList.remove('hidden');
+  openAdmin(undefined, dock);
+}
+
+function openAdmin(start, dock) {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const rf = { hide: new Set(), who: new Map(), q: '', sort: 'new' }; // the Reports filter
   const body = h('div', { class: 'alist' });
@@ -10103,11 +10207,18 @@ function openAdmin(start) {
   // How many real people use Idiocy (the server leaves out organisations and the test accounts).
   const count = h('div', { class: 'acount hidden' });
   const stillsBar = h('div', { class: 'stillsbar hidden' });
-  const md = modal('wide scroll', h('div', { class: 'ahead' }, h('h2', null, mod ? 'Mod panel' : 'Admin panel'), !mod && banButton(() => (data && data.users) || [], () => load())),
-    count, stillsBar, h('div', { class: 'tabbar atabs' + (TABS.length > 5 ? ' many' : '') }, tabs), body);
+  const parts = [h('div', { class: 'ahead' }, h('h2', null, mod ? 'Mod panel' : 'Admin panel'), !mod && banButton(() => (data && data.users) || [], () => load())),
+    count, stillsBar, h('div', { class: 'tabbar atabs' + (TABS.length > 5 ? ' many' : '') }, tabs), body];
+  // dock: beside the official admin group (a graph to pick at the top), instead of popping up.
+  let md;
+  if (dock) {
+    const inner = h('div', { class: 'modal wide adockin' }, graphCard(), ...parts);
+    dock.replaceChildren(inner);
+    md = { overlay: inner, close: () => {} };
+  } else md = modal('wide scroll', ...parts);
   // Someone (any admin) changed Reports: update, quietly (Reports redraws; other tabs keep what they're showing).
-  adminRefresh = async () => {
-    if (!md.overlay.isConnected) { adminRefresh = null; return; }
+  const refresh = async () => {
+    if (!md.overlay.isConnected) { adminRefreshers.delete(refresh); return; }
     try {
       const d = await api('adminData', {});
       if (!d.ok || !md.overlay.isConnected) return;
@@ -10117,6 +10228,7 @@ function openAdmin(start) {
       if (tab === 'support') loadSupport();
     } catch (e) {}
   };
+  adminRefreshers.add(refresh);
   const load = async () => {
     progress(1);
     try {
