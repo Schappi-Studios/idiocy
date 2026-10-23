@@ -2722,7 +2722,7 @@ function badgeRow(p, b, edited) {
   if (years >= 1) list.push(['\u{1F382}', `${years} year${years > 1 ? 's' : ''}`, 'On Idiocy for ' + years + (years > 1 ? ' years' : ' year')]);
   if (b && b.streak >= 3) list.push(['\u{1F525}', `${b.streak}-day streak`, 'Their best streak going right now']);
   if (b && b.friends >= 10) list.push(['\u{1F465}', 'Popular', `${b.friends} friends`]);
-  const canGive = !!edited && !!b && !!me && me.role === 'admin' && serverApi >= 41;
+  const canGive = !!edited && !!b && !!me && serverApi >= 41 && (me.role === 'admin' || (me.role === 'mod' && serverApi >= 85 && p.role !== 'admin' && p.role !== 'mod')); // (moderators: not to admins or moderators)
   if (!list.length && !canGive) return null;
   return h('div', { class: 'pbadges' }, ...list.map(([icon, label, tip]) => h('span', {
     class: 'pbadge', tabindex: 0, 'data-tip': tip, 'aria-label': `${label}: ${tip}`,
@@ -2737,7 +2737,7 @@ function badgeRow(p, b, edited) {
       badgeTip.tapped = true;
     },
   }, badgeBits(icon, label))),
-    canGive && h('button', { class: 'pbadge addbadge', title: 'Give them a badge (admins only)', onclick: () => openBadgeEditor(p.username, edited) }, '+ Badge'));
+    canGive && h('button', { class: 'pbadge addbadge', title: 'Give them a badge', onclick: () => openBadgeEditor(p.username, edited) }, '+ Badge'));
 }
 
 // What a badge is for, in a bubble above it (below if there's no room), kept on the screen.
@@ -10639,7 +10639,7 @@ function openAdmin(start, dock) {
           rankBadge(u.role),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           limitCount(u.limits) > 0 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: LIMIT_PARTS.filter(([k]) => u.limits[k]).map(([, l]) => l).join(', ') }, 'LIMITED'),
-          u.role !== 'admin' && u.role !== 'mod' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, idiocyBtn(u), endOrTimeout(u), resetBtn(u), limitsBtn(u)))
+          u.role !== 'admin' && u.role !== 'mod' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, serverApi >= 85 && badgesBtn(u), idiocyBtn(u), endOrTimeout(u), resetBtn(u), limitsBtn(u)))
         : h('div', { class: 'urow' },
           avatar(u.username),
           h('span', { class: 'nm ' + rankClass(u.role), onclick: () => openProfile(u.username) }, u.username),
