@@ -1837,6 +1837,8 @@
   @media (prefers-reduced-motion: reduce) { .defcon.dc1 { animation: none; } }
   .adamv.bad { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--text); }
   .adamv.ok { background: var(--panel-2); }
+  .badge .shx { background: none; border: 0; color: inherit; font: inherit; padding: 0 0 0 6px; margin: 0; cursor: pointer; opacity: .8; }
+  .badge .shx:hover { opacity: 1; }
   .lsw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 5px 0 2px; vertical-align: -1px; flex-shrink: 0; }
   .lkey { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); }
   .adtrend { font-weight: 600; margin: -4px 0 4px; }
@@ -3187,6 +3189,17 @@ function defconBar(d, canSet, set) {
 
 // What ADAM thinks of a report (people's reports, any chat): which rules and how sure, or that it looks fine.
 // It's only its opinion: admins decide.
+// The \u26A0\uFE0F SELF-HARM tag. Admins and moderators can take it off (the \u2715) when ADAM got it wrong: what is
+// { id } for one report, or { username } for everything of theirs. after: draw it again.
+function selfHarmTag(what, after, style = '') {
+  return h('span', { class: 'badge', style: 'background:var(--danger);color:#fff;' + style, title: 'ADAM thought they might hurt themselves' }, '\u26A0\uFE0F SELF-HARM',
+    serverApi >= 95 && h('button', { class: 'shx', title: 'Not self-harm: take the tag off', 'aria-label': 'Take the self-harm tag off', onclick: async e => {
+      e.stopPropagation();
+      if (!confirm(what.id ? 'Take the self-harm tag off this?\n\nOnly if you\u2019re sure they\u2019re not really at risk.'
+        : `Take the self-harm tag off ${what.username}?\n\nIt comes off everything ADAM has of theirs. Only if you\u2019re sure they\u2019re not really at risk.`)) return;
+      if (await act('adamNotSelfHarm', what)) { toast('\u2713 The self-harm tag is off'); after(); }
+    } }, '\u2715'));
+}
 function adamVerdict(v) {
   const pct = x => Math.round(x.p * 100) + '%';
   const bad = (v.flags || []).length > 0;
@@ -10333,10 +10346,11 @@ async function openAdamPerson(name) {
       h('h3', null, `Everything ADAM did (${ev.length}), newest first`),
       ...ev.slice().reverse().map(e => h('div', { class: 'card adpe' },
         h('div', { class: 'meta' }, h('b', { style: 'color:var(--text)' }, `${ADAM_DID[e.kind] || e.kind}: ${e.what}`), ` · ${new Date(e.t).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}`,
-          e.urgent && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff;margin-left:6px' }, '⚠️ SELF-HARM')),
+          e.urgent && selfHarmTag({ id: e.id }, reload, 'margin-left:6px')),
         h('div', { class: 'meta' }, 'Why: ' + (e.why || e.rules.join(', ') || '?')),
         (e.said || e.pic) && h('q', null, [e.said, e.pic && '(a picture)'].filter(Boolean).join(' ')))));
   };
+  const reload = async () => { try { d = await apiOk('adamPerson', { username: name }); paint(); } catch (e) { toast(e.message || 'Could not reach the server', true); } };
   try { d = await apiOk('adamPerson', { username: name }); } catch (e) { body.replaceChildren(h('div', { class: 'actnote' }, e.message || 'Could not reach the server')); return; }
   if (md.overlay.isConnected) paint();
 }
@@ -10576,7 +10590,7 @@ function openAdmin(start, dock) {
         h('span', { class: 'srank' }, String(i + 1)),
         avatar(p.who),
         h('div', { class: 'lst' },
-          h('div', null, h('span', { class: 'nm', onclick: () => openProfile(p.who) }, p.who), ' ', p.urgent && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff', title: 'ADAM thought they might hurt themselves' }, '\u26A0\uFE0F SELF-HARM')),
+          h('div', null, h('span', { class: 'nm', onclick: () => openProfile(p.who) }, p.who), ' ', p.urgent && selfHarmTag({ username: p.who }, () => { adam = null; draw(); })),
           h('div', { class: 'sub' }, `${plural(p.n, 'time')} \u00b7 mostly ${(count(p.rules.map(r => ({ rules: [r] })), e => e.rules)[0] || ['?'])[0].toLowerCase()} \u00b7 last ${seenAgo(p.last)}`)),
         serverApi >= 79 && h('button', { class: 'ghost', style: 'margin-left:auto;padding:4px 10px', title: 'ADAM and them: over time (getting better?), why, and everything it stopped', onclick: () => openAdamPerson(p.who) }, '\u{1F4CA}'))),
       ...(ranked.length > shown.length ? [h('button', { class: 'ghost', style: 'margin-top:10px', onclick: () => { adamAll = true; drawAdam(); } }, `Show all ${ranked.length}`)] : []),
@@ -10788,7 +10802,7 @@ function openAdmin(start, dock) {
           ...r.context.map(c => h('div', { class: 'rcl' + (c.it ? ' it' : '') + (c.sys ? ' sys' : '') },
             h('span', { class: 'when' }, new Date(c.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })),
             c.sys ? c.t : [h('b', null, c.n), ': ', c.t || '(no text)']))),
-        h('div', { class: 'meta' }, 'Reason: ' + r.reason),
+        h('div', { class: 'meta' }, ...(/^\u26A0/.test(r.reason) && serverApi >= 95 ? ['Reason: ' + r.reason.replace(/^\u26A0\uFE0F?\s*/, ''), selfHarmTag({ id: r.id }, load, 'margin-left:6px')] : ['Reason: ' + r.reason])),
         r.adam && adamVerdict(r.adam),
         r.face ? h('div', { class: 'meta' }, '\u{1F642} Already up, and ADAM thinks it shows a real person\u2019s face (faces aren\u2019t allowed in pictures now). You decide.')
           : r.removed ? h('div', { class: 'meta' }, '\u{1F5D1}\uFE0F Already there, so ADAM took it down')
