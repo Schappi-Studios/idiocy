@@ -1779,6 +1779,10 @@
   .dc5 { background: #2f6fd6; } .dc4 { background: #1f9d55; } .dc3 { background: #e0b100; } .dc2 { background: #d63031; } .dc1 { background: #f4f4f4; }
   .defcon.dc3, .defcon.dc1 { color: #111; } .defcon.dc3 .dcpick button, .defcon.dc1 .dcpick button { border-color: rgba(0,0,0,.35); }
   .defcon.dc1 { box-shadow: 0 0 0 2px #d63031 inset; animation: dcpulse 1.2s ease-in-out infinite; }
+  #defconbar { position: fixed; top: 0; left: 0; right: 0; z-index: 900; height: calc(28px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 12px 0; border: 0; color: #fff; font: 700 13px ui-monospace, Menlo, monospace; letter-spacing: .04em; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #defconbar.dc1 { color: #111; box-shadow: 0 0 0 2px #d63031 inset; animation: dcpulse 1.2s ease-in-out infinite; }
+  body.defconon #app { height: calc(100dvh - 28px - env(safe-area-inset-top)); margin-top: calc(28px + env(safe-area-inset-top)); }
+  @media (prefers-reduced-motion: reduce) { #defconbar.dc1 { animation: none; } }
   @keyframes dcpulse { 50% { box-shadow: 0 0 0 4px #d63031 inset; } }
   @media (prefers-reduced-motion: reduce) { .defcon.dc1 { animation: none; } }
   .adamv.bad { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--text); }
@@ -3035,6 +3039,18 @@ async function openSupportThread(username, waiting, done) {
 // DEFCON (a joke): how ready the admins are, 5 to 1, at the top of the Admin panel. Admins set it.
 const DEFCON = { 5: ['FADE OUT', 'All quiet on Idiocy.'], 4: ['DOUBLE TAKE', 'Keep an eye out.'], 3: ['ROUND HOUSE', 'Something\u2019s brewing.'],
   2: ['FAST PACE', 'Drama incoming. Stay sharp.'], 1: ['COCKED PISTOL', 'Maximum chaos. All admins to their stations.'] };
+// At DEFCON 2 or 1, admins and moderators get it across the top of the screen. Tap it for the Admin panel.
+function paintDefconBar(level) {
+  let bar = $('defconbar');
+  const show = level === 1 || level === 2;
+  document.body.classList.toggle('defconon', show);
+  if (!show) { if (bar) bar.remove(); return; }
+  if (!bar) { bar = h('button', { id: 'defconbar', type: 'button', title: 'Open the Admin panel', onclick: () => openAdmin() }); document.body.prepend(bar); }
+  if (bar._level === level) return;
+  bar._level = level;
+  bar.className = 'dc' + level;
+  bar.textContent = `\u{1F6A8} DEFCON ${level} \u00b7 ${DEFCON[level][0]} \u00b7 ${DEFCON[level][1]}`;
+}
 function defconBar(d, canSet, set) {
   const [name, line] = DEFCON[d.level] || DEFCON[5];
   return h('div', { class: 'defcon dc' + d.level },
@@ -4046,6 +4062,7 @@ $('mename').onclick = () => { if (guest) toAuth('login'); else if (me) openProfi
 $('acctbtn').onclick = () => openAccounts();
 
 async function logOut() {
+  paintDefconBar(0);
   const t = token;
   dropPushDevice(t);
   signOut();
@@ -4288,6 +4305,7 @@ async function poll() {
     lastError = '';
     setStatus(true);
     me = d.me;
+    paintDefconBar(me && me.dc);
     if (me && me.rv && me.rv !== reportsSeen) { const was = reportsSeen; reportsSeen = me.rv; if (was) adminRefreshers.forEach(f => f()); } // Reports changed
     if (d.terms && me && me.terms === false) askTerms(); // (me: null when signed out)
     if (serverApi >= 63 && me && me.muted > Date.now() && !me.actor) openJail('timeout', null, me.muted);
@@ -10509,7 +10527,7 @@ function openAdmin(start, dock) {
     }
     tabs[0].textContent = data.reports.length ? `Reports (${data.reports.length})` : 'Reports';
     paintSupTab();
-    if (data.defcon) defconEl.replaceChildren(defconBar(data.defcon, !mod, async n => { const d = await act('setDefcon', { level: n }); if (d) { data.defcon = d.defcon; draw(); } }));
+    if (data.defcon) defconEl.replaceChildren(defconBar(data.defcon, !mod, async n => { const d = await act('setDefcon', { level: n }); if (d) { data.defcon = d.defcon; paintDefconBar(d.defcon.level); draw(); } }));
     if (data.people != null) {
       count.replaceChildren(h('b', null, `\u{1F465} ${data.people} ${data.people === 1 ? 'person' : 'people'} on Idiocy`),
         h('span', null, 'Not counting organisations or the test accounts ATLAS and P-body'));
