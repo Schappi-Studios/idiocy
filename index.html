@@ -1769,9 +1769,9 @@
   .adamv { border-radius: 8px; padding: 6px 10px; margin: 2px 0; }
   .grow2 { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .rjoin { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border: 1px dashed var(--accent); border-radius: 12px; padding: 12px; margin-top: 8px; }
-  .modal.rotabig { max-width: min(1100px, 96vw); width: 96vw; }
+  .modal.rotabig { max-width: min(1320px, 97vw); width: 97vw; }
   .rgwrap { max-height: 70vh; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
-  .rgrid { display: grid; grid-template-columns: 56px repeat(7, minmax(92px, 1fr)); grid-template-rows: 30px var(--h); min-width: 720px; }
+  .rgrid { display: grid; grid-template-columns: 52px repeat(7, minmax(70px, 1fr)); grid-template-rows: 30px var(--h); min-width: 540px; }
   .rgh { position: sticky; top: 0; z-index: 2; background: var(--panel); border-bottom: 1px solid var(--border); font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
   .rgh.today { color: var(--accent); }
   .rgtimes, .rgday { position: relative; }
@@ -1782,6 +1782,13 @@
   .rgline { position: absolute; left: 0; right: 0; border-top: 1px dashed color-mix(in srgb, var(--border) 70%, transparent); }
   .rgblock { position: absolute; left: 3px; right: 3px; border-left: 4px solid var(--accent); border-radius: 6px; padding: 2px 5px; font-size: 11.5px; line-height: 1.25; overflow: hidden; display: flex; flex-direction: column; }
   .rgblock.class { background: var(--panel-2); border-left-color: var(--border); color: var(--muted); }
+  .rgblock.busy { background: color-mix(in srgb, var(--danger) 14%, transparent); border-left-color: var(--danger); }
+  .rgblock.sel { background: color-mix(in srgb, var(--accent) 25%, transparent); border: 2px dashed var(--accent); pointer-events: none; }
+  .rgday.pick { cursor: crosshair; touch-action: none; }
+  .rbig { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; gap: 16px; align-items: start; }
+  .rbigside { display: flex; flex-direction: column; gap: 8px; max-height: 76vh; overflow-y: auto; padding-right: 4px; }
+  .rbigmain { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  @media (max-width: 800px) { .rbig { grid-template-columns: 1fr; } .rbigside { max-height: none; } }
   .rgblock b, .rgblock span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rnow { border-radius: 12px; padding: 12px 14px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid var(--accent); font-size: 15px; }
   .rnow.none { background: var(--panel-2); border-color: var(--border); color: var(--muted); }
@@ -1791,7 +1798,7 @@
   .radd .rdays { display: flex; flex-wrap: wrap; gap: 6px; }
   .radd .rday { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; cursor: pointer; }
   .radd .rtimes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-  .radd .rtimes input[type=time] { width: 110px; }
+  .radd .rtimes input[type=time] { width: 132px; }
   .radd .rtimes input:not([type]) { flex: 1; min-width: 120px; }
   .rshift { display: flex; gap: 10px; align-items: baseline; padding: 7px 8px; border-radius: 8px; font-size: 14px; }
   .rshift .rwhen { min-width: 9.5em; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -3070,29 +3077,42 @@ async function openSupportThread(username, waiting, done) {
   setTimeout(() => text.focus(), 50);
 }
 
-// The rota, bigger: the whole week side by side, a column a day, each shift a block (who's on, and who's helping),
-// class grey, nobody free empty. Pointing at a block shows its times.
-function openRotaBig(r) {
-  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], PX = 0.9; // pixels a minute
+// The week as a grid, a column a day (7am at the top when it opens). view 'rota': each shift a block (who's on duty,
+// and + who's helping), class grey. view 'mine': my busy times and class; onPick(day, from, to): dragging down a day.
+function rotaGrid(r, view, onPick) {
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], PX = 0.9, STEP = 15; // pixels a minute; drags snap to 15 minutes
   const hm = m => `${Math.floor(m / 60) % 12 || 12}${m % 60 ? ':' + String(m % 60).padStart(2, '0') : ''} ${Math.floor(m / 60) % 24 < 12 ? 'am' : 'pm'}`;
   const hue = n => [...String(n)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) % 360, 7);
-  const school = r.school, isClass = (d, x) => d < 5 && x.s >= school.s && x.e <= school.e;
-  const hours = [...Array(24).keys()];
-  const grid = h('div', { class: 'rgrid', style: `--h:${1440 * PX}px` },
+  const school = r.school, hours = [...Array(24).keys()];
+  const block = (s, e, cls, title, style, ...kids) => h('div', { class: 'rgblock ' + cls, title, style: `top:${s * PX}px;height:${Math.max(4, (e - s) * PX - 2)}px;${style || ''}` }, ...kids);
+  const classBlocks = i => i < 5 && (view === 'rota' || r.me.school) ? [[school.s, school.breaks[0][0]], [school.breaks[0][1], school.breaks[1][0]], [school.breaks[1][1], school.e]]
+    .map(([s, e]) => block(s, e, 'class', `${DAYS[i]} ${hm(s)}–${hm(e)}: class`, '', e - s >= 25 ? h('b', null, '\u{1F4DA} Class') : '')) : [];
+  // My busy times on day i (one going past midnight shows on both days)
+  const mine = i => r.me.busy.flatMap(b => {
+    const parts = Number(b.s) < Number(b.e) ? (b.days.includes(i) ? [[b.s, b.e]] : [])
+      : [...(b.days.includes(i) ? [[b.s, 1440]] : []), ...(b.days.includes((i + 6) % 7) ? [[0, b.e]] : [])];
+    return parts.map(([s, e]) => block(s, e, 'busy', `${DAYS[i]} ${hm(s)}–${hm(e % 1440)}${b.l ? ': ' + b.l : ''}`, '', e - s >= 25 ? h('b', null, b.l || 'Busy') : ''));
+  });
+  const shifts = i => r.shifts.filter(x => x.day === i && x.p).map(x => block(x.s, x.e, '', `${DAYS[i]} ${hm(x.s)}–${hm(x.e % 1440)}: ${x.p}${x.h ? ', helping: ' + x.h : ''}`,
+    `background:hsl(${hue(x.p)} 70% 45% / .18);border-color:hsl(${hue(x.p)} 70% 45%)`,
+    ...(x.e - x.s >= 25 ? [h('b', null, displayName(x.p)), x.h && x.e - x.s >= 45 ? h('span', null, '+ ' + displayName(x.h)) : ''] : [])));
+  const day = i => {
+    const col = h('div', { class: 'rgday' + (i === r.today ? ' today' : '') + (onPick ? ' pick' : '') },
+      ...hours.map(x => h('span', { class: 'rgline', style: `top:${x * 60 * PX}px` })),
+      ...(view === 'mine' ? [...classBlocks(i), ...mine(i)] : [...classBlocks(i), ...shifts(i)]));
+    if (onPick) { // drag down the day: those times
+      let a = null, sel = null;
+      const at = e => Math.max(0, Math.min(1440, Math.round((e.clientY - col.getBoundingClientRect().top) / PX / STEP) * STEP));
+      col.addEventListener('pointerdown', e => { a = at(e); sel = block(a, a + STEP, 'sel', ''); col.append(sel); col.setPointerCapture(e.pointerId); e.preventDefault(); });
+      col.addEventListener('pointermove', e => { if (a == null) return; const b = at(e), s = Math.min(a, b), t = Math.max(a, b, s + STEP); sel.style.top = s * PX + 'px'; sel.style.height = (t - s) * PX + 'px'; });
+      col.addEventListener('pointerup', e => { if (a == null) return; const b = at(e), s = Math.min(a, b), t = Math.max(a, b, s + STEP); a = null; sel.remove(); onPick(i, s, Math.min(t, 1439)); });
+    }
+    return col;
+  };
+  return h('div', { class: 'rgwrap' }, h('div', { class: 'rgrid', style: `--h:${1440 * PX}px` },
     h('div', { class: 'rgh' }), ...DAYS.map((d, i) => h('div', { class: 'rgh' + (i === r.today ? ' today' : '') }, d)),
     h('div', { class: 'rgtimes' }, ...hours.map(x => h('span', { style: `top:${x * 60 * PX}px` }, hm(x * 60)))),
-    ...DAYS.map((d, i) => h('div', { class: 'rgday' + (i === r.today ? ' today' : '') },
-      ...hours.map(x => h('span', { class: 'rgline', style: `top:${x * 60 * PX}px` })),
-      ...r.shifts.filter(x => x.day === i && (x.p || isClass(i, x))).map(x => h('div', {
-        class: 'rgblock' + (x.p ? '' : ' class'), title: `${d} ${hm(x.s)}–${hm(x.e % 1440)}: ${x.p ? x.p + (x.h ? ', helping: ' + x.h : '') : 'class'}`,
-        style: `top:${x.s * PX}px;height:${Math.max(4, (x.e - x.s) * PX - 2)}px;${x.p ? `background:hsl(${hue(x.p)} 70% 45% / .18);border-color:hsl(${hue(x.p)} 70% 45%)` : ''}`,
-      }, x.e - x.s >= 25 ? [h('b', null, x.p ? displayName(x.p) : 'Class'), x.p && x.h && x.e - x.s >= 45 ? h('span', null, '+ ' + displayName(x.h)) : ''] : '')))));
-  const md = modal('rotabig scroll', h('div', { class: 'grow2' }, h('h2', null, '\u{1F5D3}\uFE0F The rota this week'), h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')),
-    h('div', { class: 'hint' }, r.staff.some(p => p.on && !p.off) ? 'Each block is a shift: who’s on duty, and (+) who’s helping. Grey is class. Empty is nobody free. Point at a block for its times.' : 'Nobody’s joined the rota yet, so nobody’s on duty.'),
-    h('div', { class: 'rgwrap' }, grid));
-  // Start at 7am (or now, today), not midnight
-  const wrap = md.overlay.querySelector('.rgwrap');
-  if (wrap) wrap.scrollTop = 7 * 60 * PX - 10;
+    ...DAYS.map((d, i) => day(i))));
 }
 
 // DEFCON (a joke): how ready the admins are, 5 to 1, at the top of the Admin panel. Admins set it.
@@ -10347,9 +10367,12 @@ function openAdmin(start, dock) {
   const dayNames = days => days.length === 7 ? 'Every day' : days.join() === '0,1,2,3,4' ? 'Weekdays' : days.join() === '5,6' ? 'Weekends' : days.map(d => DAYS[d]).join(', ');
   const saveMine = async change => {
     const d = await act('setMyRota', Object.assign({ school: rota.me.school, busy: rota.me.busy, always: rota.me.always }, change));
-    if (d) { rota = d; draw(); toast('\u{1F5D3}️ Saved. The rota’s worked out again.'); }
+    if (d) { rota = d; redrawRota(); toast('\u{1F5D3}️ Saved. The rota’s worked out again.'); }
   };
-  const drawRota = () => {
+  // The Schedule: in the tab, or (Expand) all of it big, with the week as a grid beside it. In the big one, dragging
+  // down a day on "My week" fills in the add form with that day and those times.
+  let bigEl = null, bigView = 'mine';
+  const drawRota = (into = body, big = false) => {
     const r = rota, n = r.now, school = r.school;
     const nowSyd = (() => { const p = {}; new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).forEach(x => { p[x.type] = x.value; }); return (+p.hour % 24) * 60 + +p.minute; })();
     const until = n.until >= 60 ? `${Math.floor(n.until / 60)}h${n.until % 60 ? ' ' + n.until % 60 + 'm' : ''}` : n.until + ' minutes';
@@ -10360,14 +10383,22 @@ function openAdmin(start, dock) {
     const add = h('button', { class: 'primary', onclick: () => {
       const days = dayBoxes.map(l => l.querySelector('input')).filter(b => b.checked).map(b => +b.value);
       if (!days.length) return toast('Pick at least one day', true);
-      const s = toMin(from.value), e = toMin(to.value);
-      if (s === e) return toast('From and to are the same time', true);
-      saveMine({ busy: r.me.busy.concat({ days, s, e, l: what.value.trim() }) });
+      const s0 = toMin(from.value), e0 = toMin(to.value);
+      if (s0 === e0) return toast('From and to are the same time', true);
+      saveMine({ busy: r.me.busy.concat({ days, s: s0, e: e0, l: what.value.trim() }) });
     } }, 'Add');
+    const setOn = async on => { if (!confirm(on ? 'Turn the rota on? Admin notifications will only go to whoever’s on duty (and anyone who asks for all of them).' : 'Turn the rota off? Every admin and moderator will get admin notifications again.')) return; const d = await act('setRotaOn', { on }); if (d) { rota = d; redrawRota(); } };
+    const fmt = m => String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+    // (big) A drag on My week: that day, those times, in the add form
+    const pickTimes = (day, a, b) => {
+      dayBoxes.forEach((l, i) => { l.querySelector('input').checked = i === day; });
+      from.value = fmt(a); to.value = fmt(b);
+      what.focus();
+      toast(`${DAYS[day]} ${hm(a)}–${hm(b)}: now say what it is, and press Add`);
+    };
     const shifts = r.shifts.filter(x => x.day === rotaDay);
     const classTime = x => rotaDay < 5 && x.s >= school.s && x.e <= school.e;
-    const setOn = async on => { if (!confirm(on ? 'Turn the rota on? Admin notifications will only go to whoever’s on duty (and anyone who asks for all of them).' : 'Turn the rota off? Every admin and moderator will get admin notifications again.')) return; const d = await act('setRotaOn', { on }); if (d) { rota = d; draw(); } };
-    body.replaceChildren(
+    const top = [
       ...(r.enabled ? [] : [h('div', { class: 'rjoin' }, h('div', null, h('b', null, '\u{1F4CB} The rota is off.'), h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin-top:2px' }, 'Every admin and moderator gets admin notifications until it’s on. Join it and put in when you’re busy, ready for when it is.')),
         me.owner && h('button', { class: 'primary', onclick: () => setOn(true) }, 'Turn the rota on'))]),
       r.enabled && h('div', { class: 'rnow' + (n.p ? '' : ' none') }, ...(n.p
@@ -10379,20 +10410,38 @@ function openAdmin(start, dock) {
       ...(r.me.on ? [] : [h('div', { class: 'rjoin' }, h('div', null, h('b', null, 'You’re not on the rota yet.'), h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px;margin-top:2px' }, 'Join it to take turns being on duty. School times and sleeping (10pm–7am) are filled in for you to change.')),
         h('button', { class: 'primary', onclick: () => saveMine({ on: true }) }, 'Join the rota'))]),
       ...(!r.me.on ? [] : [h('div', { class: 'grow2' }, h('h3', null, 'When I’m busy'), h('button', { class: 'ghost', style: 'padding:3px 10px;font-size:12px', onclick: () => { if (confirm('Leave the rota? You won’t be on duty (or get admin notifications, unless you ask for all of them).')) saveMine({ on: false }); } }, 'Leave the rota')),
-      h('label', { class: 'toggle' }, h('span', null, '\u{1F3EB} School', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, `Weekdays ${hm(school.s)}–${hm(school.e)}, but free to moderate at recess (${hm(school.breaks[0][0])}–${hm(school.breaks[0][1])}) and lunch (${hm(school.breaks[1][0])}–${hm(school.breaks[1][1])})`)),
-        box(r.me.school, v => saveMine({ school: v }))),
-      ...r.me.busy.map((b, i) => h('div', { class: 'rbusy' }, h('span', null, h('b', null, dayNames(b.days)), ` · ${hm(b.s)}–${hm(b.e)}${b.l ? ' · ' + b.l : ''}`),
-        h('button', { class: 'ghost', title: 'Take it off', onclick: () => saveMine({ busy: r.me.busy.filter((x, j) => j !== i) }) }, '✕'))),
-      h('div', { class: 'radd' }, h('div', { class: 'rdays' }, ...dayBoxes), h('div', { class: 'rtimes' }, from, '–', to, what, add))]),
-      h('div', { class: 'grow2' }, h('h3', null, 'Who’s on when'), h('button', { class: 'ghost', style: 'padding:3px 10px;font-size:12px', title: 'The whole week, bigger', onclick: () => openRotaBig(rota) }, '\u2922 Expand')),
+        h('label', { class: 'toggle' }, h('span', null, '\u{1F3EB} School', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, `Weekdays ${hm(school.s)}–${hm(school.e)}, but free to moderate at recess (${hm(school.breaks[0][0])}–${hm(school.breaks[0][1])}) and lunch (${hm(school.breaks[1][0])}–${hm(school.breaks[1][1])})`)),
+          box(r.me.school, v => saveMine({ school: v }))),
+        ...r.me.busy.map((b, i) => h('div', { class: 'rbusy' }, h('span', null, h('b', null, dayNames(b.days)), ` · ${hm(b.s)}–${hm(b.e)}${b.l ? ' · ' + b.l : ''}`),
+          h('button', { class: 'ghost', title: 'Take it off', onclick: () => saveMine({ busy: r.me.busy.filter((x, j) => j !== i) }) }, '✕'))),
+        h('div', { class: 'radd' }, big && h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Tip: drag down a day on My week to pick a time.'), h('div', { class: 'rdays' }, ...dayBoxes), h('div', { class: 'rtimes' }, from, '–', to, what, add))]),
+    ];
+    const staffList = [h('h3', null, 'Who’s on the rota'),
+      ...r.staff.map(p => h('div', { class: 'rbusy' }, h('span', null, nameEl(p.username, 'b', { class: rankClass(p.role) }), p.off ? ' · taken off the rota' : p.on ? ' · on the rota' : ' · hasn’t joined', p.always ? ' · gets every notification' : ''),
+        me.owner && h('button', { class: 'ghost', onclick: async () => { const d = await act('setRotaOff', { username: p.username, off: !p.off }); if (d) { rota = d; redrawRota(); } } }, p.off ? 'Put back on' : 'Take off')))];
+    if (big) {
+      const views = h('div', { class: 'chips', role: 'tablist' }, ...[['mine', 'My week'], ['rota', 'The rota']].map(([k, label]) => h('button', { class: 'ghost', role: 'tab', 'aria-selected': String(bigView === k),
+        style: bigView === k ? 'border-color:var(--accent);color:var(--accent)' : '', onclick: () => { bigView = k; drawRota(into, true); } }, label)));
+      into.replaceChildren(h('div', { class: 'rbig' }, h('div', { class: 'rbigside' }, ...top, ...staffList),
+        h('div', { class: 'rbigmain' }, views, rotaGrid(r, bigView, r.me.on && bigView === 'mine' ? pickTimes : null))));
+      return;
+    }
+    into.replaceChildren(...top,
+      h('div', { class: 'grow2' }, h('h3', null, 'Who’s on when'), h('button', { class: 'ghost', style: 'padding:3px 10px;font-size:12px', title: 'All of it, bigger: set your times on a week grid', onclick: () => openRotaBig() }, '⤢ Expand')),
       h('div', { class: 'chips', role: 'tablist' }, ...DAYS.map((d, i) => h('button', { class: 'ghost', role: 'tab', 'aria-selected': String(rotaDay === i),
         style: rotaDay === i ? 'border-color:var(--accent);color:var(--accent)' : '', onclick: () => { rotaDay = i; drawRota(); } }, i === r.today ? d + ' (today)' : d))),
       ...shifts.map(x => h('div', { class: 'rshift' + (rotaDay === r.today && x.s <= nowSyd && nowSyd < x.e ? ' now' : '') + (x.p ? '' : ' empty') },
         h('span', { class: 'rwhen' }, `${hm(x.s)}–${hm(x.e % 1440)}`),
         x.p ? h('span', null, '\u{1F6E1}️ ', nameEl(x.p, 'b'), x.h ? [' · helping: ', nameEl(x.h)] : ' · no helper') : h('span', null, classTime(x) ? '\u{1F4DA} Class' : '\u{1F634} Nobody free'))),
-      h('h3', null, 'Who’s on the rota'),
-      ...r.staff.map(p => h('div', { class: 'rbusy' }, h('span', null, nameEl(p.username, 'b', { class: rankClass(p.role) }), p.off ? ' · taken off the rota' : p.on ? ' · on the rota' : ' · hasn’t joined', p.always ? ' · gets every notification' : ''),
-        me.owner && h('button', { class: 'ghost', onclick: async () => { const d = await act('setRotaOff', { username: p.username, off: !p.off }); if (d) { rota = d; draw(); } } }, p.off ? 'Put back on' : 'Take off'))));
+      ...staffList);
+  };
+  const redrawRota = () => { draw(); if (bigEl && bigEl.isConnected) drawRota(bigEl, true); };
+  const openRotaBig = () => {
+    bigEl = h('div');
+    const md = modal('rotabig scroll', h('div', { class: 'grow2' }, h('h2', null, '\u{1F5D3}️ Schedule'), h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')), bigEl);
+    drawRota(bigEl, true);
+    const wrap = bigEl.querySelector('.rgwrap');
+    if (wrap) wrap.scrollTop = 7 * 60 * 0.9 - 10; // from 7am
   };
   // Idiocy Support: everyone who's asked, waiting ones first. Any admin can answer.
   let support = null;
