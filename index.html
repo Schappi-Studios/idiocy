@@ -1767,6 +1767,20 @@
   /* ---------- admin stats ---------- */
   .lchart { margin: 12px 0 8px; }
   .adamv { border-radius: 8px; padding: 6px 10px; margin: 2px 0; }
+  .rnow { border-radius: 12px; padding: 12px 14px; background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid var(--accent); font-size: 15px; }
+  .rnow.none { background: var(--panel-2); border-color: var(--border); color: var(--muted); }
+  .rbusy { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 4px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .rbusy button { padding: 2px 10px; }
+  .radd { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; padding: 10px; border: 1px dashed var(--border); border-radius: 10px; }
+  .radd .rdays { display: flex; flex-wrap: wrap; gap: 6px; }
+  .radd .rday { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 9px; cursor: pointer; }
+  .radd .rtimes { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .radd .rtimes input[type=time] { width: 110px; }
+  .radd .rtimes input:not([type]) { flex: 1; min-width: 120px; }
+  .rshift { display: flex; gap: 10px; align-items: baseline; padding: 7px 8px; border-radius: 8px; font-size: 14px; }
+  .rshift .rwhen { min-width: 9.5em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .rshift.now { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+  .rshift.empty { color: var(--muted); }
   .defcon { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-radius: 12px; padding: 10px 12px; color: #fff; font-family: ui-monospace, Menlo, monospace; letter-spacing: .02em; }
   .defcon .dcnow { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
   .defcon .dcnow b { font-size: 18px; letter-spacing: .08em; }
@@ -10271,10 +10285,68 @@ function openAdmin(start, dock) {
   const rf = { hide: new Set(), who: new Map(), q: '', sort: 'new' }; // the Reports filter
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
-  const sup = serverApi >= 75 ? ['support'] : [];
+  const sup = (serverApi >= 75 ? ['support'] : []).concat(serverApi >= 89 ? ['rota'] : []);
   const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 84 ? ['stats'] : []), ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
   if (TABS.includes(start)) tab = start;
-  const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; if (t === 'support') support = null; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t[0].toUpperCase() + t.slice(1)));
+  const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; if (t === 'support') support = null; if (t === 'rota') rota = null; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t === 'rota' ? '\u{1F5D3}\uFE0F Schedule' : t[0].toUpperCase() + t.slice(1)));
+  // The rota: who's on duty, my busy times, and who's on when (Schedule tab).
+  let rota = null, rotaDay = null;
+  const loadRota = async () => {
+    try {
+      const d = await api('adminRota', {});
+      if (!d.ok) { if (!d.auth) toast(d.error, true); return; }
+      rota = d;
+      if (rotaDay == null) rotaDay = d.today;
+      if (tab === 'rota') draw();
+    } catch (e) { toast('Could not reach the server', true); }
+  };
+  const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const hm = m => `${Math.floor(m / 60) % 12 || 12}${m % 60 ? ':' + String(m % 60).padStart(2, '0') : ''} ${Math.floor(m / 60) % 24 < 12 ? 'am' : 'pm'}`;
+  const toMin = v => { const [a, b] = String(v || '0:0').split(':').map(Number); return a * 60 + (b || 0); };
+  const dayNames = days => days.length === 7 ? 'Every day' : days.join() === '0,1,2,3,4' ? 'Weekdays' : days.join() === '5,6' ? 'Weekends' : days.map(d => DAYS[d]).join(', ');
+  const saveMine = async change => {
+    const d = await act('setMyRota', Object.assign({ school: rota.me.school, busy: rota.me.busy, always: rota.me.always }, change));
+    if (d) { rota = d; draw(); toast('\u{1F5D3}️ Saved. The rota’s worked out again.'); }
+  };
+  const drawRota = () => {
+    const r = rota, n = r.now, school = r.school;
+    const nowSyd = (() => { const p = {}; new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).forEach(x => { p[x.type] = x.value; }); return (+p.hour % 24) * 60 + +p.minute; })();
+    const until = n.until >= 60 ? `${Math.floor(n.until / 60)}h${n.until % 60 ? ' ' + n.until % 60 + 'm' : ''}` : n.until + ' minutes';
+    const box = (checked, onchange) => { const b = h('input', { type: 'checkbox' }); b.checked = checked; b.onchange = () => onchange(b.checked); return b; };
+    const dayBoxes = DAYS.map((d, i) => h('label', { class: 'rday' }, h('input', { type: 'checkbox', value: String(i) }), d));
+    const from = h('input', { type: 'time', value: '16:00', 'aria-label': 'From' }), to = h('input', { type: 'time', value: '17:00', 'aria-label': 'To' });
+    const what = h('input', { placeholder: 'What (e.g. soccer)', maxlength: 40, 'aria-label': 'What' });
+    const add = h('button', { class: 'primary', onclick: () => {
+      const days = dayBoxes.map(l => l.querySelector('input')).filter(b => b.checked).map(b => +b.value);
+      if (!days.length) return toast('Pick at least one day', true);
+      const s = toMin(from.value), e = toMin(to.value);
+      if (s === e) return toast('From and to are the same time', true);
+      saveMine({ busy: r.me.busy.concat({ days, s, e, l: what.value.trim() }) });
+    } }, 'Add');
+    const shifts = r.shifts.filter(x => x.day === rotaDay);
+    const classTime = x => rotaDay < 5 && x.s >= school.s && x.e <= school.e;
+    body.replaceChildren(
+      h('div', { class: 'rnow' + (n.p ? '' : ' none') }, ...(n.p
+        ? ['\u{1F6E1}️ On duty now: ', nameEl(n.p, 'b'), ...(n.h ? [' · helping: ', nameEl(n.h, 'b')] : []), ` · for the next ${until}`]
+        : ['\u{1F634} Nobody’s on duty right now (class time, or everyone’s busy).'])),
+      h('div', { class: 'actnote' }, 'Admin notifications (new accounts, ADAM, unban requests, Support) only go to who’s on duty, and to anyone who asks for all of them.'),
+      h('label', { class: 'toggle' }, h('span', null, 'Send me every admin notification', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, 'Even when I’m not on duty')), box(r.me.always, v => saveMine({ always: v }))),
+      h('h3', null, 'When I’m busy'),
+      h('label', { class: 'toggle' }, h('span', null, '\u{1F3EB} School', h('div', { class: 'hint', style: 'color:var(--muted);font-size:12px' }, `Weekdays ${hm(school.s)}–${hm(school.e)}, but free to moderate at recess (${hm(school.breaks[0][0])}–${hm(school.breaks[0][1])}) and lunch (${hm(school.breaks[1][0])}–${hm(school.breaks[1][1])})`)),
+        box(r.me.school, v => saveMine({ school: v }))),
+      ...r.me.busy.map((b, i) => h('div', { class: 'rbusy' }, h('span', null, h('b', null, dayNames(b.days)), ` · ${hm(b.s)}–${hm(b.e)}${b.l ? ' · ' + b.l : ''}`),
+        h('button', { class: 'ghost', title: 'Take it off', onclick: () => saveMine({ busy: r.me.busy.filter((x, j) => j !== i) }) }, '✕'))),
+      h('div', { class: 'radd' }, h('div', { class: 'rdays' }, ...dayBoxes), h('div', { class: 'rtimes' }, from, '–', to, what, add)),
+      h('h3', null, 'Who’s on when'),
+      h('div', { class: 'chips', role: 'tablist' }, ...DAYS.map((d, i) => h('button', { class: 'ghost', role: 'tab', 'aria-selected': String(rotaDay === i),
+        style: rotaDay === i ? 'border-color:var(--accent);color:var(--accent)' : '', onclick: () => { rotaDay = i; drawRota(); } }, i === r.today ? d + ' (today)' : d))),
+      ...shifts.map(x => h('div', { class: 'rshift' + (rotaDay === r.today && x.s <= nowSyd && nowSyd < x.e ? ' now' : '') + (x.p ? '' : ' empty') },
+        h('span', { class: 'rwhen' }, `${hm(x.s)}–${hm(x.e % 1440)}`),
+        x.p ? h('span', null, '\u{1F6E1}️ ', nameEl(x.p, 'b'), x.h ? [' · helping: ', nameEl(x.h)] : ' · no helper') : h('span', null, classTime(x) ? '\u{1F4DA} Class' : '\u{1F634} Nobody free'))),
+      h('h3', null, 'Who’s on the rota'),
+      ...r.staff.map(p => h('div', { class: 'rbusy' }, h('span', null, nameEl(p.username, 'b', { class: rankClass(p.role) }), p.off ? ' · off the rota' : '', p.always ? ' · gets every notification' : ''),
+        me.owner && h('button', { class: 'ghost', onclick: async () => { const d = await act('setRotaOff', { username: p.username, off: !p.off }); if (d) { rota = d; draw(); } } }, p.off ? 'Put back on' : 'Take off'))));
+  };
   // Idiocy Support: everyone who's asked, waiting ones first. Any admin can answer.
   let support = null;
   const supTab = tabs[TABS.indexOf('support')];
@@ -10656,6 +10728,13 @@ function openAdmin(start, dock) {
         return;
       }
       drawAdam();
+    } else if (tab === 'rota') {
+      if (!rota) {
+        body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
+        loadRota();
+        return;
+      }
+      drawRota();
     } else if (tab === 'support') {
       if (!support) {
         body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
