@@ -6524,7 +6524,7 @@ async function revealMessage(convoId, id, quiet) {
       if (!quiet) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
       return el;
     }
-    if (linked && openRev !== null && isFeed()) { keepPlace(() => addMessage(linked, 'top')); linked = null; continue; } // lastId stays: it's not part of the feed
+    if (linked && openRev !== null && isFeed()) { keepPlace(() => addMessage(linked)); linked = null; continue; } // where its date puts it (lastId stays: it's not part of the feed)
     if (openRev !== null && !olderLoading && !olderMore) break; // all loaded, and it isn't there
     if (openRev !== null && !olderLoading) await loadOlder();
     await new Promise(r => setTimeout(r, olderLoading ? 120 : 250));
@@ -8268,15 +8268,16 @@ function sortFeed() {
   feedEndEl.remove();
   restOn = null;
   const posts = feedPosts().sort((a, b) => ((b._m.time || 0) - (a._m.time || 0)) || (b._m.id - a._m.id));
-  const first = feedFirst ? posts.findIndex(p => p._m.id === feedFirst) : -1;
-  if (first > 0) posts.unshift(...posts.splice(first, 1)); // opened on a post: that one first
+  const first = feedFirst ? posts.find(p => p._m.id === feedFirst) : null;
   const frag = document.createDocumentFragment();
   posts.forEach(p => frag.append(p));
   let at = feedTop();
   while (at && at.classList && at.classList.contains('pending')) at = at.nextSibling;
   log.insertBefore(frag, at || null);
   paintFeedEnd();
-  requestAnimationFrame(syncAddress);
+  // Opened on a post (a link, or the address after a reload): it stays in its place, and the feed starts there,
+  // with anything newer above it. (It used to be moved to the top, above newer posts.)
+  requestAnimationFrame(() => { if (first && first.isConnected) first.scrollIntoView({ block: 'start' }); syncAddress(); });
 }
 // Once every post has loaded: "You're all caught up", at the end.
 function paintFeedEnd() {
@@ -8385,7 +8386,7 @@ function refreshFeed(msgs, full) {
       const id = Number(el.dataset.id);
       if (id >= from && !ids.has(id)) { el.querySelectorAll('.vshot').forEach(b => feedVideos.unobserve(b)); el.remove(); shown.delete(id); }
     });
-    msgs.forEach(m => shown.has(m.id) ? updateMessage(m) : addMessage(m, 'top'));
+    msgs.forEach(m => shown.has(m.id) ? updateMessage(m) : addMessage(m)); // (new ones where their date puts them: the top, unless they're older)
   });
   lastId = Math.max(lastId, ...msgs.map(m => m.id));
   if (!full) olderMore = false;
