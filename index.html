@@ -409,6 +409,22 @@
   .urow .nm:hover { text-decoration: underline; }
   .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
   .toggle input { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
+  .badge.botbadge { background: #12a594; color: #fff; }
+  .botedit h3 { margin: 18px 0 4px; }
+  .botedit .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; margin: 6px 0; }
+  .botedit .hint { color: var(--muted); font-size: 12px; font-weight: 400; }
+  .bothead { display: flex; align-items: center; gap: 12px; }
+  .bothead h2 { margin: 0; }
+  .botstatus { font-size: 13px; color: var(--muted); margin: 6px 0; }
+  .botstatus.bad { color: var(--danger); }
+  .botkey { display: flex; flex-direction: column; gap: 6px; }
+  .botkeyline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 400; }
+  .botkeyline input { flex: 1; min-width: 160px; }
+  .botsched { display: flex; flex-direction: column; gap: 8px; margin: 6px 0; }
+  .botsrow { display: flex; flex-direction: column; gap: 6px; padding: 8px; margin: 0; }
+  .botsline { display: flex; gap: 6px; align-items: center; }
+  .botsline select { flex: 1; min-width: 0; }
+  .botsays { background: var(--panel-2); border-radius: 10px; padding: 8px 10px; margin-top: 6px; font-size: 14px; white-space: pre-wrap; }
 
   /* ---------- email ---------- */
   .vbadge { color: var(--accent); font-weight: 800; }
@@ -2231,9 +2247,10 @@ let actingAs = store.get('chat_as') || '';
 let me = null;          // { name, role, actor (who's really using an organisation), orgs, orgInvites }
 // Ranks: 'admin', and below it 'mod' (moderators look after Reports, posts and timeouts for ordinary accounts).
 const isStaff = () => !!me && (me.role === 'admin' || me.role === 'mod');
-const rankBadge = role => role === 'admin' ? h('span', { class: 'badge' }, 'ADMIN') : role === 'mod' ? h('span', { class: 'badge modbadge', title: 'Moderator' }, 'MOD') : null;
+const rankBadge = role => role === 'admin' ? h('span', { class: 'badge' }, 'ADMIN') : role === 'mod' ? h('span', { class: 'badge modbadge', title: 'Moderator' }, 'MOD')
+  : role === 'bot' ? h('span', { class: 'badge botbadge', title: 'A bot: an AI writes what it says' }, '\u{1F916} BOT') : null;
 const rankClass = role => role === 'admin' ? 'admin-name' : role === 'mod' ? 'mod-name' : '';
-const msgRank = m => m.admin ? 'admin' : m.mod ? 'mod' : '';
+const msgRank = m => m.admin ? 'admin' : m.mod ? 'mod' : m.bot ? 'bot' : '';
 let st = null;          // friends, requests, convos
 let uv = null;          // version of st the server last sent
 let latest = {};        // newest message id per chat
@@ -2528,7 +2545,7 @@ function openProfile(name) {
         fullName(p) && h('div', { class: 'pfull' }, fullName(p)),
         h('div', { class: 'pname ' + rankClass(p.role) }, fullName(p) ? '@' + (p.username || name) : p.username || name, rankBadge(p.role), pickChip(p.username || name),
           p.invisible && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: isMe ? 'Everyone else sees a normal member' : 'Invisible: only admins and moderators see this' }, '\u{1F47B} INVISIBLE'),
-          g && h('span', { class: 'badge orgbadge' }, '\u{1F3E2} ORGANISATION'),
+          p.bot ? rankBadge('bot') : g && h('span', { class: 'badge orgbadge' }, '\u{1F3E2} ORGANISATION'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           !p.verified && p.username && me && me.role === 'admin' && serverApi >= 15 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: 'No verified email' }, 'NO EMAIL')),
@@ -2536,6 +2553,7 @@ function openProfile(name) {
           h('span', { class: 'dotsm' + (p.online ? ' on' : '') }),
           tame(p.status) || (p.online ? 'Online' : 'Offline')),
         p.game && h('div', { class: 'pgame' }, '\u{1F3AE} Playing ', h('b', null, p.game)),
+        p.bot && h('div', { class: 'pmeta' }, '\u{1F916} A bot', p.bot.by ? ` made by @${p.bot.by}` : '', '. An AI writes what it says.'),
         isBlocked(name) && h('div', { class: 'pmeta' }, '\u{1F6AB} You’ve blocked them. They can’t add or message you.'),
         g && g.invitedYou && h('div', { class: 'pinvite' },
           h('span', null, nameEl(g.owner, 'b'), ' invited you to help run ', nameEl(p.username || name, 'b'), '. You’d post as it and answer its messages, and everyone would see it was you.'),
@@ -4751,7 +4769,8 @@ function renderHeader() {
   // DMs: 1-to-1 calls. Groups: start a group call, or join the one that's on.
   const inThisCall = gcall && gcall.convo === openId;
   const groupCallOn = isGroup && openGcall && !inThisCall;
-  const canCall = !!c && ((c.type === 'dm' && serverApi >= 6) || (isGroup && serverApi >= 10 && !openGcall && !inThisCall));
+  const dmBot = !!c && c.type === 'dm' && (st.bots || []).some(n => c.members.some(m => key(m) === key(n))); // (nobody to answer a call)
+  const canCall = !!c && ((c.type === 'dm' && serverApi >= 6 && !dmBot) || (isGroup && serverApi >= 10 && !openGcall && !inThisCall));
   $('callbtn').classList.toggle('hidden', !canCall);
   $('vcallbtn').classList.toggle('hidden', !canCall);
   $('joincall').classList.toggle('hidden', !groupCallOn);
@@ -4946,7 +4965,7 @@ $('addfriend').addEventListener('submit', async e => {
 
 // ---------- groups ----------
 function picker({ title, withName, exclude = [], button, onSubmit }) {
-  const friends = (st ? st.friends : []).filter(n => !exclude.some(x => key(x) === key(n)));
+  const friends = (st ? st.friends.concat(st.bots || []) : []).filter(n => !exclude.some(x => key(x) === key(n))); // (and bots they follow)
   const nameInput = withName && h('input', { placeholder: 'Group name', maxlength: 30 });
   const boxes = friends.map(n => h('input', { type: 'checkbox', value: n }));
   const close = () => overlay.remove();
@@ -4966,7 +4985,7 @@ function picker({ title, withName, exclude = [], button, onSubmit }) {
       h('h2', null, title),
       nameInput,
       friends.length
-        ? h('div', { class: 'picks' }, friends.map((n, i) => h('label', null, boxes[i], avatar(n), displayName(n))))
+        ? h('div', { class: 'picks' }, friends.map((n, i) => h('label', null, boxes[i], avatar(n), displayName(n), (st.bots || []).some(x => key(x) === key(n)) && rankBadge('bot'))))
         : h('div', { class: 'muted' }, exclude.length > 1 ? 'All your friends are already here.' : 'Add some friends first.'),
       h('div', { class: 'btns' },
         h('button', { class: 'ghost', type: 'button', onclick: close }, 'Cancel'),
@@ -10404,15 +10423,228 @@ function paintDockMembers(dock, c) {
   dock._msig = sig;
 }
 
+// ---------- bots ----------
+// Admins make bots (Admin panel > Bots): accounts that answer using an AI service, with the admin's own API key.
+// The key goes straight to the server (/bot/key), which keeps it encrypted: nothing ever sends it back, only its
+// last 4 characters. Its name, picture and bio are changed from the bot's own account (like an organisation's).
+const BOT_PROVS = [['openai', 'OpenAI (ChatGPT)'], ['anthropic', 'Anthropic (Claude)'], ['gemini', 'Google (Gemini)'], ['compat', 'OpenAI-compatible (Groq, OpenRouter, DeepSeek…)']];
+const BOT_PROV_NAME = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google', compat: 'the AI service' };
+const BOT_CAN = [['mention', 'Answers when someone @mentions it, or replies to it, in a group, a post or its comments'], ['dm', 'Chats in DMs (people follow it to message it)'],
+  ['welcome', 'Welcomes people who join its groups'], ['joined', 'Welcomes everyone who joins Idiocy, with a post in the Global feed'],
+  ['stats', 'Can use the admin stats (only in the official admin group, and in DMs with admins and moderators)']];
+const BOT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+async function botCall(path, data) {
+  try {
+    const r = await fetch(MEDIA_BASE + '/bot/' + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, ...data }) });
+    return await r.json();
+  } catch (e) { return { ok: false, error: 'Could not reach the server' }; }
+}
+// How it's doing, in a few words.
+function botStatus(b) {
+  if (b.banned) return ['\u{1F6AB} Banned', 'bad'];
+  if (b.off) return ['⏸️ Paused', ''];
+  if (!b.kh) return ['\u{1F511} Needs an API key', 'bad'];
+  if (!b.model) return ['Needs a model', 'bad'];
+  if (b.err) return ['⚠️ ' + b.err, 'bad'];
+  return [b.last ? `✅ Last said something ${seenAgo(b.last)}${b.said ? ` (${b.said} today)` : ''}` : '✅ Ready (it hasn’t said anything yet)', 'good'];
+}
+function newBot(onMade, mine = []) {
+  const at = h('input', { placeholder: 'e.g. quizbot', maxlength: 20, autocapitalize: 'off', spellcheck: 'false' });
+  const nm = h('input', { placeholder: 'e.g. Quiz Bot', maxlength: 40 });
+  const go = h('button', { class: 'primary', type: 'submit' }, 'Make it');
+  const md = modal('', h('form', { onsubmit: async e => {
+    e.preventDefault();
+    go.disabled = true;
+    const d = await act('botCreate', { username: at.value.trim().replace(/^@/, ''), first: nm.value.trim() });
+    go.disabled = false;
+    if (!d) return;
+    md.close();
+    onMade(d.bot);
+    openBotEditor(d.bot, onMade, mine.concat(d.bot));
+  } },
+    h('h2', null, '\u{1F916} New bot'),
+    h('label', { class: 'field' }, 'Its @', at), h('label', { class: 'field' }, 'Its name', nm),
+    h('div', { class: 'actnote' }, 'Next you pick which AI it uses and give it your API key. It follows the same rules as everyone: ADAM checks what it posts like anyone’s, and admins can time it out or ban it.'),
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', type: 'button', onclick: () => md.close() }, 'Cancel'), go)));
+  at.focus();
+}
+// Everything about one bot. onChange(bot): it changed (or null: deleted).
+function openBotEditor(bot, onChange, mine = []) {
+  let b = bot;
+  const prov = h('select', { 'aria-label': 'AI service' }, BOT_PROVS.map(([k, l]) => h('option', { value: k }, l)));
+  const base = h('input', { placeholder: 'https://api.groq.com/openai/v1', maxlength: 200, autocapitalize: 'off', spellcheck: 'false' });
+  const baseRow = h('label', { class: 'field' }, 'Its web address (where requests go)', base);
+  const keyBox = h('div', { class: 'botkey' });
+  const model = h('input', { list: 'botmodels', maxlength: 80, autocapitalize: 'off', spellcheck: 'false', placeholder: 'Press “Load models” to pick one' });
+  const models = h('datalist', { id: 'botmodels' });
+  const loadModels = h('button', { class: 'ghost', type: 'button', onclick: async () => {
+    loadModels.disabled = true;
+    const d = await botCall('models', { bot: b.username });
+    loadModels.disabled = false;
+    if (!d.ok) return toast(d.error, true);
+    models.replaceChildren(...d.models.map(m => h('option', { value: m })));
+    if (!model.value && d.models.length) model.value = d.models[0];
+    toast(`${d.models.length} models: pick one from the list`);
+    model.focus();
+  } }, 'Load models');
+  const sys = h('textarea', { rows: 5, maxlength: 2000, placeholder: 'e.g. You’re Quiz Bot. You love trivia, and ask people quiz questions about science, history and sport. You’re cheerful and use the odd emoji.' });
+  const can = Object.fromEntries(BOT_CAN.map(([k]) => [k, h('input', { type: 'checkbox' })]));
+  const who = h('select', { 'aria-label': 'Who it talks to' }, h('option', { value: 'all' }, 'Everyone'), h('option', { value: 'staff' }, 'Only admins and moderators'));
+  const off = h('input', { type: 'checkbox' });
+  let sched = [];
+  const schedBox = h('div', { class: 'botsched' });
+  const status = h('div', { class: 'botstatus' });
+  const tryIn = h('input', { placeholder: 'Say something to it', maxlength: 1000 });
+  const tryOut = h('div', { class: 'botsays hidden' });
+  const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const paintSched = () => schedBox.replaceChildren(...sched.map((s, i) => h('div', { class: 'card botsrow' },
+    h('div', { class: 'chips' }, BOT_DAYS.map((d, n) => h('button', { type: 'button', class: 'ghost', 'aria-pressed': String(s.d.includes(n)),
+      style: s.d.includes(n) ? 'border-color:var(--accent);color:var(--accent)' : '',
+      onclick: () => { s.d = s.d.includes(n) ? s.d.filter(x => x !== n) : s.d.concat(n).sort(); paintSched(); } }, d))),
+    h('div', { class: 'botsline' },
+      h('input', { type: 'time', value: hm(s.t), 'aria-label': 'What time', onchange: e => { const [a, c] = e.target.value.split(':').map(Number); s.t = (a || 0) * 60 + (c || 0); } }),
+      h('select', { 'aria-label': 'Where', onchange: e => { s.w = e.target.value; } },
+        [['global', 'the Global feed'], ...(b.groups || []).map(g => [g.id, g.name])].map(([v, l]) => h('option', { value: v, ...(s.w === v && { selected: '' }) }, l))),
+      h('button', { type: 'button', class: 'ghost danger', title: 'Take it off', onclick: () => { sched.splice(i, 1); paintSched(); } }, '✕')),
+    h('input', { value: s.p, maxlength: 300, placeholder: 'What to post about, e.g. a quiz question about space', oninput: e => { s.p = e.target.value; } }))),
+    sched.length < 10 && h('button', { type: 'button', class: 'ghost', onclick: () => { sched.push({ d: [0, 1, 2, 3, 4], t: 8 * 60, w: 'global', p: '' }); paintSched(); } }, '+ Add a scheduled post'));
+  // The key: saved (its last 4 characters), or a box to put one in.
+  const paintKey = () => {
+    const p = prov.value, saved = b.kh && b.kp === p;
+    const others = mine.filter(o => key(o.username) !== key(b.username) && o.kh && o.kp === p);
+    const input = h('input', { type: 'password', placeholder: `Your ${BOT_PROV_NAME[p]} API key`, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: 400 });
+    const save = h('button', { class: 'primary', type: 'button', onclick: async () => {
+      if (!input.value.trim()) return toast('Paste your API key first', true);
+      save.disabled = true;
+      if (!await saveSettings(true)) { save.disabled = false; return; }
+      const d = await botCall('key', { bot: b.username, prov: p, base: base.value.trim(), key: input.value.trim() });
+      save.disabled = false;
+      input.value = '';
+      if (!d.ok) return toast(d.error, true);
+      b = { ...b, kh: d.hint, kp: d.prov, err: '' };
+      onChange(b);
+      paintKey(); paintStatus();
+      toast('\u{1F512} Key saved. It’s kept encrypted, and nobody can see it again.');
+    } }, 'Save key');
+    keyBox.replaceChildren(
+      saved ? h('div', { class: 'botkeyline' }, h('span', null, `\u{1F512} ${BOT_PROV_NAME[p]} key saved: `, h('code', null, b.kh)),
+        h('button', { class: 'ghost', type: 'button', onclick: () => { b = { ...b, kh: '' }; paintKey(); } }, 'Replace'),
+        h('button', { class: 'ghost danger', type: 'button', onclick: async () => {
+          if (!confirm('Remove its API key? It won’t be able to say anything until it has one again.')) return;
+          const d = await botCall('key', { bot: b.username, remove: true });
+          if (!d.ok) return toast(d.error, true);
+          b = { ...b, kh: '', kp: '' }; onChange(b); paintKey(); paintStatus();
+        } }, 'Remove'))
+        : h('div', { class: 'botkeyline' }, input, save),
+      !saved && others.length ? h('div', { class: 'botkeyline' }, 'Or use the key you gave ', ...others.map(o => h('button', { class: 'ghost', type: 'button', onclick: async () => {
+        if (!await saveSettings(true)) return;
+        const d = await botCall('key', { bot: b.username, copyFrom: o.username });
+        if (!d.ok) return toast(d.error, true);
+        b = { ...b, kh: d.hint, kp: d.prov, err: '' }; onChange(b); paintKey(); paintStatus();
+        toast('\u{1F512} Key saved');
+      } }, '@' + o.username))) : null,
+      h('div', { class: 'hint' }, 'It goes straight to Idiocy’s server, which keeps it encrypted. Nobody can see it again, not even you: just its last 4 characters. Only this bot uses it, and whatever it says costs you (on your account with them).'));
+  };
+  const paintStatus = () => { const [t, c] = botStatus(b); status.className = 'botstatus ' + c; status.textContent = t; };
+  const fill = () => {
+    prov.value = b.prov || 'openai'; base.value = b.base || ''; model.value = b.model || ''; sys.value = b.sys || '';
+    BOT_CAN.forEach(([k]) => { can[k].checked = !!(b.can || {})[k]; });
+    who.value = b.who === 'staff' ? 'staff' : 'all'; off.checked = !!b.off;
+    sched = (b.sched || []).map(s => ({ ...s, d: s.d.slice() }));
+    baseRow.classList.toggle('hidden', prov.value !== 'compat');
+    paintSched(); paintKey(); paintStatus();
+  };
+  prov.onchange = () => { baseRow.classList.toggle('hidden', prov.value !== 'compat'); models.replaceChildren(); if (prov.value !== b.prov) model.value = ''; paintKey(); };
+  // quiet: just saving before something else (a key, or trying it out).
+  async function saveSettings(quiet) {
+    const d = await act('botSave', { bot: b.username, prov: prov.value, base: prov.value === 'compat' ? base.value.trim() : '', model: model.value.trim(), sys: sys.value,
+      can: Object.fromEntries(BOT_CAN.map(([k]) => [k, can[k].checked])), who: who.value, off: off.checked, sched: sched.map(s => ({ id: s.id, d: s.d, t: s.t, w: s.w, p: s.p.trim() })) });
+    if (!d) return false;
+    b = d.bot;
+    onChange(b);
+    paintStatus();
+    if (!quiet) toast('✓ Saved');
+    return true;
+  }
+  const tryBtn = h('button', { class: 'ghost', type: 'button', onclick: async () => {
+    if (!tryIn.value.trim()) return tryIn.focus();
+    tryBtn.disabled = true;
+    tryOut.classList.remove('hidden');
+    tryOut.replaceChildren(h('span', { class: 'shimmer', style: 'display:block;height:18px;border-radius:6px' }));
+    const ok = await saveSettings(true);
+    const d = ok ? await botCall('try', { bot: b.username, text: tryIn.value.trim() }) : { ok: false, error: '' };
+    tryBtn.disabled = false;
+    tryOut.replaceChildren(d.ok ? h('span', null, h('b', null, displayName(b.username) + ': '), d.reply) : h('span', { style: 'color:var(--danger)' }, d.error || 'Fix the settings first'));
+  } }, 'Try it');
+  tryIn.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); tryBtn.click(); } };
+  const md = modal('wide scroll botedit',
+    h('div', { class: 'bothead' }, avatar(b.username), h('div', null, h('h2', null, b.name || b.username, ' ', rankBadge('bot')), h('div', { class: 'meta' }, '@' + b.username, b.by && key(b.by) !== key(me.name) ? ` · made by @${b.by}` : '', ` · ${b.followers || 0} following it`))),
+    status,
+    h('div', { class: 'btns', style: 'justify-content:flex-start' },
+      h('button', { class: 'ghost', type: 'button', onclick: () => openProfile(b.username) }, 'Its profile'),
+      h('button', { class: 'ghost', type: 'button', title: 'Switch to the bot’s account to change its name, picture and bio, or say something as it', onclick: () => { md.close(); document.querySelectorAll('.overlay').forEach(o => o.remove()); useAccount(b.username, `\u{1F916} You’re using ${displayName(b.username)}. Change its name, picture and bio in Settings. Switch back at the top.`); } }, '\u{1F504} Use its account (name, picture, bio)')),
+    h('h3', null, '\u{1F9E0} Its AI'),
+    h('label', { class: 'field' }, 'Which service', prov), baseRow,
+    h('div', { class: 'field' }, 'API key', keyBox),
+    h('div', { class: 'field' }, 'Model', h('div', { class: 'botkeyline' }, model, loadModels), models),
+    h('label', { class: 'field' }, 'Its personality (what it’s like, and what it does)', sys),
+    h('h3', null, '⚙️ What it does'),
+    ...BOT_CAN.map(([k, l]) => h('label', { class: 'toggle' }, h('span', null, l), can[k])),
+    h('label', { class: 'field' }, 'Who it talks to', who),
+    h('h3', null, '\u{1F5D3}️ Scheduled posts'),
+    h('div', { class: 'hint' }, 'It writes one at that time (Sydney time) on those days. To post in a group, it has to be in it: invite it like anyone.'),
+    schedBox,
+    h('label', { class: 'toggle' }, h('span', null, '⏸️ Paused (it says nothing)'), off),
+    h('h3', null, '\u{1F9EA} Try it'),
+    h('div', { class: 'botkeyline' }, tryIn, tryBtn), tryOut,
+    h('div', { class: 'actnote' }, 'It follows the same rules as everyone: ADAM checks what it posts like anyone’s, and admins can time it out or ban it. It never answers other bots, and won’t answer more than 60 times an hour, or 6 times in 10 minutes to the same person.'),
+    h('div', { class: 'btns' },
+      h('button', { class: 'ghost danger', type: 'button', onclick: async () => {
+        if (!confirm(`Delete ${displayName(b.username)}? Its posts, chats and API key go too. This can’t be undone.`)) return;
+        if (await act('botDelete', { bot: b.username })) { md.close(); onChange(null); toast('Deleted'); }
+      } }, 'Delete bot'),
+      h('button', { class: 'ghost', type: 'button', onclick: () => md.close() }, 'Close'),
+      h('button', { class: 'primary', type: 'button', onclick: () => saveSettings() }, 'Save')));
+  fill();
+  return md;
+}
+
 function openAdmin(start, dock) {
   let tab = 'reports', data = null, activity = null, actQuery = '', stats = null, statsBy = 'day', statsAll = false;
   const rf = { hide: new Set(), who: new Map(), q: '', sort: 'new' }; // the Reports filter
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
   const sup = (serverApi >= 75 ? ['support'] : []).concat(serverApi >= 89 ? ['rota'] : []);
-  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 84 ? ['stats'] : []), ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
+  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 84 ? ['stats'] : []), ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), ...(serverApi >= 96 ? ['bots'] : []), 'settings'];
   if (TABS.includes(start)) tab = start;
   const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; if (t === 'support') support = null; if (t === 'rota') rota = null; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t === 'rota' ? '\u{1F5D3}\uFE0F Schedule' : t[0].toUpperCase() + t.slice(1)));
+  // Bots (Bots tab): theirs (the owner: everyone's), and making new ones.
+  let botsData = null;
+  const loadBots = async () => {
+    try {
+      const d = await api('botList', {});
+      if (!d.ok) { if (!d.auth) toast(d.error, true); return; }
+      botsData = d;
+      if (tab === 'bots') draw();
+    } catch (e) { toast('Could not reach the server', true); }
+  };
+  const botsChanged = () => { botsData = null; if (tab === 'bots') draw(); };
+  const drawBots = () => {
+    const d = botsData, mine = d.bots.filter(x => key(x.by) === key(me.name)).length;
+    body.replaceChildren(
+      h('div', { class: 'actnote' }, 'Bots answer using an AI service (OpenAI, Anthropic, Google, or one that works like OpenAI\u2019s), with your own API key. They can chat in DMs, answer when they\u2019re @mentioned, welcome people, post on a schedule, and use the admin stats where only admins and moderators can see.'),
+      ...(d.ready ? [] : [h('div', { class: 'actnote', style: 'color:var(--danger)' }, '\u26A0\uFE0F The server isn\u2019t set up to keep API keys yet (BOT_KEYS_SECRET), so bots can\u2019t talk.')]),
+      ...d.bots.map(x => {
+        const [t, c] = botStatus(x);
+        return h('div', { class: 'actp' }, avatar(x.username),
+          h('div', { class: 'lst' }, h('div', null, h('span', { class: 'nm', onclick: () => openProfile(x.username) }, x.name || x.username), ' ', rankBadge('bot'), key(x.by) !== key(me.name) ? ` by @${x.by}` : ''),
+            h('div', { class: 'sub botstatus ' + c }, t)),
+          h('button', { class: 'ghost', style: 'margin-left:auto', onclick: () => openBotEditor(x, botsChanged, d.bots) }, 'Edit'));
+      }),
+      ...(d.bots.length ? [] : [h('div', { class: 'actnote' }, 'No bots yet.')]),
+      !d.max || mine < d.max ? h('button', { class: 'primary', style: 'margin-top:12px', onclick: () => newBot(botsChanged, d.bots) }, '+ New bot')
+        : h('div', { class: 'actnote' }, `You have ${d.max} bots, the most you can have.`));
+  };
   // The rota: who's on duty, my busy times, and who's on when (Schedule tab).
   let rota = null, rotaDay = null;
   const loadRota = async () => {
@@ -10897,6 +11129,13 @@ function openAdmin(start, dock) {
         return;
       }
       drawAdam();
+    } else if (tab === 'bots') {
+      if (!botsData) {
+        body.replaceChildren(...[1, 2].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
+        loadBots();
+        return;
+      }
+      drawBots();
     } else if (tab === 'rota') {
       if (!rota) {
         body.replaceChildren(...[1, 2, 3].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
