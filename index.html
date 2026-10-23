@@ -8844,7 +8844,10 @@ function showLocal(stream, video) {
   $('lvid').srcObject = video ? stream : null;
 }
 
+// No calls in school hours (the server says no too, on Sydney time).
+const NO_CALLS = '\u{1F4F5} No calls during school hours (8am to 3pm on weekdays). Try again after 3!';
 async function startCall(video) {
+  if (serverApi >= 88 && quietHours()) return toast(NO_CALLS, true);
   if (gcall) return toast("You're already in a call", true);
   const c = st && st.convos.find(x => x.id === openId);
   if (!c || c.type !== 'dm') return;
@@ -9028,6 +9031,7 @@ let gcall = null;      // the group call you're in
 let openGcall = null;  // the call happening in the group you're looking at, if any
 
 async function joinGroupCall(convoId, video) {
+  if (serverApi >= 88 && quietHours()) return toast(NO_CALLS, true);
   if (call || gcall) return toast("You're already in a call", true);
   const c = st && st.convos.find(x => x.id === convoId);
   if (!c) return;
