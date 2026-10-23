@@ -253,6 +253,12 @@
   .profile .pfollow b { color: var(--text); }
   .profile .pfollow .ptag { padding: 1px 8px; border-radius: 999px; background: var(--panel-2); color: var(--text); font-size: 12px; font-weight: 600; }
   .req .actions { display: flex; gap: 6px; margin-top: 6px; }
+  .ginv { margin: 4px 8px; padding: 10px; border: 1px solid var(--accent); border-radius: 10px; background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .ginv .ginvtop { display: flex; align-items: center; gap: 10px; }
+  .ginv .label { display: flex; flex-direction: column; min-width: 0; }
+  .ginv .label b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ginv .sub { font-size: 12px; color: var(--muted); }
+  .ginv .actions { display: flex; gap: 6px; margin-top: 8px; }
   .muted { color: var(--muted); font-size: 13px; padding: 4px 8px; }
   #addfriend { display: flex; gap: 6px; padding: 0 8px 8px; }
   #addfriend input { flex: 1; padding: 7px 10px; font-size: 14px; }
@@ -2011,6 +2017,7 @@
       <button type="button" class="row sidelink hidden" id="coderow"><span class="avatar icon codeicon">&lt;/&gt;</span><span class="label">Idiocy Code</span></button>
       <button type="button" class="row sidelink hidden" id="shortsrow"><span class="avatar icon">🎬</span><span class="label">Idiocy Shorts</span></button>
       <button type="button" class="row sidelink hidden" id="projectsrow"><span class="avatar icon">🧪</span><span class="label">Idiocy Projects</span></button>
+      <div id="ginvites"></div>
       <div id="convos"></div>
     </div>
     <div class="sec friends">
@@ -4444,11 +4451,12 @@ function renderSide() {
 
   const reqs = [], asOrg = orgMe();
   wantProfiles(st.incoming); // for their names
-  // Invited to a group: they're in when they say yes.
-  (st.groupInvites || []).forEach(g => reqs.push(fresh(h('div', { class: 'req' },
-    h('b', null, displayName(g.by)), ' invited you to ', h('b', null, g.name),
+  // Invited to a group (they're in when they say yes): with the chats, under Global feed and the rest, above the DMs and groups.
+  $('ginvites').replaceChildren(...(st.groupInvites || []).map(g => fresh(h('div', { class: 'ginv' },
+    h('div', { class: 'ginvtop' }, h('span', { class: 'avatar icon' }, '\u{1F465}'),
+      h('span', { class: 'label' }, h('b', null, g.name), h('span', { class: 'sub' }, `${displayName(g.by)} invited you to this group`))),
     h('div', { class: 'actions' },
-      h('button', { class: 'primary', style: 'padding:4px 12px', onclick: () => answerGroupInvite(g, true) }, 'Join'),
+      h('button', { class: 'primary', style: 'padding:4px 14px', onclick: () => answerGroupInvite(g, true) }, 'Join'),
       h('button', { class: 'ghost', onclick: () => answerGroupInvite(g, false) }, 'Decline'))), 'gi:' + g.convo)));
   document.querySelector('aside .sec.friends .sec-head').textContent = asOrg ? 'Followers' : 'Friends';
   $('addfriend').classList.toggle('hidden', asOrg);
@@ -6140,9 +6148,9 @@ function renderTabs() {
     b.classList.toggle('hidden', !n);
     b.textContent = dotOnly || !n ? '' : n > 9 ? '9+' : String(n);
   };
-  badge('chats', st.convos.filter(c => c.type !== 'global' && isUnread(c.id)).length);
+  badge('chats', st.convos.filter(c => c.type !== 'global' && isUnread(c.id)).length + (st.groupInvites || []).length);
   badge('feed', isUnread('global') ? 1 : 0, true);
-  badge('friends', orgMe() ? 0 : asking().length + ((st && st.groupInvites) || []).length); // an organisation's followers aren't waiting for anything
+  badge('friends', orgMe() ? 0 : asking().length); // an organisation's followers aren't waiting for anything
   const mine = $('mtabme');
   if (mine.dataset.name !== me.name) mine.replaceWith(Object.assign(avatar(me.name, { click: false }), { id: 'mtabme' }));
   else paintAvatar(mine);
@@ -9256,7 +9264,8 @@ function handlePings(pings) {
     : p.kind === 'aiflag' ? `${p.urgent ? '\u26A0\uFE0F ' : ''}\u{1F916} ADAM ${p.removed ? 'took down' : p.stopped ? 'stopped' : 'flagged'} a ${({ group: 'picture in a group', grouppic: 'group picture', avatar: 'profile picture', emoji: 'new emoji' })[p.what] || p.what || 'post'} by @${p.from}: ${p.text}. Click to see it in Reports.`
     : `${from} ${where}: ${tame(noStyle(p.text))}`;
   const go = () => (p.kind === 'removed' ? null
-    : p.kind === 'friendreq' || p.kind === 'groupinvite' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests (and invites) live in the sidebar
+    : p.kind === 'friendreq' ? (isPhone() ? mtab('friends') : document.body.classList.add('side-open')) // requests live in the sidebar
+    : p.kind === 'groupinvite' ? (isPhone() ? mtab('chats') : document.body.classList.add('side-open')) // and group invites with the chats
     : p.kind === 'friendaccept' || p.kind === 'invitejoin' ? openDm(p.from)
     : p.kind === 'orginvite' || p.kind === 'newuser' || p.kind === 'neworg' ? openProfile(p.from) : p.kind === 'orgjoin' ? openProfile(p.text)
     : p.kind === 'aiflag' || p.kind === 'appeal' ? openAdmin() : p.kind === 'support' ? openAdmin('support')
