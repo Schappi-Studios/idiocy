@@ -1782,7 +1782,11 @@
   #defconbar { position: fixed; top: 0; left: 0; right: 0; z-index: 900; height: calc(28px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 12px 0; border: 0; color: #fff; font: 700 13px ui-monospace, Menlo, monospace; letter-spacing: .04em; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #defconbar.dc1 { color: #111; box-shadow: 0 0 0 2px #d63031 inset; animation: dcpulse 1.2s ease-in-out infinite; }
   body.defconon #app { height: calc(100dvh - 28px - env(safe-area-inset-top)); margin-top: calc(28px + env(safe-area-inset-top)); }
-  @media (prefers-reduced-motion: reduce) { #defconbar.dc1 { animation: none; } }
+  .dc0_5 { background: #0b0b0b; color: #ff3b3b; }
+  .defcon.dc0_5, #defconbar.dc0_5 { color: #ff3b3b; box-shadow: 0 0 0 2px #ff3b3b inset; animation: dcflash .6s steps(2, jump-none) infinite; }
+  .defcon .dcpick button.dc0_5 { color: #ff3b3b; width: 38px; }
+  @keyframes dcflash { 50% { color: #fff; box-shadow: 0 0 0 4px #ff3b3b inset; } }
+  @media (prefers-reduced-motion: reduce) { #defconbar.dc1, #defconbar.dc0_5, .defcon.dc0_5 { animation: none; } }
   @keyframes dcpulse { 50% { box-shadow: 0 0 0 4px #d63031 inset; } }
   @media (prefers-reduced-motion: reduce) { .defcon.dc1 { animation: none; } }
   .adamv.bad { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--text); }
@@ -3038,26 +3042,28 @@ async function openSupportThread(username, waiting, done) {
 
 // DEFCON (a joke): how ready the admins are, 5 to 1, at the top of the Admin panel. Admins set it.
 const DEFCON = { 5: ['FADE OUT', 'All quiet on Idiocy.'], 4: ['DOUBLE TAKE', 'Keep an eye out.'], 3: ['ROUND HOUSE', 'Something\u2019s brewing.'],
-  2: ['FAST PACE', 'Drama incoming. Stay sharp.'], 1: ['COCKED PISTOL', 'Maximum chaos. All admins to their stations.'] };
+  2: ['FAST PACE', 'Drama incoming. Stay sharp.'], 1: ['COCKED PISTOL', 'Maximum chaos. All admins to their stations.'],
+  0.5: ['ABSOLUTE IDIOCY', 'Everything is on fire. Hide the snacks.'] }; // (0.5: Hugh asked for it)
+const dcClass = l => 'dc' + String(l).replace('.', '_');
 // At DEFCON 2 or 1, admins and moderators get it across the top of the screen. Tap it for the Admin panel.
 function paintDefconBar(level) {
   let bar = $('defconbar');
-  const show = level === 1 || level === 2;
+  const show = level > 0 && level <= 2;
   document.body.classList.toggle('defconon', show);
   if (!show) { if (bar) bar.remove(); return; }
   if (!bar) { bar = h('button', { id: 'defconbar', type: 'button', title: 'Open the Admin panel', onclick: () => openAdmin() }); document.body.prepend(bar); }
   if (bar._level === level) return;
   bar._level = level;
-  bar.className = 'dc' + level;
+  bar.className = dcClass(level);
   bar.textContent = `\u{1F6A8} DEFCON ${level} \u00b7 ${DEFCON[level][0]} \u00b7 ${DEFCON[level][1]}`;
 }
 function defconBar(d, canSet, set) {
   const [name, line] = DEFCON[d.level] || DEFCON[5];
-  return h('div', { class: 'defcon dc' + d.level },
+  return h('div', { class: 'defcon ' + dcClass(d.level) },
     h('div', { class: 'dcnow' }, h('b', null, `DEFCON ${d.level}`), h('span', { class: 'dcname' }, name),
       h('span', { class: 'dcline' }, line + (d.by ? ` Set by ${d.by}, ${seenAgo(d.t)}.` : ''))),
-    canSet && h('div', { class: 'dcpick', role: 'group', 'aria-label': 'Set DEFCON' }, ...[5, 4, 3, 2, 1].map(n => h('button', {
-      type: 'button', class: 'dc' + n + (n === d.level ? ' on' : ''), title: `DEFCON ${n}: ${DEFCON[n][0]}`, 'aria-pressed': String(n === d.level),
+    canSet && h('div', { class: 'dcpick', role: 'group', 'aria-label': 'Set DEFCON' }, ...[5, 4, 3, 2, 1, ...(serverApi >= 87 ? [0.5] : [])].map(n => h('button', {
+      type: 'button', class: dcClass(n) + (n === d.level ? ' on' : ''), title: `DEFCON ${n}: ${DEFCON[n][0]}`, 'aria-pressed': String(n === d.level),
       onclick: () => { if (n !== d.level && (n > 2 || confirm(`Go to DEFCON ${n}: ${DEFCON[n][0]}?`))) set(n); } }, String(n)))));
 }
 
