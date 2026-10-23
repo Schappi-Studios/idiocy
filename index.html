@@ -10675,7 +10675,7 @@ function openAdmin(start, dock) {
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
   const sup = (serverApi >= 75 ? ['support'] : []).concat(serverApi >= 89 ? ['rota'] : []);
-  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 84 ? ['stats'] : []), ...(serverApi >= 68 ? ['adam'] : []), ...(serverApi >= 97 ? ['tags'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), ...(serverApi >= 96 ? ['bots'] : []), ...(serverApi >= 97 ? ['tags'] : []), 'settings'];
+  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 84 ? ['stats'] : []), ...(serverApi >= 68 ? ['adam'] : []), ...(serverApi >= 98 ? ['bots'] : []), ...(serverApi >= 97 ? ['tags'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), ...(serverApi >= 96 ? ['bots'] : []), ...(serverApi >= 97 ? ['tags'] : []), 'settings'];
   if (TABS.includes(start)) tab = start;
   const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; if (t === 'support') support = null; if (t === 'rota') rota = null; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t === 'rota' ? '\u{1F5D3}\uFE0F Schedule' : t[0].toUpperCase() + t.slice(1)));
   // Bots (Bots tab): theirs (the owner: everyone's), and making new ones.
