@@ -424,6 +424,8 @@
   .botedit .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; margin: 6px 0; }
   .botedit .hint { color: var(--muted); font-size: 12px; font-weight: 400; }
   .bothead { display: flex; align-items: center; gap: 12px; }
+  .botpicrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .botpic, .botpic .avatar, .botpic img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; }
   .bothead h2 { margin: 0; }
   .botstatus { font-size: 13px; color: var(--muted); margin: 6px 0; }
   .botstatus.bad { color: var(--danger); }
@@ -10553,6 +10555,30 @@ function openBotEditor(bot, onChange, mine = []) {
   let sched = [];
   const schedBox = h('div', { class: 'botsched' });
   const status = h('div', { class: 'botstatus' });
+  // Its picture: a photo, or a GIF that keeps moving (ADAM checks it, like anyone's).
+  const picBig = h('span', { class: 'botpic' });
+  const paintPic = () => picBig.replaceChildren(b.avatar ? h('img', { src: b.avatar, alt: '' }) : avatar(b.username));
+  const savePic = async data => {
+    const d = await act('botPicture', { bot: b.username, avatar: data });
+    if (!d) return;
+    b = d.bot; onChange(b); paintPic();
+    profiles.delete(key(b.username)); // (everyone's copy updates when they next look)
+    toast(data ? '\u2713 New picture' : 'Picture taken away');
+  };
+  const picFile = h('input', { type: 'file', accept: 'image/*', class: 'hidden', onchange: async () => {
+    const f = picFile.files[0];
+    picFile.value = '';
+    if (!f) return;
+    try {
+      const moving = f.type === 'image/gif' ? await shrinkGif(f, true) : null;
+      if (f.type === 'image/gif' && !moving) toast('Couldn\u2019t keep that GIF moving, so it\u2019s a still picture', true);
+      await savePic(moving ? moving.data : await shrinkImage(f));
+    } catch (e) { toast('Couldn\u2019t read that picture', true); }
+  } });
+  const picRow = h('div', { class: 'botpicrow' }, picBig,
+    h('div', { class: 'botkeyline' }, h('button', { class: 'ghost', type: 'button', onclick: () => picFile.click() }, 'Upload a picture or GIF'),
+      h('button', { class: 'ghost', type: 'button', onclick: () => { if (b.avatar && confirm('Take its picture away?')) savePic(''); } }, 'Remove'), picFile));
+  paintPic();
   const tryIn = h('input', { placeholder: 'Say something to it', maxlength: 1000 });
   const tryOut = h('div', { class: 'botsays hidden' });
   const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
@@ -10644,6 +10670,8 @@ function openBotEditor(bot, onChange, mine = []) {
     h('div', { class: 'btns', style: 'justify-content:flex-start' },
       h('button', { class: 'ghost', type: 'button', onclick: () => openProfile(b.username) }, 'Its profile'),
       h('button', { class: 'ghost', type: 'button', title: 'Switch to the bot’s account to change its name, picture and bio, or say something as it', onclick: () => { md.close(); document.querySelectorAll('.overlay').forEach(o => o.remove()); useAccount(b.username, `\u{1F916} You’re using ${displayName(b.username)}. Change its name, picture and bio in Settings. Switch back at the top.`); } }, '\u{1F504} Use its account (name, picture, bio)')),
+    serverApi >= 99 && h('h3', null, '\u{1F5BC}\uFE0F Its picture'),
+    serverApi >= 99 && picRow,
     h('h3', null, '\u{1F9E0} Its AI'),
     h('label', { class: 'field' }, 'Which service', prov), baseRow,
     h('div', { class: 'field' }, 'API key', keyBox),
