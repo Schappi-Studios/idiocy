@@ -10062,7 +10062,7 @@ async function apiOk(action, data = {}) {
 function graphCard() {
   let sel = null;
   try { sel = JSON.parse(store.get('graph_sel') || 'null'); } catch (e) {}
-  const can = k => me.role !== 'mod' || graphOf(k).need === 'adam'; // (moderators don't see Stats)
+  const can = k => me.role !== 'mod' || serverApi >= 84 || graphOf(k).need === 'adam'; // (moderators see every graph since api 84)
   sel = Array.isArray(sel) ? sel.filter(k => typeof k === 'string' && graphOf(k) && can(k)).slice(0, GRAPH_COLORS.length) : [];
   if (!sel.length) sel = [GRAPHS.some(g => g.k === store.get('graph_kind')) ? store.get('graph_kind') : 'adam'];
   let by = ['hour', 'day', 'week', 'month'].includes(store.get('graph_by')) ? store.get('graph_by') : 'day';
@@ -10219,7 +10219,7 @@ function openAdmin(start, dock) {
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
   const sup = serverApi >= 75 ? ['support'] : [];
-  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
+  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 84 ? ['stats'] : []), ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), 'settings'];
   if (TABS.includes(start)) tab = start;
   const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; if (t === 'support') support = null; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t[0].toUpperCase() + t.slice(1)));
   // Idiocy Support: everyone who's asked, waiting ones first. Any admin can answer.
