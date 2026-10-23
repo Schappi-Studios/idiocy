@@ -1767,6 +1767,8 @@
   /* ---------- admin stats ---------- */
   .lchart { margin: 12px 0 8px; }
   .adamv { border-radius: 8px; padding: 6px 10px; margin: 2px 0; }
+  .eask { grid-column: 2; display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 2px; }
+  .eask.done { font-size: 13px; color: var(--muted); }
   .aonline { font-weight: 600; color: var(--ok, #12a150); }
   .astats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 4px 0 12px; }
   .astat { border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; align-items: center; text-align: center; }
@@ -3007,7 +3009,8 @@ async function openIdiocyMessenger(username, draft, onSent) {
   const text = h('textarea', { rows: 4, maxlength: 2000, 'aria-label': 'Message', placeholder: 'e.g. \u26A0\uFE0F Please don\u2019t spam the Global feed. If it keeps happening, you\u2019ll be timed out.' });
   text.value = draft || '';
   const paint = d => list.replaceChildren(...(d.messages.length ? d.messages.slice().reverse().map(m => h('div', { class: 'idcrow' },
-    h('div', { class: 'idcmeta' }, new Date(m.time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }), m.them ? [' \u00b7 ', nameEl(d.username, 'b'), ' asked Idiocy Support'] : m.by && [' \u00b7 sent by ', nameEl(m.by, 'b')]),
+    h('div', { class: 'idcmeta' }, new Date(m.time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }), m.them ? [' \u00b7 ', nameEl(d.username, 'b'), ' asked Idiocy Support'] : m.by && [' \u00b7 sent by ', nameEl(m.by, 'b')],
+      m.ae ? ` \u00b7 \u{1F4E7} ${m.ae.st === 'yes' ? 'they shared their email (in the admin group)' : m.ae.st === 'no' ? 'they said no' : 'waiting for them to answer'}` : ''),
     h('div', { class: 'idctext' }, m.text),
     (me.role === 'admin' || key(m.by) === key(me.name)) && h('button', { class: 'ghost danger', title: 'Delete it from their chat', onclick: async () => {
       if (!confirm('Delete this message from their Idiocy chat?')) return;
@@ -3031,11 +3034,34 @@ async function openIdiocyMessenger(username, draft, onSent) {
   const md = modal('scroll idcmsg', h('h2', null, `\u{1F4E3} Message ${displayName(username)} as Idiocy`),
     h('div', { class: 'hint' }, `It goes to their own Idiocy chat, from Idiocy (not from you, though admins and moderators can see who sent it). They get a notification even if they\u2019ve muted things${serverApi >= 75 ? '. They can answer there, and what they write shows up in the Admin panel\u2019s Support tab.' : ', and they can\u2019t reply.'}`),
     form, h('h3', null, 'Sent to them before'), list,
-    h('div', { class: 'btns' }, clearIdiocyBtn(username, d => paint(d)), h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
+    h('div', { class: 'btns' }, clearIdiocyBtn(username, d => paint(d)),
+      serverApi >= 92 && me.role === 'admin' && h('button', { class: 'ghost', title: 'Ask them, as Idiocy, to show the admins the email on their account (to check it\u2019s really theirs)', onclick: async () => {
+        if (!confirm(`Ask ${displayName(username)} to show the admins their email?\n\nThey get a message from Idiocy with Share my email and No thanks. What they choose goes to the admin group.`)) return;
+        const d = await act('adminAskEmail', { username });
+        if (d) { paint(d); toast(`Asked ${displayName(username)} for their email`); }
+      } }, '\u{1F4E7} Ask for their email'),
+      h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
   setTimeout(() => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); }, 50);
   const d = await act('adminIdiocy', { username });
   if (!d) return md.close();
   paint(d);
+}
+
+// Idiocy asking for the email on your account (an admin wants to check it's yours): share it with the admins, or not.
+function emailAsk(m) {
+  if (!m.ae) return null;
+  if (m.ae.st) return h('div', { class: 'eask done' }, m.ae.st === 'yes' ? '\u2705 You shared your email with the admins.' : 'You said no.');
+  const box = h('div', { class: 'eask' });
+  const answer = async yes => {
+    if (yes && !confirm('Show the Idiocy admins the email address on your account?')) return;
+    const d = await act('answerEmailAsk', { id: m.id, yes });
+    if (!d) return;
+    m.ae = Object.assign({}, m.ae, { st: d.st });
+    box.replaceWith(emailAsk(m));
+    toast(d.st === 'no' ? 'Okay, you said no.' : d.none ? 'There\u2019s no email on your account. You can add one in Settings.' : '\u{1F4E7} Shared with the admins');
+  };
+  box.append(h('button', { class: 'primary', onclick: () => answer(true) }, 'Share my email'), h('button', { class: 'ghost', onclick: () => answer(false) }, 'No thanks'));
+  return box;
 }
 
 // Admins: clear everything in someone's Idiocy chat (from Idiocy, and what they asked Idiocy Support). done(d): the chat after.
@@ -5214,6 +5240,7 @@ function buildMessage(m, pending) {
         : h('span', { class: 'badge offbadge', title: 'From the people who run Idiocy' }, '\u2713 OFFICIAL'),
         stamp(h('span', { class: 'time' }), m.time)),
       h('div', { class: 'body' }, h('span', { class: 'txt' })),
+      emailAsk(m),
       h('div', { class: 'reacts' }));
     el._m = m;
     el.dataset.id = m.id;
