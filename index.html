@@ -1767,6 +1767,20 @@
   /* ---------- admin stats ---------- */
   .lchart { margin: 12px 0 8px; }
   .adamv { border-radius: 8px; padding: 6px 10px; margin: 2px 0; }
+  .defcon { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-radius: 12px; padding: 10px 12px; color: #fff; font-family: ui-monospace, Menlo, monospace; letter-spacing: .02em; }
+  .defcon .dcnow { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .defcon .dcnow b { font-size: 18px; letter-spacing: .08em; }
+  .defcon .dcname { font-weight: 700; font-size: 13px; }
+  .defcon .dcline { font-size: 12px; opacity: .85; }
+  .defcon .dcpick { display: flex; gap: 4px; }
+  .defcon .dcpick button { width: 30px; height: 30px; border-radius: 6px; border: 2px solid rgba(255,255,255,.55); font: inherit; font-weight: 700; cursor: pointer; color: #111; opacity: .55; }
+  .defcon .dcpick button.on { opacity: 1; border-color: #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.35); }
+  .defcon .dcpick button:hover { opacity: 1; }
+  .dc5 { background: #2f6fd6; } .dc4 { background: #1f9d55; } .dc3 { background: #e0b100; } .dc2 { background: #d63031; } .dc1 { background: #f4f4f4; }
+  .defcon.dc3, .defcon.dc1 { color: #111; } .defcon.dc3 .dcpick button, .defcon.dc1 .dcpick button { border-color: rgba(0,0,0,.35); }
+  .defcon.dc1 { box-shadow: 0 0 0 2px #d63031 inset; animation: dcpulse 1.2s ease-in-out infinite; }
+  @keyframes dcpulse { 50% { box-shadow: 0 0 0 4px #d63031 inset; } }
+  @media (prefers-reduced-motion: reduce) { .defcon.dc1 { animation: none; } }
   .adamv.bad { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--text); }
   .adamv.ok { background: var(--panel-2); }
   .lsw { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin: 0 5px 0 2px; vertical-align: -1px; flex-shrink: 0; }
@@ -3016,6 +3030,19 @@ async function openSupportThread(username, waiting, done) {
   if (!d) return md.close();
   paint(d);
   setTimeout(() => text.focus(), 50);
+}
+
+// DEFCON (a joke): how ready the admins are, 5 to 1, at the top of the Admin panel. Admins set it.
+const DEFCON = { 5: ['FADE OUT', 'All quiet on Idiocy.'], 4: ['DOUBLE TAKE', 'Keep an eye out.'], 3: ['ROUND HOUSE', 'Something\u2019s brewing.'],
+  2: ['FAST PACE', 'Drama incoming. Stay sharp.'], 1: ['COCKED PISTOL', 'Maximum chaos. All admins to their stations.'] };
+function defconBar(d, canSet, set) {
+  const [name, line] = DEFCON[d.level] || DEFCON[5];
+  return h('div', { class: 'defcon dc' + d.level },
+    h('div', { class: 'dcnow' }, h('b', null, `DEFCON ${d.level}`), h('span', { class: 'dcname' }, name),
+      h('span', { class: 'dcline' }, line + (d.by ? ` Set by ${d.by}, ${seenAgo(d.t)}.` : ''))),
+    canSet && h('div', { class: 'dcpick', role: 'group', 'aria-label': 'Set DEFCON' }, ...[5, 4, 3, 2, 1].map(n => h('button', {
+      type: 'button', class: 'dc' + n + (n === d.level ? ' on' : ''), title: `DEFCON ${n}: ${DEFCON[n][0]}`, 'aria-pressed': String(n === d.level),
+      onclick: () => { if (n !== d.level && (n > 2 || confirm(`Go to DEFCON ${n}: ${DEFCON[n][0]}?`))) set(n); } }, String(n)))));
 }
 
 // What ADAM thinks of a report (people's reports, any chat): which rules and how sure, or that it looks fine.
@@ -10336,8 +10363,9 @@ function openAdmin(start, dock) {
   // How many real people use Idiocy (the server leaves out organisations and the test accounts).
   const count = h('div', { class: 'acount hidden' });
   const stillsBar = h('div', { class: 'stillsbar hidden' });
+  const defconEl = h('div');
   const parts = [h('div', { class: 'ahead' }, h('h2', null, mod ? 'Mod panel' : 'Admin panel'), !mod && banButton(() => (data && data.users) || [], () => load())),
-    count, stillsBar, h('div', { class: 'tabbar atabs' + (TABS.length > 5 ? ' many' : '') }, tabs), body];
+    defconEl, count, stillsBar, h('div', { class: 'tabbar atabs' + (TABS.length > 5 ? ' many' : '') }, tabs), body];
   // dock: beside the official admin group (a graph to pick at the top), instead of popping up.
   let md;
   if (dock) {
@@ -10481,6 +10509,7 @@ function openAdmin(start, dock) {
     }
     tabs[0].textContent = data.reports.length ? `Reports (${data.reports.length})` : 'Reports';
     paintSupTab();
+    if (data.defcon) defconEl.replaceChildren(defconBar(data.defcon, !mod, async n => { const d = await act('setDefcon', { level: n }); if (d) { data.defcon = d.defcon; draw(); } }));
     if (data.people != null) {
       count.replaceChildren(h('b', null, `\u{1F465} ${data.people} ${data.people === 1 ? 'person' : 'people'} on Idiocy`),
         h('span', null, 'Not counting organisations or the test accounts ATLAS and P-body'));
