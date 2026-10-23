@@ -420,6 +420,7 @@
   .botkey { display: flex; flex-direction: column; gap: 6px; }
   .botkeyline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 400; }
   .botkeyline input { flex: 1; min-width: 160px; }
+  .keyfield { -webkit-text-security: disc; font-family: ui-monospace, monospace; }
   .botsched { display: flex; flex-direction: column; gap: 8px; margin: 6px 0; }
   .botsrow { display: flex; flex-direction: column; gap: 6px; padding: 8px; margin: 0; }
   .botsline { display: flex; gap: 6px; align-items: center; }
@@ -10512,7 +10513,9 @@ function openBotEditor(bot, onChange, mine = []) {
   const paintKey = () => {
     const p = prov.value, saved = b.kh && b.kp === p;
     const others = mine.filter(o => key(o.username) !== key(b.username) && o.kh && o.kp === p);
-    const input = h('input', { type: 'password', placeholder: `Your ${BOT_PROV_NAME[p]} API key`, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: 400 });
+    // Not type="password": browsers fill those with your saved Idiocy password. Dots instead (where the browser can).
+    const input = h('input', { type: 'text', class: 'keyfield', name: 'bot-api-key', placeholder: `Your ${BOT_PROV_NAME[p]} API key`, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: 400,
+      'data-lpignore': 'true', 'data-1p-ignore': '', 'data-form-type': 'other' });
     const save = h('button', { class: 'primary', type: 'button', onclick: async () => {
       if (!input.value.trim()) return toast('Paste your API key first', true);
       save.disabled = true;
