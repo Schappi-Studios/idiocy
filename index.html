@@ -410,6 +410,16 @@
   .toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
   .toggle input { width: 18px; height: 18px; flex: none; accent-color: var(--accent); }
   .badge.botbadge { background: #12a594; color: #fff; }
+  .shot.tagblur img { filter: blur(28px) saturate(.8); transform: scale(1.15); }
+  .shot { position: relative; }
+  .shot .tagcover { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border: 0; border-radius: inherit;
+    background: rgba(20, 20, 30, .35); color: #fff; font: inherit; font-weight: 700; cursor: pointer; z-index: 2; }
+  .shot .tagcover span { font-size: 28px; }
+  .ptags { font-size: 12.5px; color: var(--muted); padding: 4px 12px 0; }
+  .ptags b { color: var(--text); font-weight: 600; }
+  .tagrow { padding: 10px 12px; margin: 0 0 8px; display: flex; flex-direction: column; gap: 8px; }
+  .tagrow .tagtop { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .tagrow .tagtop .meta { flex: 1; }
   .botedit h3 { margin: 18px 0 4px; }
   .botedit .field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; margin: 6px 0; }
   .botedit .hint { color: var(--muted); font-size: 12px; font-weight: 400; }
@@ -5928,6 +5938,48 @@ function paintCard(el) {
   if (el._m && (el.classList.contains('txtcard') || el.classList.contains('pollcard'))) el.style.setProperty('--card', cardBg(el._m));
 }
 
+// ---------- tags ----------
+// Posts in the Global feed can have tags (Admin panel > Tags). Only admins and moderators see them (m.tg: the tags,
+// m.tb: who gave each, m.tr: what they do); everyone gets what they do, like m.bl: a "Tap to see" cover over the picture.
+const TAG_DOES = [['less', 'Show less', 'In the feed, only the poster’s followers see it'], ['blur', 'Blur', 'A “Tap to see” cover over its picture'],
+  ['guests', 'No guests', 'People who aren’t logged in don’t see it'], ['out', 'Out of the feed', 'Nobody’s feed shows it (it’s still on their profile)']];
+let tagNames = null; // the list, for tagging posts
+function paintTagBits(el) {
+  const m = el._m;
+  if (!m) return;
+  const shot = el.querySelector(':scope > .shot');
+  if (shot) {
+    const blur = !!m.bl && !el._unblurred;
+    shot.classList.toggle('tagblur', blur);
+    let cover = shot.querySelector('.tagcover');
+    if (blur && !cover) shot.append(h('button', { class: 'tagcover', type: 'button', onclick: e => { e.stopPropagation(); el._unblurred = true; paintTagBits(el); } }, h('span', null, '\u{1F648}'), 'Tap to see'));
+    else if (!blur && cover) cover.remove();
+  }
+  let line = el.querySelector(':scope > .ptags');
+  const tags = isStaff() ? m.tg || [] : [];
+  if (!tags.length) { if (line) line.remove(); return; }
+  if (!line) { line = h('div', { class: 'ptags' }); (el.querySelector(':scope > .reacts') || el).before(line); }
+  const does = TAG_DOES.filter(([k]) => (m.tr || {})[k]).map(([, l]) => l.toLowerCase());
+  line.replaceChildren('\u{1F3F7}️ ', ...tags.flatMap((t, i) => [i ? ' · ' : '', h('b', { title: (m.tb || {})[t] ? 'Tagged by ' + m.tb[t] : '' }, t)]),
+    does.length ? h('span', { class: 'meta' }, ` (${does.join(', ')})`) : '', h('span', { class: 'meta' }, ' · only admins and moderators see tags'));
+}
+async function openPostTags(m) {
+  if (!tagNames) { const d = await act('tagList', {}); if (!d) return; tagNames = d.tags.map(x => x.t); }
+  const boxes = tagNames.map(t => h('input', { type: 'checkbox', value: t, ...((m.tg || []).includes(t) && { checked: '' }) }));
+  const md = modal('', h('h2', null, '\u{1F3F7}️ Tags'),
+    h('div', { class: 'actnote' }, 'Only admins and moderators see these. What each tag does is set in Admin panel > Tags.'),
+    h('div', { class: 'picks' }, tagNames.map((t, i) => h('label', null, boxes[i], t))),
+    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'),
+      h('button', { class: 'primary', onclick: async () => {
+        const d = await act('postTags', { id: m.id, tags: boxes.filter(b => b.checked).map(b => b.value) });
+        if (!d) return;
+        md.close();
+        m.tg = d.tags;
+        document.querySelectorAll(`#log .msg[data-id="${m.id}"]`).forEach(el => { if (el._m) { el._m.tg = d.tags; paintTagBits(el); } });
+        toast(d.tags.length ? '\u{1F3F7}️ Tagged: ' + d.tags.join(', ') : 'No tags now');
+      } }, 'Save')));
+}
+
 function buildPost(m, pending) {
   const time = h('span', { class: 'time', title: m.time ? new Date(m.time).toLocaleString() : '' });
   if (pending) time.append(h('span', { class: 'spinner' }), 'posting');
@@ -5964,6 +6016,7 @@ function buildPost(m, pending) {
     !pending && h('div', { class: 'acts' },
       serverApi >= 9 && isMine(m) && h('button', { title: 'Edit', onclick: () => startEdit(el) }, '\u270E'),
       !isMine(m) && h('button', { title: 'Report', onclick: () => openReport(el._m) }, '\u2691'),
+      isStaff() && serverApi >= 97 && !m.vd && h('button', { title: 'Tags (only admins and moderators see them)', onclick: () => openPostTags(el._m) }, '\u{1F3F7}\uFE0F'),
       canDelete(m, true) && h('button', { class: 'del danger', title: 'Delete', onclick: () => deleteMessage(el._m, el) }, '\u{1F5D1}')));
   el._m = m;
   el._cbtn = cbtn;
@@ -5979,6 +6032,7 @@ function buildPost(m, pending) {
     el.classList.add('txtcard', n <= 40 ? 't-xl' : n <= 110 ? 't-l' : n <= 260 ? 't-m' : 't-s');
   }
   paintCard(el);
+  paintTagBits(el);
   if (m.text && mentionsMe(m.text) && !isMine(m)) el.classList.add('mentioned');
   paintText(el);
   paintReactions(el);
@@ -6791,6 +6845,7 @@ function updateMessage(m) {
     paintReactions(el);
     paintCommentCount(el);
     paintPoll(el);
+    if (el.classList.contains('post')) paintTagBits(el);
     if (countChanged && el._cmts) loadComments(el);
   });
 }
@@ -10432,7 +10487,9 @@ const BOT_PROVS = [['openai', 'OpenAI (ChatGPT)'], ['anthropic', 'Anthropic (Cla
 const BOT_PROV_NAME = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google', compat: 'the AI service' };
 const BOT_CAN = [['mention', 'Answers when someone @mentions it, or replies to it, in a group, a post or its comments'], ['dm', 'Chats in DMs (people follow it to message it)'],
   ['welcome', 'Welcomes people who join its groups'], ['joined', 'Welcomes everyone who joins Idiocy, with a post in the Global feed'],
-  ['stats', 'Can use the admin stats (only in the official admin group, and in DMs with admins and moderators)']];
+  ['stats', 'Can use stats: Idiocy\u2019s public numbers anywhere, and the admin and tag stats only in the official admin group and in DMs with admins and moderators'],
+  ['read', 'Knows the newest posts in the Global feed (so it can talk about them)'], ['tag', 'Tags new pictures in the Global feed, from the Tags list (its model has to be one that can see pictures)'],
+  ['react', 'Reacts to new posts it likes (30 an hour at most)'], ['comment', 'Comments on new posts now and then, when it has something good to say (4 an hour at most)']];
 const BOT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 async function botCall(path, data) {
   try {
@@ -10592,7 +10649,7 @@ function openBotEditor(bot, onChange, mine = []) {
     h('div', { class: 'field' }, 'Model', h('div', { class: 'botkeyline' }, model, loadModels), models),
     h('label', { class: 'field' }, 'Its personality (what it’s like, and what it does)', sys),
     h('h3', null, '⚙️ What it does'),
-    ...BOT_CAN.map(([k, l]) => h('label', { class: 'toggle' }, h('span', null, l), can[k])),
+    ...BOT_CAN.filter(([k]) => serverApi >= 97 || !['read', 'tag', 'react', 'comment'].includes(k)).flatMap(([k, l]) => [k === 'read' && h('h3', null, '\u{1F4F0} In the Global feed'), h('label', { class: 'toggle' }, h('span', null, l), can[k])].filter(Boolean)),
     h('label', { class: 'field' }, 'Who it talks to', who),
     h('h3', null, '\u{1F5D3}️ Scheduled posts'),
     h('div', { class: 'hint' }, 'It writes one at that time (Sydney time) on those days. To post in a group, it has to be in it: invite it like anyone.'),
@@ -10618,7 +10675,7 @@ function openAdmin(start, dock) {
   const body = h('div', { class: 'alist' });
   const mod = me.role === 'mod';
   const sup = (serverApi >= 75 ? ['support'] : []).concat(serverApi >= 89 ? ['rota'] : []);
-  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 84 ? ['stats'] : []), ...(serverApi >= 68 ? ['adam'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), ...(serverApi >= 96 ? ['bots'] : []), 'settings'];
+  const TABS = mod ? ['reports', ...sup, 'users', ...(serverApi >= 84 ? ['stats'] : []), ...(serverApi >= 68 ? ['adam'] : []), ...(serverApi >= 97 ? ['tags'] : [])] : ['reports', ...sup, 'users', ...(serverApi >= 19 ? ['activity'] : []), ...(serverApi >= 47 ? ['stats'] : []), ...(serverApi >= 66 ? ['adam'] : []), ...(serverApi >= 96 ? ['bots'] : []), ...(serverApi >= 97 ? ['tags'] : []), 'settings'];
   if (TABS.includes(start)) tab = start;
   const tabs = TABS.map(t => h('button', { onclick: () => { tab = t; if (t === 'support') support = null; if (t === 'rota') rota = null; draw(); } }, t === 'adam' ? '\u{1F916} ADAM' : t === 'rota' ? '\u{1F5D3}\uFE0F Schedule' : t[0].toUpperCase() + t.slice(1)));
   // Bots (Bots tab): theirs (the owner: everyone's), and making new ones.
@@ -10647,6 +10704,50 @@ function openAdmin(start, dock) {
       ...(d.bots.length ? [] : [h('div', { class: 'actnote' }, 'No bots yet.')]),
       !d.max || mine < d.max ? h('button', { class: 'primary', style: 'margin-top:12px', onclick: () => newBot(botsChanged, d.bots) }, '+ New bot')
         : h('div', { class: 'actnote' }, `You have ${d.max} bots, the most you can have.`));
+  };
+  // Tags (Tags tab): the list, what each one does, and how many posts have it. Moderators see it; admins change it.
+  let tagsData = null;
+  const loadTags = async () => {
+    try {
+      const d = await api('tagList', {});
+      if (!d.ok) { if (!d.auth) toast(d.error, true); return; }
+      tagsData = d;
+      tagNames = d.tags.map(x => x.t);
+      if (tab === 'tags') draw();
+    } catch (e) { toast('Could not reach the server', true); }
+  };
+  const drawTags = () => {
+    const d = tagsData, edit = d.canEdit, list = d.tags.map(x => ({ ...x }));
+    const rows = h('div');
+    const paint = () => rows.replaceChildren(...list.map((x, i) => {
+      const s = d.stats[x.t];
+      return h('div', { class: 'card tagrow' },
+        h('div', { class: 'tagtop' }, h('b', null, '\u{1F3F7}\uFE0F ' + x.t),
+          h('span', { class: 'meta' }, s ? `${s.week} this week \u00b7 ${s.all} in all${s.top.length ? ` \u00b7 most from @${s.top[0][0]} (${s.top[0][1]})` : ''}` : 'No posts yet'),
+          edit && h('button', { class: 'ghost danger', title: 'Take this tag off the list', onclick: () => { list.splice(i, 1); paint(); } }, '\u2715')),
+        h('div', { class: 'chips' }, TAG_DOES.map(([k, l, tip]) => h('button', { class: 'ghost', title: tip, disabled: !edit, 'aria-pressed': String(!!x[k]),
+          style: x[k] ? 'border-color:var(--accent);color:var(--accent)' : '', onclick: () => { x[k] = !x[k]; paint(); } }, (x[k] ? '\u2713 ' : '') + l))));
+    }));
+    const add = h('input', { placeholder: 'A new tag, e.g. memes', maxlength: 24, onkeydown: e => { if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); } } });
+    const addBtn = h('button', { class: 'ghost', onclick: () => {
+      const t = add.value.trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!t) return add.focus();
+      if (list.some(x => x.t === t)) return toast('That tag is there already', true);
+      list.push({ t }); add.value = ''; paint();
+    } }, '+ Add');
+    body.replaceChildren(
+      h('div', { class: 'actnote' }, 'Tags go on posts in the Global feed. Bots that read the feed tag new pictures, and admins and moderators can tag any post (\u{1F3F7}\uFE0F under it). Only admins and moderators ever see tags; everyone else just gets what they do:'),
+      h('div', { class: 'actnote' }, ...TAG_DOES.flatMap(([, l, tip], i) => [i ? h('br') : '', h('b', null, l + ': '), tip + '.'])),
+      rows,
+      ...(edit ? [h('div', { class: 'botkeyline', style: 'margin-top:8px' }, add, addBtn),
+        h('button', { class: 'primary', style: 'margin-top:12px', onclick: async () => {
+          const r = await act('tagRules', { tags: list });
+          if (!r) return;
+          tagsData = r; tagNames = r.tags.map(x => x.t);
+          toast('\u2713 Saved. Everyone\u2019s feed updates straight away.');
+          drawTags();
+        } }, 'Save')] : [h('div', { class: 'actnote' }, 'Only admins can change the list and what each tag does.')]));
+    paint();
   };
   // The rota: who's on duty, my busy times, and who's on when (Schedule tab).
   let rota = null, rotaDay = null;
@@ -11132,6 +11233,13 @@ function openAdmin(start, dock) {
         return;
       }
       drawAdam();
+    } else if (tab === 'tags') {
+      if (!tagsData) {
+        body.replaceChildren(...[1, 2].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
+        loadTags();
+        return;
+      }
+      drawTags();
     } else if (tab === 'bots') {
       if (!botsData) {
         body.replaceChildren(...[1, 2].map(() => h('div', { class: 'card shimmer', style: 'height:56px;border:0' })));
