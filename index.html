@@ -3031,12 +3031,19 @@ async function openIdiocyMessenger(username, draft, onSent) {
   const md = modal('scroll idcmsg', h('h2', null, `\u{1F4E3} Message ${displayName(username)} as Idiocy`),
     h('div', { class: 'hint' }, `It goes to their own Idiocy chat, from Idiocy (not from you, though admins and moderators can see who sent it). They get a notification even if they\u2019ve muted things${serverApi >= 75 ? '. They can answer there, and what they write shows up in the Admin panel\u2019s Support tab.' : ', and they can\u2019t reply.'}`),
     form, h('h3', null, 'Sent to them before'), list,
-    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
+    h('div', { class: 'btns' }, clearIdiocyBtn(username, d => paint(d)), h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
   setTimeout(() => { text.focus(); text.setSelectionRange(text.value.length, text.value.length); }, 50);
   const d = await act('adminIdiocy', { username });
   if (!d) return md.close();
   paint(d);
 }
+
+// Admins: clear everything in someone's Idiocy chat (from Idiocy, and what they asked Idiocy Support). done(d): the chat after.
+const clearIdiocyBtn = (username, done) => serverApi >= 91 && me && me.role === 'admin' && h('button', { class: 'ghost danger', title: 'Delete every message in their Idiocy chat', onclick: async () => {
+  if (!confirm(`Clear ${displayName(username)}\u2019s Idiocy chat?\n\nEvery message in it goes, from Idiocy and from them (Idiocy Support), for good.`)) return;
+  const d = await act('adminIdiocyClear', { username });
+  if (d) { toast(`Cleared ${displayName(username)}\u2019s Idiocy chat`); if (done) done(d); }
+} }, '\u{1F9F9} Clear all');
 
 // Idiocy Support: their own Idiocy chat, where they can ask the people who run Idiocy for help.
 async function contactSupport() {
@@ -3077,7 +3084,7 @@ async function openSupportThread(username, waiting, done) {
   const md = modal('scroll idcmsg', h('h2', null, '\u{1F4AC} ', nameEl(username), ' asked ' + SUPPORT),
     h('div', { class: 'hint' }, 'Your answer goes to their Idiocy Support chat, from Idiocy. They don\u2019t see which admin answered, but admins do.'),
     list, form,
-    h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => openProfile(username) }, 'Their profile'), h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
+    h('div', { class: 'btns' }, clearIdiocyBtn(username, () => { md.close(); if (done) done(); }), h('button', { class: 'ghost', onclick: () => openProfile(username) }, 'Their profile'), h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
   const d = await act('adminIdiocy', { username });
   if (!d) return md.close();
   paint(d);
