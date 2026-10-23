@@ -2496,6 +2496,9 @@ function openProfile(name) {
       if (serverApi >= 68) btns.push(h('button', { class: 'ghost', onclick: () => openLimits(p.username || name, p.limits, () => openProfile(name)) }, '\u{1F6AB} Limits' + (limitCount(p.limits) ? ` (${limitCount(p.limits)})` : '')));
     }
     if (!isMe && me && me.owner && serverApi >= 69 && p.role === 'admin') btns.push(h('button', { class: 'ghost danger', onclick: () => setRank(p.username || name, false, () => { profiles.delete(key(name)); openProfile(name); }) }, 'Remove admin'));
+    if (!isMe && me && me.owner && serverApi >= 94 && (p.role === 'admin' || p.role === 'mod')) btns.push(h('button', { class: 'ghost', title: p.invisible ? 'Show their badge and coloured name again' : 'Hide their badge and coloured name (they can turn it off in Settings)',
+      onclick: async () => { const d = await act('adminSetInvisible', { username: p.username || name, on: !p.invisible }); if (d) { toast(d.invisible ? `\u{1F47B} ${displayName(d.username)} is invisible now` : `${displayName(d.username)} is visible again`); profiles.delete(key(name)); openProfile(name); } } },
+      p.invisible ? '\u{1F441}\uFE0F Make visible' : '\u{1F47B} Make invisible'));
     if (!isMe && me && me.role === 'admin' && p.role && p.role !== 'admin') {
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
