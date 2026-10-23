@@ -10234,6 +10234,10 @@ const GRAPHS = [
   { k: 'joins', label: '\u{1F44B} People joining', need: 'stats', times: d => d.stats.joined.filter(Boolean),
     say: (n, r, d) => `${n} joined` + (r && d ? ` (${d.stats.joined.filter(t => !t || t < Math.min(r.b, Date.now())).length} on Idiocy)` : '') },
   { k: 'reports', label: '\u{1F6A9} Reports made', need: 'stats', say: n => `${n} ${n === 1 ? 'report' : 'reports'}`, times: d => d.stats.reported || [] },
+  // A running total: everyone on Idiocy by the end of each one (by now, for this one). Optimistic: deleted accounts
+  // aren't counted at all, so it only ever goes up. (Accounts with no join date count from the start.)
+  { k: 'people', label: '\u{1F465} People (optimistic)', need: 'stats', times: d => d.stats.joined.filter(Boolean),
+    total: (d, r) => d.stats.joined.filter(t => !t || t < Math.min(r.b, Date.now())).length, say: (n, r) => `${n} on Idiocy ${r && r.b > Date.now() ? 'now' : 'by then'}` },
 ];
 const GRAPH_COLORS = ['#7c5cff', '#e5484d', '#12a594', '#f76b15', '#0090ff', '#d6409f'];
 // p:<name>: ADAM's stops of one person.
@@ -10288,9 +10292,10 @@ function graphCard() {
     const rows = timeBuckets(by, Math.min(Date.now(), ...lines.flatMap(x => x.times)));
     const many = lines.length > 1, today = new Date(); today.setHours(0, 0, 0, 0);
     chart.replaceChildren(lines.every(x => !x.times.length) ? h('div', { class: 'actnote' }, 'Nothing yet.')
-      : linesChart(rows, lines.map(x => ({ ns: rows.map(r => x.times.filter(t => t >= r.a && t < r.b).length), say: (n, i) => x.g.say(n, rows[i], data), label: x.g.label, ...(many && { color: colorOf(x.k) }) }))));
+      : linesChart(rows, lines.map(x => ({ ns: rows.map(r => x.g.total ? x.g.total(data, r) : x.times.filter(t => t >= r.a && t < r.b).length), say: (n, i) => x.g.say(n, rows[i], data), label: x.g.label, ...(many && { color: colorOf(x.k) }) }))));
     sum.replaceChildren(...lines.map(x => h('div', null, many && h('span', { class: 'lsw', style: `background:${colorOf(x.k)}` }), many ? x.g.label + ': ' : '',
-      `${x.times.filter(t => t >= +today).length} today · ${x.times.filter(t => t >= +today - 6 * 864e5).length} in the last 7 days · ${x.times.length} in all`)));
+      x.g.total ? `${x.g.total(data, { b: Date.now() })} on Idiocy now · up ${x.times.filter(t => t >= +today).length} today · up ${x.times.filter(t => t >= +today - 6 * 864e5).length} in the last 7 days`
+        : `${x.times.filter(t => t >= +today).length} today · ${x.times.filter(t => t >= +today - 6 * 864e5).length} in the last 7 days · ${x.times.length} in all`)));
   };
   // fresh: fetch again what's shown (new reports or stops); otherwise only what isn't here yet.
   const load = async fresh => {
@@ -10746,6 +10751,9 @@ function openAdmin(start, dock) {
       lineChart(rows, (n, i) => `${n} ${n === 1 ? 'person' : 'people'} joined \u00b7 ${rows[i].all} on Idiocy ${i === rows.length - 1 ? 'now' : 'by then'}`),
       h('div', { class: 'actnote' }, 'Counted in your time zone. Not counting organisations, the test accounts ATLAS and P-body, or deleted accounts.'
         + (dated.length < s.joined.length ? ` ${plural(s.joined.length - dated.length, 'account')} from before join dates were kept ${s.joined.length - dated.length === 1 ? 'is' : 'are'} only in the totals.` : '')),
+      h('h3', null, '\u{1F465} People (optimistic)'),
+      lineChart(rows.map(r => ({ ...r, n: r.all })), (n, i) => `${n} on Idiocy ${i === rows.length - 1 ? 'now' : 'by then'}`),
+      h('div', { class: 'actnote' }, 'Everyone on Idiocy by the end of each one (by now, for this one). Optimistic: people who deleted their accounts aren\u2019t counted at all, so it only ever goes up.'),
       h('h3', null, 'Most followed'),
       ...shown.map(u => h('div', { class: 'actp' },
         h('span', { class: 'srank' }, String(u.rank)),
