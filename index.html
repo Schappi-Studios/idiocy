@@ -10792,8 +10792,17 @@ function openAdmin(start, dock) {
   };
   const botsChanged = () => { botsData = null; if (tab === 'bots') draw(); };
   const drawBots = () => {
-    const d = botsData, mine = d.bots.filter(x => key(x.by) === key(me.name)).length;
+    const d = botsData, mine = d.bots.filter(x => key(x.by) === key(me.name)).length, a = d.adam;
     body.replaceChildren(
+      // ADAM: Idiocy's own bot (the AI admin). It isn't made here, so there's nothing to change: how it's doing today.
+      a && h('div', { class: 'actp adamrow' }, avatar(IDIOCY_AI, { click: false }),
+        h('div', { class: 'lst' },
+          h('div', null, h('span', { class: 'nm adam-name', title: ADAM_FULL }, ADAM), ' ', h('span', { class: 'badge aibadge' }, '\u{1F916} AI ADMIN')),
+          h('div', { class: 'sub botstatus ' + (a.on ? '' : 'bad') }, a.on
+            ? `✅ On · ${a.checked != null ? `${a.checked} checked today (of ${a.cap}) · ` : ''}${a.stopped} stopped${a.other ? ` · ${a.other} flagged or taken down` : ''} today`
+            : '⚠️ Off (it needs the OpenAI key on the server)'),
+          h('div', { class: 'sub' }, 'Idiocy’s own bot: it checks posts, pictures, names and reports. It runs on Idiocy’s key, not anyone’s, so it isn’t changed from here.')),
+        h('button', { class: 'ghost', style: 'margin-left:auto', onclick: () => { tab = 'adam'; draw(); } }, '\u{1F4CA} Stats')),
       h('div', { class: 'actnote' }, 'Bots answer using an AI service (OpenAI, Anthropic, Google, or one that works like OpenAI\u2019s), with your own API key. They can chat in DMs, answer when they\u2019re @mentioned, welcome people, post on a schedule, and use the admin stats where only admins and moderators can see.'),
       ...(d.ready ? [] : [h('div', { class: 'actnote', style: 'color:var(--danger)' }, '\u26A0\uFE0F The server isn\u2019t set up to keep API keys yet (BOT_KEYS_SECRET), so bots can\u2019t talk.')]),
       ...d.bots.map(x => {
