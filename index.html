@@ -425,6 +425,9 @@
   .botedit .hint { color: var(--muted); font-size: 12px; font-weight: 400; }
   .bothead { display: flex; align-items: center; gap: 12px; }
   .botpicrow { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .botavstage { display: flex; align-items: center; gap: 12px; margin-top: 6px; }
+  .botavwrap { width: 160px; height: 160px; overflow: hidden; border-radius: 12px; background: var(--panel-2); flex: none; }
+  .botavframe { width: 320px; height: 320px; border: 0; transform: scale(.5); transform-origin: 0 0; }
   .botpic, .botpic .avatar, .botpic img { width: 72px; height: 72px; border-radius: 50%; object-fit: cover; flex: none; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; }
   .bothead h2 { margin: 0; }
   .botstatus { font-size: 13px; color: var(--muted); margin: 6px 0; }
@@ -10494,6 +10497,14 @@ const BOT_CAN = [['mention', 'Answers when someone @mentions it, or replies to i
   ['read', 'Knows the newest posts in the Global feed (so it can talk about them)'], ['tag', 'Tags new pictures in the Global feed, from the Tags list (its model has to be one that can see pictures)'],
   ['react', 'Reacts to new posts it likes (30 an hour at most)'], ['comment', 'Comments on new posts now and then, when it has something good to say (4 an hour at most)']];
 const BOT_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+// The settings in pasted <bot-avatar ...></bot-avatar> code: names and plain values only (never HTML). null if it isn't one.
+function botavAttrs(code) {
+  const m = /^\s*<bot-avatar\b([^<>]*)>\s*(<\/bot-avatar>)?\s*$/i.exec(String(code || ''));
+  if (!m) return null;
+  const out = {};
+  for (const a of m[1].matchAll(/([a-z][a-z0-9-]{0,23})\s*=\s*"([^"]{0,40})"/gi)) if (/^[#\w.\- ]*$/.test(a[2])) out[a[1].toLowerCase()] = a[2];
+  return out;
+}
 async function botCall(path, data) {
   try {
     const r = await fetch(MEDIA_BASE + '/bot/' + path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, ...data }) });
@@ -10579,6 +10590,42 @@ function openBotEditor(bot, onChange, mine = []) {
     h('div', { class: 'botkeyline' }, h('button', { class: 'ghost', type: 'button', onclick: () => picFile.click() }, 'Upload a picture or GIF'),
       h('button', { class: 'ghost', type: 'button', onclick: () => { if (b.avatar && confirm('Take its picture away?')) savePic(''); } }, 'Remove'), picFile));
   paintPic();
+  // ...or from bot-avatar code, like ADAM's picture. It's drawn in a sealed-off frame from the server's address
+  // (server/botav.js: sandboxed, so it can't reach anything here; the bot-avatar script never runs in this page),
+  // recorded, made into a moving picture by the server, and saved like an upload (ADAM checks it).
+  const avCode = h('textarea', { rows: 3, maxlength: 2000, spellcheck: 'false', autocapitalize: 'off', placeholder: '<bot-avatar type="clover" size="128" state="working" bot="bomb"></bot-avatar>' });
+  const avStage = h('div', { class: 'botavstage hidden' });
+  const avBtn = h('button', { class: 'ghost', type: 'button', onclick: async () => {
+    const attrs = botavAttrs(avCode.value);
+    if (!attrs) return toast('Paste a <bot-avatar ...></bot-avatar> from the bot maker', true);
+    avBtn.disabled = true;
+    const frame = h('iframe', { sandbox: 'allow-scripts', class: 'botavframe', title: 'Drawing the bot', src: MEDIA_BASE + '/botav#' + encodeURIComponent(JSON.stringify(attrs)) });
+    const note = h('div', { class: 'hint' }, 'Drawing it…');
+    avStage.classList.remove('hidden');
+    avStage.replaceChildren(h('div', { class: 'botavwrap' }, frame), note);
+    let timer;
+    const got = await new Promise(done => {
+      const on = e => { // only from that frame
+        if (e.source !== frame.contentWindow || !e.data || e.data.botav !== 1) return;
+        window.removeEventListener('message', on); clearTimeout(timer); done(e.data);
+      };
+      window.addEventListener('message', on);
+      timer = setTimeout(() => { window.removeEventListener('message', on); done({ error: 'It took too long to draw. Try again.' }); }, 30000);
+    });
+    const frames = Array.isArray(got.frames) ? got.frames.filter(f => typeof f === 'string' && /^data:image\/png;base64,/.test(f)).slice(0, 60) : [];
+    let d = { ok: false, error: got.error || 'Nothing came back' };
+    if (frames.length) {
+      note.textContent = 'Making it into a picture…';
+      try { d = await fetch(MEDIA_BASE + '/upload/botav', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ token, bot: b.username, frames, fps: Number(got.fps) || 12 }) }).then(r => r.json()); }
+      catch (e) { d = { ok: false, error: 'Could not reach the server' }; }
+    }
+    avBtn.disabled = false;
+    if (!d.ok) { avStage.replaceChildren(h('div', { class: 'hint', style: 'color:var(--danger)' }, d.error || 'Something went wrong')); return; }
+    avStage.classList.add('hidden');
+    avStage.replaceChildren();
+    await savePic(d.data);
+  } }, '\u{1F3A8} Make picture');
+  const avRow = h('div', { class: 'field' }, 'Or paste bot-avatar code (like ADAM’s picture)', avCode, h('div', { class: 'botkeyline' }, avBtn), avStage);
   const tryIn = h('input', { placeholder: 'Say something to it', maxlength: 1000 });
   const tryOut = h('div', { class: 'botsays hidden' });
   const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
@@ -10672,6 +10719,7 @@ function openBotEditor(bot, onChange, mine = []) {
       h('button', { class: 'ghost', type: 'button', title: 'Switch to the bot’s account to change its name, picture and bio, or say something as it', onclick: () => { md.close(); document.querySelectorAll('.overlay').forEach(o => o.remove()); useAccount(b.username, `\u{1F916} You’re using ${displayName(b.username)}. Change its name, picture and bio in Settings. Switch back at the top.`); } }, '\u{1F504} Use its account (name, picture, bio)')),
     serverApi >= 99 && h('h3', null, '\u{1F5BC}\uFE0F Its picture'),
     serverApi >= 99 && picRow,
+    serverApi >= 100 && avRow,
     h('h3', null, '\u{1F9E0} Its AI'),
     h('label', { class: 'field' }, 'Which service', prov), baseRow,
     h('div', { class: 'field' }, 'API key', keyBox),
