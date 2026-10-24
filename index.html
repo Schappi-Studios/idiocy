@@ -10563,33 +10563,76 @@ function newBot(onMade, mine = []) {
   at.focus();
 }
 // Everything about one bot. onChange(bot): it changed (or null: deleted).
-// Chipping in a key for someone else's bot (any admin or moderator): theirs to add, and to take off again.
+const BOT_PROV_SHORT = { openai: 'OpenAI', anthropic: 'Anthropic', gemini: 'Google', compat: 'OpenAI-compatible' };
+// One of a bot's keys, in words: its service, the model it's used with, and who added it.
+const botKeyWords = (k, mainModel) => [`\u{1F512} ${BOT_PROV_SHORT[k.p] || k.p} key `, h('code', null, k.h), ` \u00b7 ${k.m || (mainModel ? mainModel + ' (its main model)' : 'its main model')} \u00b7 from @${k.by}`];
+// Adding a key to a bot: for any AI service (it takes turns with them all), with the model to use with it. A key for
+// the bot's main service can leave the model empty and use the main one. bot(): the bot as it is now; before(): runs
+// first (the settings saving); onKeys(keys): it's on.
+function keyAdder(bot, onKeys, before) {
+  const b0 = bot();
+  const svc = h('select', { 'aria-label': 'Which AI service the key is for' }, BOT_PROVS.map(([k, l]) => h('option', { value: k, ...(k === b0.prov && { selected: '' }) }, l)));
+  const addr = h('input', { placeholder: 'Its web address, e.g. https://api.groq.com/openai/v1', maxlength: 200, autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'The service\u2019s web address' });
+  // Not type="password": browsers fill those with your saved Idiocy password. Dots instead (where the browser can).
+  const input = h('input', { type: 'text', class: 'keyfield', name: 'bot-api-key', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: 400,
+    'data-lpignore': 'true', 'data-1p-ignore': '', 'data-form-type': 'other', 'aria-label': 'API key' });
+  const listId = 'keymodels-' + Math.random().toString(36).slice(2);
+  const model = h('input', { list: listId, maxlength: 80, autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Model to use with it' });
+  const models = h('datalist', { id: listId });
+  const addrRow = h('div', { class: 'botkeyline' }, addr);
+  let picked = false; // (until someone picks a service, it follows the bot's main one)
+  const paint = () => {
+    const b = bot();
+    if (!picked && b.prov) svc.value = b.prov;
+    const main = svc.value === b.prov;
+    addrRow.classList.toggle('hidden', svc.value !== 'compat');
+    if (main && b.base && !addr.value) addr.value = b.base;
+    input.placeholder = `Your ${BOT_PROV_SHORT[svc.value]} API key`;
+    model.placeholder = main && b.model ? `Model (empty: its main one, ${b.model})` : 'Model: paste your key, then Load models';
+  };
+  svc.onchange = () => { picked = true; models.replaceChildren(); model.value = ''; paint(); };
+  const load = h('button', { class: 'ghost', type: 'button', onclick: async () => {
+    if (!input.value.trim()) return input.focus();
+    load.disabled = true;
+    const d = await botCall('models', { bot: bot().username, prov: svc.value, key: input.value.trim(), base: addr.value.trim() });
+    load.disabled = false;
+    if (!d.ok) return toast(d.error, true);
+    models.replaceChildren(...d.models.map(m => h('option', { value: m })));
+    if (!model.value && svc.value !== bot().prov && d.models.length) model.value = d.models[0];
+    toast(`${d.models.length} models: pick one from the list`);
+    model.focus();
+  } }, 'Load models');
+  const add = h('button', { class: 'primary', type: 'button', onclick: async () => {
+    if (!input.value.trim()) return toast('Paste the API key first', true);
+    add.disabled = true;
+    if (before && !await before()) { add.disabled = false; return; }
+    const d = await botCall('key', { bot: bot().username, prov: svc.value, key: input.value.trim(), base: addr.value.trim(), model: model.value.trim() });
+    add.disabled = false;
+    if (!d.ok) return toast(d.error, true);
+    input.value = ''; model.value = ''; models.replaceChildren();
+    onKeys(d.keys || []);
+    toast('\u{1F512} Key added. It\u2019s kept encrypted, and nobody can see it again.');
+  } }, 'Add key');
+  paint();
+  const el = h('div', { class: 'botkey keyadder' }, h('div', { class: 'botkeyline' }, svc), addrRow, h('div', { class: 'botkeyline' }, input),
+    h('div', { class: 'botkeyline' }, model, load), models, h('div', { class: 'botkeyline' }, add));
+  el.repaint = paint;
+  return el;
+}
+// Chipping in a key for someone else's bot (any admin or moderator): theirs to add (for any service), and to take off again.
 function chipIn(bot, maxKeys, onChange) {
   let keys = bot.keys || [];
-  const p = bot.prov, input = h('input', { type: 'text', class: 'keyfield', name: 'bot-api-key', placeholder: `Your ${BOT_PROV_NAME[p]} API key`, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: 400,
-    'data-lpignore': 'true', 'data-1p-ignore': '', 'data-form-type': 'other' });
-  const list = h('div', { class: 'botkey' });
-  const paint = () => list.replaceChildren(...keys.filter(k => key(k.by) === key(me.name)).map(k => h('div', { class: 'botkeyline' }, h('span', null, `\u{1F512} Your key `, h('code', null, k.h), ' is on it'),
+  const list = h('div', { class: 'botkey' }), count = h('div', { class: 'meta' });
+  const paint = () => (count.textContent = `It has ${keys.length} ${keys.length === 1 ? 'key' : 'keys'} now (${maxKeys || 10} at most).`, list.replaceChildren(...keys.filter(k => key(k.by) === key(me.name)).map(k => h('div', { class: 'botkeyline' }, h('span', null, ...botKeyWords(k, bot.prov === k.p && bot.model)),
     h('button', { class: 'ghost danger', type: 'button', onclick: async () => {
       if (!confirm('Take your key off it?')) return;
       const d = await botCall('key', { bot: bot.username, remove: k.id });
       if (!d.ok) return toast(d.error, true);
       keys = d.keys || []; paint(); onChange();
-    } }, 'Take it off'))));
-  const add = h('button', { class: 'primary', type: 'button', onclick: async () => {
-    if (!input.value.trim()) return input.focus();
-    add.disabled = true;
-    const d = await botCall('key', { bot: bot.username, prov: p, key: input.value.trim() });
-    add.disabled = false;
-    input.value = '';
-    if (!d.ok) return toast(d.error, true);
-    keys = d.keys || []; paint(); onChange();
-    toast('\u{1F512} Thanks! Your key is on it, kept encrypted.');
-  } }, 'Add my key');
+    } }, 'Take it off')))));
   const md = modal('botedit', h('h2', null, '\u{1F511} Chip in for ', bot.name || bot.username),
-    h('div', { class: 'actnote' }, `@${bot.username} (by @${bot.by}) uses ${BOT_PROV_NAME[p]}, so it needs your ${BOT_PROV_NAME[p]} API key. It takes turns with everyone\u2019s keys, so each one lets it answer more (60 more an hour). Whatever it says with yours costs you, on your account with them.`),
-    h('div', { class: 'meta' }, `It has ${keys.length} ${keys.length === 1 ? 'key' : 'keys'} now (${maxKeys || 10} at most).`),
-    list, h('div', { class: 'botkeyline' }, input, add),
+    h('div', { class: 'actnote' }, `@${bot.username} (by @${bot.by}) mainly uses ${BOT_PROV_SHORT[bot.prov]}${bot.model ? ` (${bot.model})` : ''}, but your key can be for any AI service: pick it, and the model to use with it. It takes turns with everyone\u2019s keys, so each one lets it answer more (60 more an hour). Whatever it says with yours costs you, on your account with them.`),
+    count, list, keyAdder(() => bot, k => { keys = k; paint(); onChange(); }),
     h('div', { class: 'hint' }, 'It goes straight to Idiocy\u2019s server, which keeps it encrypted: nobody can see it again, not even you (just its last 4 characters). You can take it off any time.'),
     h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Done')));
   paint();
@@ -10698,41 +10741,30 @@ function openBotEditor(bot, onChange, mine = []) {
   // The key: saved (its last 4 characters), or a box to put one in.
   // Its keys: everyone's who chipped one in (only their last 4 characters ever show). It takes turns with them.
   const setKeys = keys => { const has = (keys || []).filter(k => k.p === b.prov); b = { ...b, keys: keys || [], kh: has.length ? has[0].h : '', kp: has.length ? b.prov : '', err: '' }; onChange(b); paintKey(); paintStatus(); };
+  // The form for adding one (kept while the list repaints, so what's typed stays): any service, with its model.
+  const adder = keyAdder(() => ({ ...b, prov: prov.value, model: model.value.trim(), base: base.value.trim() }), keys => setKeys(keys), () => saveSettings(true));
   const paintKey = () => {
-    const p = prov.value, here = (b.keys || []).filter(k => k.p === p), elsewhere = (b.keys || []).filter(k => k.p !== p);
-    const others = mine.filter(o => key(o.username) !== key(b.username) && (o.keys || []).some(k => k.p === p && key(k.by) === key(me.name)));
-    // Not type="password": browsers fill those with your saved Idiocy password. Dots instead (where the browser can).
-    const input = h('input', { type: 'text', class: 'keyfield', name: 'bot-api-key', placeholder: `Your ${BOT_PROV_NAME[p]} API key`, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', maxlength: 400,
-      'data-lpignore': 'true', 'data-1p-ignore': '', 'data-form-type': 'other' });
-    const save = h('button', { class: 'primary', type: 'button', onclick: async () => {
-      if (!input.value.trim()) return toast('Paste your API key first', true);
-      save.disabled = true;
-      if (!await saveSettings(true)) { save.disabled = false; return; }
-      const d = await botCall('key', { bot: b.username, prov: p, base: base.value.trim(), key: input.value.trim() });
-      save.disabled = false;
-      input.value = '';
-      if (!d.ok) return toast(d.error, true);
-      setKeys(d.keys);
-      toast('\u{1F512} Key saved. It\u2019s kept encrypted, and nobody can see it again.');
-    } }, here.length ? 'Add key' : 'Save key');
+    const keys = b.keys || [];
+    const others = mine.filter(o => key(o.username) !== key(b.username) && (o.keys || []).some(k => key(k.by) === key(me.name)));
+    adder.repaint();
     keyBox.replaceChildren(...[ // (the bits that aren't there are left out, not shown as "null")
-      ...here.map(k => h('div', { class: 'botkeyline' }, h('span', null, `\u{1F512} ${BOT_PROV_NAME[p]} key `, h('code', null, k.h), ` \u00b7 from @${k.by}`),
+      ...keys.map(k => h('div', { class: 'botkeyline' }, h('span', null, ...botKeyWords(k, k.p === prov.value && model.value.trim())),
         h('button', { class: 'ghost danger', type: 'button', onclick: async () => {
-          if (!confirm(here.length > 1 ? `Take @${k.by}\u2019s key off it?` : 'Take its API key off? It won\u2019t be able to say anything until it has one again.')) return;
+          if (!confirm(keys.length > 1 ? `Take @${k.by}\u2019s key off it?` : 'Take its API key off? It won\u2019t be able to say anything until it has one again.')) return;
           const d = await botCall('key', { bot: b.username, remove: k.id });
           if (!d.ok) return toast(d.error, true);
           setKeys(d.keys);
         } }, 'Remove'))),
-      elsewhere.length ? h('div', { class: 'hint' }, `(It also has ${elsewhere.length} ${elsewhere.length === 1 ? 'key' : 'keys'} for another service, not used while it\u2019s on ${BOT_PROV_NAME[p]}.)`) : null,
-      (b.keys || []).length < 10 ? h('div', { class: 'botkeyline' }, input, save) : null, // (10 keys at most)
+      keys.length < 10 ? adder : h('div', { class: 'hint' }, 'That\u2019s 10 keys, the most it can have.'),
       others.length ? h('div', { class: 'botkeyline' }, 'Or use the key you added to ', ...others.map(o => h('button', { class: 'ghost', type: 'button', onclick: async () => {
         if (!await saveSettings(true)) return;
         const d = await botCall('key', { bot: b.username, copyFrom: o.username });
         if (!d.ok) return toast(d.error, true);
         setKeys(d.keys);
-        toast('\u{1F512} Key saved');
+        toast('\u{1F512} Key added');
       } }, '@' + o.username))) : null,
-      h('div', { class: 'hint' }, 'Each key goes straight to Idiocy\u2019s server, which keeps it encrypted: nobody can see it again, not even whoever added it (just its last 4 characters). With several keys it takes turns, so it can answer more (60 an hour for each), and if one runs out of credit it uses the next. Other admins and moderators can chip in theirs from the Bots tab. Whatever it says costs whoever\u2019s key it used.')].filter(Boolean));
+      h('div', { class: 'hint' }, 'Keys can be for different AI services: it takes turns with them all, each with its own model (a key for its main service can use its main model). Each one lets it answer more (60 an hour), and if one runs out of credit it uses the next. Every key goes straight to Idiocy\u2019s server, which keeps it encrypted: nobody can see it again, not even whoever added it (just its last 4 characters). Other admins and moderators can chip in theirs from the Bots tab. Whatever it says costs whoever\u2019s key it used.'),
+    ].filter(Boolean));
   };
   const paintStatus = () => { const [t, c] = botStatus(b); status.className = 'botstatus ' + c; status.textContent = t; };
   const fill = () => {
