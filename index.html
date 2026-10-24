@@ -10124,6 +10124,27 @@ function thud() {
     n.start(t);
   } catch (e) {}
 }
+// Fixing the last message to everyone (a typo): every copy in everyone's Idiocy chat changes, marked edited.
+async function editBroadcast() {
+  const d = await act('adminBroadcastLast', {});
+  if (!d) return;
+  if (!d.text) return toast('There’s no message to everyone to edit', true);
+  const box = h('textarea', { rows: 6, maxlength: 2000 });
+  box.value = d.text;
+  const save = h('button', { class: 'primary', onclick: async () => {
+    if (!box.value.trim()) return box.focus();
+    save.disabled = true;
+    const r = await act('adminBroadcastEdit', { old: d.text, text: box.value });
+    save.disabled = false;
+    if (!r) return;
+    md.close();
+    toast(r.fixed ? `✓ Fixed in ${r.fixed} ${r.fixed === 1 ? 'chat' : 'chats'}` : 'Nothing changed');
+  } }, 'Save for everyone');
+  const md = modal('', h('h2', null, '✏️ Your last message to everyone'),
+    h('div', { class: 'actnote' }, `In ${d.n} ${d.n === 1 ? 'chat' : 'chats'}, sent ${d.at ? whenText(d.at) : 'earlier'}. Saving changes every copy (marked edited). Notifications that already went out can’t be changed.`),
+    box, h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'), save));
+  box.focus();
+}
 function openBanHammer(users, onBanned) {
   let target = null;
   const HOLD_MS = 1200;
@@ -10139,7 +10160,8 @@ function openBanHammer(users, onBanned) {
   const everyone = (users || []).filter(u => u.username && u.role !== 'org' && !u.banned && key(u.username) !== key(me.name)).length;
   const title = h('h2', null, '\u{1F528} The Ban Hammer');
   const msgText = h('textarea', { rows: 4, maxlength: 2000, placeholder: 'Your message to everyone on Idiocy\u2026' });
-  const msgWrap = h('div', { class: 'bhmsg hidden' }, msgText, h('div', { class: 'hint' }, `It goes to all ${everyone} accounts (not organisations or banned ones), from Idiocy, in their Idiocy chat, with a notification. They can\u2019t reply.`));
+  const msgWrap = h('div', { class: 'bhmsg hidden' }, msgText, h('div', { class: 'hint' }, `It goes to all ${everyone} accounts (not organisations or banned ones), from Idiocy, in their Idiocy chat, with a notification. They can\u2019t reply.`),
+    serverApi >= 102 && h('button', { class: 'ghost', type: 'button', style: 'margin-top:8px', onclick: () => editBroadcast() }, '\u270f\ufe0f Edit my last message to everyone'));
   msgText.oninput = () => { if (mode === 'msg') hold.disabled = !msgText.value.trim(); };
   const modeBtn = (m, label) => h('button', { type: 'button', class: 'ghost', 'data-m': m, onclick: () => setMode(m) }, label);
   const modes = canMsg && h('div', { class: 'chips bhmodes' }, modeBtn('ban', '\u{1F528} Ban someone'), modeBtn('msg', '\u{1F4E3} Message everyone'));
