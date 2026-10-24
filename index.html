@@ -10141,7 +10141,7 @@ async function editBroadcast() {
     toast(r.fixed ? `✓ Fixed in ${r.fixed} ${r.fixed === 1 ? 'chat' : 'chats'}` : 'Nothing changed');
   } }, 'Save for everyone');
   const md = modal('', h('h2', null, '✏️ Your last message to everyone'),
-    h('div', { class: 'actnote' }, `In ${d.n} ${d.n === 1 ? 'chat' : 'chats'}, sent ${d.at ? whenText(d.at) : 'earlier'}. Saving changes every copy (marked edited). Notifications that already went out can’t be changed.`),
+    h('div', { class: 'actnote' }, `In ${d.n} ${d.n === 1 ? 'chat' : 'chats'}, sent ${d.at ? whenText(d.at) : 'earlier'}. Saving changes every copy, quietly (it doesn’t say it was edited). Notifications that already went out can’t be changed.`),
     box, h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'), save));
   box.focus();
 }
