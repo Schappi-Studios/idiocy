@@ -10579,6 +10579,7 @@ function keyAdder(bot, onKeys, before) {
   const listId = 'keymodels-' + Math.random().toString(36).slice(2);
   const model = h('input', { list: listId, maxlength: 80, autocapitalize: 'off', spellcheck: 'false', 'aria-label': 'Model to use with it' });
   const models = h('datalist', { id: listId });
+  const pick = h('select', { class: 'hidden', 'aria-label': 'Pick a model', onchange: () => { if (pick.value) model.value = pick.value; } }); // (all of them, not just ones like what's typed)
   const addrRow = h('div', { class: 'botkeyline' }, addr);
   let picked = false; // (until someone picks a service, it follows the bot's main one)
   const paint = () => {
@@ -10590,7 +10591,7 @@ function keyAdder(bot, onKeys, before) {
     input.placeholder = `Your ${BOT_PROV_SHORT[svc.value]} API key`;
     model.placeholder = main && b.model ? `Model (empty: its main one, ${b.model})` : 'Model: paste your key, then Load models';
   };
-  svc.onchange = () => { picked = true; models.replaceChildren(); model.value = ''; paint(); };
+  svc.onchange = () => { picked = true; models.replaceChildren(); pick.classList.add('hidden'); model.value = ''; paint(); };
   const load = h('button', { class: 'ghost', type: 'button', onclick: async () => {
     if (!input.value.trim()) return input.focus();
     load.disabled = true;
@@ -10599,8 +10600,10 @@ function keyAdder(bot, onKeys, before) {
     if (!d.ok) return toast(d.error, true);
     models.replaceChildren(...d.models.map(m => h('option', { value: m })));
     if (!model.value && svc.value !== bot().prov && d.models.length) model.value = d.models[0];
-    toast(`${d.models.length} models: pick one from the list`);
-    model.focus();
+    pick.replaceChildren(h('option', { value: '' }, `Pick one of ${d.models.length} models\u2026`), ...d.models.map(m => h('option', { value: m, ...(m === model.value && { selected: '' }) }, m)));
+    pick.classList.remove('hidden');
+    toast(`${d.models.length} models: pick one`);
+    pick.focus();
   } }, 'Load models');
   const add = h('button', { class: 'primary', type: 'button', onclick: async () => {
     if (!input.value.trim()) return toast('Paste the API key first', true);
@@ -10609,13 +10612,13 @@ function keyAdder(bot, onKeys, before) {
     const d = await botCall('key', { bot: bot().username, prov: svc.value, key: input.value.trim(), base: addr.value.trim(), model: model.value.trim() });
     add.disabled = false;
     if (!d.ok) return toast(d.error, true);
-    input.value = ''; model.value = ''; models.replaceChildren();
+    input.value = ''; model.value = ''; models.replaceChildren(); pick.classList.add('hidden');
     onKeys(d.keys || []);
     toast('\u{1F512} Key added. It\u2019s kept encrypted, and nobody can see it again.');
   } }, 'Add key');
   paint();
   const el = h('div', { class: 'botkey keyadder' }, h('div', { class: 'botkeyline' }, svc), addrRow, h('div', { class: 'botkeyline' }, input),
-    h('div', { class: 'botkeyline' }, model, load), models, h('div', { class: 'botkeyline' }, add));
+    h('div', { class: 'botkeyline' }, model, load), pick, models, h('div', { class: 'botkeyline' }, add));
   el.repaint = paint;
   return el;
 }
@@ -10645,6 +10648,9 @@ function openBotEditor(bot, onChange, mine = []) {
   const keyBox = h('div', { class: 'botkey' });
   const model = h('input', { list: 'botmodels', maxlength: 80, autocapitalize: 'off', spellcheck: 'false', placeholder: 'Press “Load models” to pick one' });
   const models = h('datalist', { id: 'botmodels' });
+  // (A dropdown of them all: the type-ahead list only offers ones like what's typed already, so a model that's been
+  // retired hid all the others.)
+  const pickModel = h('select', { class: 'hidden', 'aria-label': 'Pick a model', onchange: () => { if (pickModel.value) model.value = pickModel.value; } });
   const loadModels = h('button', { class: 'ghost', type: 'button', onclick: async () => {
     loadModels.disabled = true;
     const d = await botCall('models', { bot: b.username });
@@ -10652,8 +10658,10 @@ function openBotEditor(bot, onChange, mine = []) {
     if (!d.ok) return toast(d.error, true);
     models.replaceChildren(...d.models.map(m => h('option', { value: m })));
     if (!model.value && d.models.length) model.value = d.models[0];
-    toast(`${d.models.length} models: pick one from the list`);
-    model.focus();
+    pickModel.replaceChildren(h('option', { value: '' }, `Pick one of ${d.models.length} models…`), ...d.models.map(m => h('option', { value: m, ...(m === model.value && { selected: '' }) }, m)));
+    pickModel.classList.remove('hidden');
+    toast(`${d.models.length} models: pick one, then Save`);
+    pickModel.focus();
   } }, 'Load models');
   const sys = h('textarea', { rows: 5, maxlength: 2000, placeholder: 'e.g. You’re Quiz Bot. You love trivia, and ask people quiz questions about science, history and sport. You’re cheerful and use the odd emoji.' });
   const can = Object.fromEntries(BOT_CAN.map(([k]) => [k, h('input', { type: 'checkbox' })]));
@@ -10810,7 +10818,7 @@ function openBotEditor(bot, onChange, mine = []) {
     h('h3', null, '\u{1F9E0} Its AI'),
     h('label', { class: 'field' }, 'Which service', prov), baseRow,
     h('div', { class: 'field' }, 'API key', keyBox),
-    h('div', { class: 'field' }, 'Model', h('div', { class: 'botkeyline' }, model, loadModels), models),
+    h('div', { class: 'field' }, 'Model', h('div', { class: 'botkeyline' }, model, loadModels), pickModel, models),
     h('label', { class: 'field' }, 'Its personality (what it’s like, and what it does)', sys),
     h('h3', null, '⚙️ What it does'),
     ...BOT_CAN.filter(([k]) => serverApi >= 97 || !['read', 'tag', 'react', 'comment'].includes(k)).flatMap(([k, l]) => [k === 'read' && h('h3', null, '\u{1F4F0} In the Global feed'), h('label', { class: 'toggle' }, h('span', null, l), can[k])].filter(Boolean)),
