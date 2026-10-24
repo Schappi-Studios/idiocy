@@ -2797,7 +2797,7 @@ const BANNERS = {
   sky: 'linear-gradient(135deg, #89f7fe, #66a6ff)',
 };
 const EARLY_MEMBERS = 100; // member numbers up to this are early members (organisations and test accounts have none)
-// The Founders' sunrise: only Idiocy's first 5 members can have it (the server says who: founder). Layers, top
+// The Founders' sunrise: only accounts made by 23 October 2026 can have it (the server says who: me.sunrise). Layers, top
 // first: the sun's path on the sea, the sea, the last stars fading, the sun coming up and its glow, the dawn sky.
 const FOUNDERS = 5, FOUNDERS_BANNER = 'founders';
 const FOUNDERS_BG = [
@@ -3334,7 +3334,7 @@ function openEditProfile() {
   let banner = p.banner || '';
   const swatches = h('div', { class: 'swatches' });
   const paintSwatches = () => swatches.replaceChildren(
-    ...(me.founder ? [h('button', { type: 'button', class: 'swatch founders' + (banner === FOUNDERS_BANNER ? ' on' : ''), title: 'Founders\u2019 sunrise: only for Idiocy\u2019s first 5 members',
+    ...(me.founder || me.sunrise ? [h('button', { type: 'button', class: 'swatch founders' + (banner === FOUNDERS_BANNER ? ' on' : ''), title: 'Founders\u2019 sunrise: only for accounts made by 23 October 2026',
       'aria-label': 'Founders\u2019 sunrise banner', style: `background:${FOUNDERS_BG}`, onclick: () => { banner = FOUNDERS_BANNER; paintSwatches(); } })] : []),
     h('button', { type: 'button', class: 'swatch plain' + (!banner ? ' on' : ''), title: 'Default', style: `background:${colorFor(me.name, 80)}`, onclick: () => { banner = ''; paintSwatches(); } }),
     ...Object.keys(BANNERS).map(k => h('button', { type: 'button', class: 'swatch' + (banner === k ? ' on' : ''), title: k, 'aria-label': k + ' banner',
