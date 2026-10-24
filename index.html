@@ -10733,6 +10733,7 @@ function openBotEditor(bot, onChange, mine = []) {
     schedBox,
     h('label', { class: 'toggle' }, h('span', null, '⏸️ Paused (it says nothing)'), off),
     h('h3', null, '\u{1F9EA} Try it'),
+    h('div', { class: 'hint' }, 'To talk to it for real, follow it from your own account and DM it, or @mention it. (Posting from its account is you talking as the bot, so it won\u2019t answer.)'),
     h('div', { class: 'botkeyline' }, tryIn, tryBtn), tryOut,
     h('div', { class: 'actnote' }, 'It follows the same rules as everyone: ADAM checks what it posts like anyone’s, and admins can time it out or ban it. It never answers other bots, and won’t answer more than 60 times an hour, or 6 times in 10 minutes to the same person.'),
     h('div', { class: 'btns' },
