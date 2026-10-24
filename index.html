@@ -10595,12 +10595,13 @@ function openBotEditor(bot, onChange, mine = []) {
   // recorded, made into a moving picture by the server, and saved like an upload (ADAM checks it).
   const avCode = h('textarea', { rows: 3, maxlength: 2000, spellcheck: 'false', autocapitalize: 'off', placeholder: '<bot-avatar type="clover" size="128" state="working" bot="bomb"></bot-avatar>' });
   const avStage = h('div', { class: 'botavstage hidden' });
+  const avBg = h('input', { type: 'color', value: '#1e2235', title: 'The colour behind the bot (ADAM’s is this navy)', 'aria-label': 'Background colour' });
   const avBtn = h('button', { class: 'ghost', type: 'button', onclick: async () => {
     const attrs = botavAttrs(avCode.value);
     if (!attrs) return toast('Paste a <bot-avatar ...></bot-avatar> from the bot maker', true);
     avBtn.disabled = true;
-    const frame = h('iframe', { sandbox: 'allow-scripts', class: 'botavframe', title: 'Drawing the bot', src: MEDIA_BASE + '/botav#' + encodeURIComponent(JSON.stringify(attrs)) });
-    const note = h('div', { class: 'hint' }, 'Drawing it…');
+    const frame = h('iframe', { sandbox: 'allow-scripts', class: 'botavframe', title: 'Drawing the bot', src: MEDIA_BASE + '/botav#' + encodeURIComponent(JSON.stringify({ a: attrs, bg: avBg.value })) });
+    const note = h('div', { class: 'hint' }, 'Drawing it (about 10 seconds)…');
     avStage.classList.remove('hidden');
     avStage.replaceChildren(h('div', { class: 'botavwrap' }, frame), note);
     let timer;
@@ -10625,7 +10626,8 @@ function openBotEditor(bot, onChange, mine = []) {
     avStage.replaceChildren();
     await savePic(d.data);
   } }, '\u{1F3A8} Make picture');
-  const avRow = h('div', { class: 'field' }, 'Or paste bot-avatar code (like ADAM’s picture)', avCode, h('div', { class: 'botkeyline' }, avBtn), avStage);
+  const avRow = h('div', { class: 'field' }, 'Or paste bot-avatar code (like ADAM’s picture)', avCode,
+    h('div', { class: 'botkeyline' }, avBtn, h('label', { class: 'botkeyline' }, 'Background', avBg)), avStage);
   const tryIn = h('input', { placeholder: 'Say something to it', maxlength: 1000 });
   const tryOut = h('div', { class: 'botsays hidden' });
   const hm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
