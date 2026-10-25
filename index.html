@@ -2807,21 +2807,36 @@ const FOUNDERS_BG = [
   'radial-gradient(circle at 50% 68%, #fffdf0 0 7%, #ffe9a8 9.5%, rgba(255, 214, 140, .7) 15%, rgba(255, 190, 130, .25) 26%, rgba(255, 180, 130, 0) 40%)',
   'linear-gradient(180deg, #1f2f63 0%, #4a64b3 20%, #9f86c9 36%, #f19ab8 52%, #ffb48e 63%, #ffd99a 72%)',
 ].join(', ');
-// The member-number banner: their number ("#12") spammed all over it, messily: every size and angle, overlapping, some
-// light and some dark, on a colour of its own. Scattered the same way every time for the same number (seeded by it), on a
-// tile that repeats without seams (each copy is drawn again where it would wrap off an edge).
-const NUMBER_BANNER = 'number';
-function numberBg(no) {
+// The member-number banner: their number ("#12") spammed all over it: every size and angle, some light and some dark,
+// on a colour of its own. Packed rather than piled, so it's full but every one can be read: biggest first, each in a
+// space nothing else has taken. Laid out the same way every time for the same number (seeded by it), on a tile that
+// repeats without seams (spaces are measured round the edges, and a copy near one is drawn again on the other side).
+const NUMBER_BANNER = 'number', numberBgs = new Map(); // (each number's worked out once)
+const numberBg = no => { const k = Number(no) || 0; if (!numberBgs.has(k)) numberBgs.set(k, makeNumberBg(k)); return numberBgs.get(k); };
+function makeNumberBg(no) {
   const num = Number(no) || 0, n = '#' + (num || '?'), W = 300, H = 150, hue = num * 47 % 360;
   let seed = (num * 2654435761) >>> 0 || 1;
   const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
-  const copies = [];
-  for (let i = 0; i < 200; i++) {
-    const x = rnd() * W, y = rnd() * H, size = 10 + rnd() * rnd() * 42, turn = (rnd() - .5) * 80, dark = rnd() < .3, op = (.18 + rnd() * .45).toFixed(2);
-    const reach = size * (n.length + 1) * .4; // (only copies near an edge need drawing again on the other side)
-    const xs = [0].concat(x < reach ? [W] : [], x > W - reach ? [-W] : []), ys = [0].concat(y < reach ? [H] : [], y > H - reach ? [-H] : []);
-    for (const [dx, dy] of xs.flatMap(dx => ys.map(dy => [dx, dy]))) {
-      copies.push(`<text x='${(x + dx).toFixed(1)}' y='${(y + dy).toFixed(1)}' font-size='${size.toFixed(1)}' fill='${dark ? '#000' : '#fff'}' fill-opacity='${op}' transform='rotate(${turn.toFixed(0)} ${(x + dx).toFixed(1)} ${(y + dy).toFixed(1)})'>${n}</text>`);
+  const sizes = Array.from({ length: 160 }, () => 13 + rnd() * rnd() * 40).sort((a, b) => b - a);
+  const placed = [], copies = [];
+  // The space a number takes (tipped a little, so a bit more than it looks), and whether it's free (wrapping round).
+  const box = (size, turn) => { const w = size * .62 * n.length, h = size * .85, c = Math.abs(Math.cos(turn * Math.PI / 180)), s = Math.abs(Math.sin(turn * Math.PI / 180)); return [w * c + h * s, w * s + h * c]; };
+  const free = (x, y, bw, bh) => placed.every(p => {
+    const dx = Math.min(Math.abs(x - p.x), W - Math.abs(x - p.x)), dy = Math.min(Math.abs(y - p.y), H - Math.abs(y - p.y));
+    return dx * 2 >= bw + p.bw || dy * 2 >= bh + p.bh;
+  });
+  for (const size of sizes) {
+    const turn = (rnd() - .5) * 50, [bw, bh] = box(size, turn);
+    for (let tries = 0; tries < 40; tries++) {
+      const x = rnd() * W, y = rnd() * H;
+      if (!free(x, y, bw, bh)) continue;
+      placed.push({ x, y, bw, bh });
+      const dark = rnd() < .25, op = (.6 + rnd() * .35).toFixed(2);
+      const xs = [0].concat(x < bw ? [W] : [], x > W - bw ? [-W] : []), ys = [0].concat(y < bh ? [H] : [], y > H - bh ? [-H] : []);
+      for (const [dx, dy] of xs.flatMap(dx => ys.map(dy => [dx, dy]))) {
+        copies.push(`<text x='${(x + dx).toFixed(1)}' y='${(y + dy).toFixed(1)}' font-size='${size.toFixed(1)}' fill='${dark ? '#1a1a1a' : '#fff'}' fill-opacity='${op}' stroke='${dark ? '#fff' : '#000'}' stroke-opacity='.3' stroke-width='${(size / 24).toFixed(2)}' paint-order='stroke' transform='rotate(${turn.toFixed(0)} ${(x + dx).toFixed(1)} ${(y + dy).toFixed(1)})'>${n}</text>`);
+      }
+      break;
     }
   }
   const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${W}' height='${H}'><g font-family='system-ui,-apple-system,Segoe UI,sans-serif' font-weight='900' text-anchor='middle' dominant-baseline='middle'>${copies.join('')}</g></svg>`;
