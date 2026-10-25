@@ -2555,7 +2555,7 @@ function openProfile(name) {
     titles.replaceChildren(nameEl(p.username || name, 'b'),
       h('span', null, n == null ? '@' + (p.username || name) : `${n} post${n === 1 ? '' : 's'}`));
     head.replaceChildren(
-      h('div', { class: 'banner' + (p.banner === FOUNDERS_BANNER ? ' founders' : ''), style: `background:${bannerBg(p.banner) || colorFor(name, 80)}` }),
+      h('div', { class: 'banner' + (p.banner === FOUNDERS_BANNER ? ' founders' : ''), style: `background:${bannerBg(p.banner, p.no) || colorFor(name, 80)}` }),
       h('div', { class: 'inner' },
         big,
         fullName(p) && h('div', { class: 'pfull' }, fullName(p)),
@@ -2807,7 +2807,15 @@ const FOUNDERS_BG = [
   'radial-gradient(circle at 50% 68%, #fffdf0 0 7%, #ffe9a8 9.5%, rgba(255, 214, 140, .7) 15%, rgba(255, 190, 130, .25) 26%, rgba(255, 180, 130, 0) 40%)',
   'linear-gradient(180deg, #1f2f63 0%, #4a64b3 20%, #9f86c9 36%, #f19ab8 52%, #ffb48e 63%, #ffd99a 72%)',
 ].join(', ');
-const bannerBg = id => id === FOUNDERS_BANNER ? FOUNDERS_BG : BANNERS[id];
+// The member-number banner: their number ("#12") tiled all over, slanted, on a colour of its own (from the number).
+const NUMBER_BANNER = 'number';
+function numberBg(no) {
+  const n = '#' + (Number(no) || '?'), w = 30 + n.length * 17, hue = (Number(no) || 0) * 47 % 360;
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='56'><text x='${w / 2}' y='37' text-anchor='middle' font-family='system-ui,-apple-system,Segoe UI,sans-serif' font-size='27' font-weight='900' fill='#fff' fill-opacity='.42' transform='rotate(-14 ${w / 2} 28)'>${n}</text></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 0 0 / ${w}px 56px repeat, linear-gradient(135deg, hsl(${hue} 68% 42%), hsl(${(hue + 45) % 360} 72% 55%))`;
+}
+// no: their member number (for the number banner).
+const bannerBg = (id, no) => id === FOUNDERS_BANNER ? FOUNDERS_BG : id === NUMBER_BANNER ? numberBg(no) : BANNERS[id];
 
 // Badge icons are emojis, or one of Idiocy's own pictures (there's no ostrich emoji). A badge
 // stores the picture's name ('~ostrich') where an emoji would go.
@@ -3336,6 +3344,8 @@ function openEditProfile() {
   const paintSwatches = () => swatches.replaceChildren(
     ...(me.founder || me.sunrise ? [h('button', { type: 'button', class: 'swatch founders' + (banner === FOUNDERS_BANNER ? ' on' : ''), title: 'Founders\u2019 sunrise: only for accounts made by 23 October 2026',
       'aria-label': 'Founders\u2019 sunrise banner', style: `background:${FOUNDERS_BG}`, onclick: () => { banner = FOUNDERS_BANNER; paintSwatches(); } })] : []),
+    ...(me.no && serverApi >= 103 ? [h('button', { type: 'button', class: 'swatch' + (banner === NUMBER_BANNER ? ' on' : ''), title: `Your member number (#${me.no}) all over it`,
+      'aria-label': 'Member number banner', style: `background:${numberBg(me.no)}`, onclick: () => { banner = NUMBER_BANNER; paintSwatches(); } })] : []),
     h('button', { type: 'button', class: 'swatch plain' + (!banner ? ' on' : ''), title: 'Default', style: `background:${colorFor(me.name, 80)}`, onclick: () => { banner = ''; paintSwatches(); } }),
     ...Object.keys(BANNERS).map(k => h('button', { type: 'button', class: 'swatch' + (banner === k ? ' on' : ''), title: k, 'aria-label': k + ' banner',
       style: `background:${BANNERS[k]}`, onclick: () => { banner = k; paintSwatches(); } })));
@@ -5937,7 +5947,7 @@ const CARD_COLOURS = [
 // Text and poll cards wear the poster's profile banner; no banner = a colour picked from the post.
 function cardBg(m) {
   const p = profileOf(m.name);
-  return (p && p.banner && bannerBg(p.banner)) || CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length];
+  return (p && p.banner && bannerBg(p.banner, p.no)) || CARD_COLOURS[Math.abs(Number(m.id) || key(m.name).length) % CARD_COLOURS.length];
 }
 function paintCard(el) {
   if (el._m && (el.classList.contains('txtcard') || el.classList.contains('pollcard'))) el.style.setProperty('--card', cardBg(el._m));
