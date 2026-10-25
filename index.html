@@ -9213,7 +9213,7 @@ function watchCall() {
     if (call !== me) return;
     if (d && d.ok) {
       const c = d.call;
-      if (c.status === 'crashed') { endCall(false, "Couldn\u2019t connect"); return; } // (looks like a dropout)
+      if (c.status === 'crashed') { endCall(false, "Couldn\u2019t connect", true); return; } // (looks like a dropout)
       if (['ended', 'declined', 'missed'].includes(c.status)) {
         endCall(false, c.status === 'declined' ? `${me.peer} declined` : c.status === 'missed' && me.role === 'callee' ? 'Missed call' : 'Call ended');
         return;
@@ -9249,11 +9249,12 @@ function onConnected() {
 }
 
 // tellServer: we're the one hanging up/declining (the other side learns via the server and the side channel).
-function endCall(tellServer, message) {
+// dropped: the call fell over (no "bye", which would make the other side's say "Call ended" instead).
+function endCall(tellServer, message, dropped) {
   if (!call) return;
   const c = call;
   if (tellServer && c.id) api('callEnd', { callId: c.id }).catch(() => {});
-  try { if (c.dc && c.dc.readyState === 'open') c.dc.send('bye'); } catch (e) {}
+  try { if (!dropped && c.dc && c.dc.readyState === 'open') c.dc.send('bye'); } catch (e) {}
   cleanupCall();
   if (message) toast(message);
 }
