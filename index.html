@@ -2816,7 +2816,7 @@ function numberBg(no) {
   let seed = (num * 2654435761) >>> 0 || 1;
   const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
   const copies = [];
-  for (let i = 0; i < 90; i++) {
+  for (let i = 0; i < 200; i++) {
     const x = rnd() * W, y = rnd() * H, size = 10 + rnd() * rnd() * 42, turn = (rnd() - .5) * 80, dark = rnd() < .3, op = (.18 + rnd() * .45).toFixed(2);
     const reach = size * (n.length + 1) * .4; // (only copies near an edge need drawing again on the other side)
     const xs = [0].concat(x < reach ? [W] : [], x > W - reach ? [-W] : []), ys = [0].concat(y < reach ? [H] : [], y > H - reach ? [-H] : []);
