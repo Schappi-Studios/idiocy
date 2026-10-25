@@ -2523,12 +2523,17 @@ function openProfile(name) {
       ? h('button', { class: 'ghost', onclick: () => unblockUser(p.username || name) }, 'Unblock')
       : h('button', { class: 'ghost danger', onclick: () => blockUser(p.username || name) }, 'Block'));
     if (!isMe && serverApi >= 43 && me && me.role !== 'admin') btns.push(h('button', { class: 'ghost', title: 'Report their @, name, picture or bio', onclick: () => openReportUser(p.username || name) }, '\u2691 Report')); // admins have their own buttons
+    // Crash their current Idiocy call, or call-ban them (any call drops, like a dropout): admins and moderators, not on staff.
+    const callBtns = () => serverApi < 105 || !p.role || p.role === 'admin' || p.role === 'mod' || p.role === 'org' ? [] : [
+      h('button', { class: 'ghost', title: 'End their current call on Idiocy now (everyone in it just sees “Couldn’t connect”)', onclick: async () => { const d = await act('adminCrashCall', { username: p.username || name }); if (d) toast(d.crashed ? '\u{1F4DE} Their call was crashed' : 'They’re not in a call right now'); } }, '\u{1F4DE} Crash their call'),
+      h('button', { class: p.callban ? 'ghost danger' : 'ghost', title: 'While on, any Idiocy call they start, answer or join drops. They aren’t told.', onclick: async () => { const on = !p.callban; const d = await act('adminCallBan', { username: p.username || name, on }); if (d) { toast(on ? '\u{1F4F5} Call banned — their Idiocy calls will drop' : 'Call ban lifted'); profiles.delete(key(name)); openProfile(name); } } }, p.callban ? '\u{1F4F5} Calls banned · Lift' : '\u{1F4F5} Call ban')];
     if (!isMe && me && me.role === 'mod' && serverApi >= 54 && p.role && p.role !== 'admin' && p.role !== 'mod') { // a moderator's few
       if (p.muted) btns.push(h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: 0 }, () => toast(`${name}'s timeout ended`)) }, 'End timeout'));
       else btns.push(...TIMEOUTS.map(([label, mins]) => h('button', { class: 'ghost', onclick: run('timeout', { username: name, minutes: mins }, () => toast(`${name} timed out for ${label}`)) }, 'Timeout ' + label)));
       btns.push(h('button', { class: 'ghost', onclick: () => openIdiocyMessenger(p.username || name) }, '\u{1F4E3} Message as Idiocy'));
       if (serverApi >= 60) btns.push(h('button', { class: 'ghost', onclick: () => resetProfile(p.username || name, () => openProfile(name)) }, '\u267B\uFE0F Reset profile'));
       if (serverApi >= 68) btns.push(h('button', { class: 'ghost', onclick: () => openLimits(p.username || name, p.limits, () => openProfile(name)) }, '\u{1F6AB} Limits' + (limitCount(p.limits) ? ` (${limitCount(p.limits)})` : '')));
+      btns.push(...callBtns());
     }
     if (!isMe && me && me.owner && serverApi >= 69 && p.role === 'admin') btns.push(h('button', { class: 'ghost danger', onclick: () => setRank(p.username || name, false, () => { profiles.delete(key(name)); openProfile(name); }) }, 'Remove admin'));
     if (!isMe && me && me.owner && serverApi >= 94 && (p.role === 'admin' || p.role === 'mod')) btns.push(h('button', { class: 'ghost', title: p.invisible ? 'Show their badge and coloured name again' : 'Hide their badge and coloured name (they can turn it off in Settings)',
@@ -2542,6 +2547,7 @@ function openProfile(name) {
         : h('button', { class: 'ghost danger', onclick: () => { if (confirm(`Ban ${name}?`)) run('ban', { username: name }, () => toast(`${name} banned`))(); } }, 'Ban'));
       if (serverApi >= 46) btns.push(h('button', { class: 'ghost', title: FO_ABOUT, onclick: () => { if (p.fo || confirmFollowersOnly(name)) run('adminFollowersOnly', { username: name, on: !p.fo }, () => toast(foToast(name, !p.fo)))(); } },
         p.fo ? '\u{1F50A} Back in feeds' : '\u{1F507} Followers only'));
+      btns.push(...callBtns());
       if (serverApi >= 7) btns.push(h('button', { class: 'ghost', onclick: () => renameUser(p.username || name, true, () => close()) }, 'Rename'));
       if (serverApi >= 15) btns.push(h('button', { class: 'ghost', onclick: () => adminSetEmail(p.username || name, () => { profiles.delete(key(name)); openProfile(name); }) }, '✉️ Set email'));
       if (serverApi >= 60) btns.push(h('button', { class: 'ghost', onclick: () => resetProfile(p.username || name, () => openProfile(name)) }, '\u267B\uFE0F Reset profile'));
@@ -9207,6 +9213,7 @@ function watchCall() {
     if (call !== me) return;
     if (d && d.ok) {
       const c = d.call;
+      if (c.status === 'crashed') { endCall(false, "Couldn\u2019t connect"); return; } // (looks like a dropout)
       if (['ended', 'declined', 'missed'].includes(c.status)) {
         endCall(false, c.status === 'declined' ? `${me.peer} declined` : c.status === 'missed' && me.role === 'callee' ? 'Missed call' : 'Call ended');
         return;
@@ -9351,7 +9358,7 @@ async function gpoll() {
   const d = await api('gcallPoll', { convo: me.convo, after: me.after }).catch(() => null);
   if (gcall !== me) return;
   if (d && d.ok) {
-    if (d.ended) { leaveGroupCall(false, 'You left the call'); return; }
+    if (d.ended) { leaveGroupCall(false, d.crashed ? "Couldn\u2019t connect" : 'You left the call'); return; }
     for (const sig of d.signals) {
       me.after = Math.max(me.after, sig.n);
       await onGroupSignal(sig).catch(() => {});
@@ -11551,6 +11558,9 @@ function openAdmin(start, dock) {
         u.role === 'admin' ? 'Remove admin' : '\u{1F6E1}\uFE0F Make admin');
       const modRankBtn = u => serverApi >= 69 && me.owner && u.role !== 'org' && u.role !== 'admin' && key(u.username) !== key(me.name) && h('button', { class: u.role === 'mod' ? 'ghost danger' : 'ghost', onclick: () => setMod(u.username, u.role !== 'mod', load) },
         u.role === 'mod' ? 'Remove moderator' : '\u{1F530} Make moderator');
+      const callBtns = u => (serverApi < 105 || u.role === 'admin' || u.role === 'mod' || u.role === 'org') ? [] : [
+        h('button', { class: 'ghost', title: 'End their current Idiocy call now (everyone in it sees “Couldn’t connect”)', onclick: async () => { const d = await act('adminCrashCall', { username: u.username }); if (d) toast(d.crashed ? '\u{1F4DE} Their call was crashed' : 'They’re not in a call right now'); } }, '\u{1F4DE} Crash call'),
+        h('button', { class: u.cban ? 'ghost danger' : 'ghost', title: 'While on, any Idiocy call they start, answer or join drops. They aren’t told.', onclick: async () => { const on = !u.cban; const d = await act('adminCallBan', { username: u.username, on }); if (d) { u.cban = on || undefined; toast(on ? '\u{1F4F5} Call banned' : 'Call ban lifted'); drawUsers(); } } }, u.cban ? '\u{1F4F5} Calls banned · Lift' : '\u{1F4F5} Call ban')];
       const drawUsers = () => list.replaceChildren(...data.users
         .filter(u => u.username && key(u.username).includes(key(query)))
         .slice(0, 100)
@@ -11560,7 +11570,7 @@ function openAdmin(start, dock) {
           rankBadge(u.role),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           limitCount(u.limits) > 0 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: LIMIT_PARTS.filter(([k]) => u.limits[k]).map(([, l]) => l).join(', ') }, 'LIMITED'),
-          u.role !== 'admin' && u.role !== 'mod' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, serverApi >= 85 && badgesBtn(u), idiocyBtn(u), endOrTimeout(u), resetBtn(u), limitsBtn(u)))
+          u.role !== 'admin' && u.role !== 'mod' && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, serverApi >= 85 && badgesBtn(u), idiocyBtn(u), endOrTimeout(u), resetBtn(u), limitsBtn(u), ...callBtns(u)))
         : h('div', { class: 'urow' },
           avatar(u.username),
           h('span', { class: 'nm ' + rankClass(u.role), onclick: () => openProfile(u.username) }, u.username),
@@ -11569,6 +11579,7 @@ function openAdmin(start, dock) {
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           u.fo && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: FO_ABOUT }, 'FOLLOWERS ONLY'),
           u.sb && h('span', { class: 'badge', style: 'background:#2b2540;color:#fff', title: 'Only their followers (and admins and moderators) see what they post' + (u.sb.pic ? ', and their picture and bio' : '') }, '\u{1F47B} SHADOW BANNED'),
+          u.cban && h('span', { class: 'badge', style: 'background:#3a2330;color:#fff', title: 'Call banned: their Idiocy calls drop' }, '\u{1F4F5} CALLS BANNED'),
           limitCount(u.limits) > 0 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: LIMIT_PARTS.filter(([k]) => u.limits[k]).map(([, l]) => l).join(', ') }, 'LIMITED'),
           serverApi >= 15 && (u.verified ? h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713') : h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
           u.role === 'admin' && serverApi >= 41 && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, badgesBtn(u), idiocyBtn(u), modBtn(u)), // admins get badges too
@@ -11593,6 +11604,7 @@ function openAdmin(start, dock) {
             resetBtn(u),
             serverApi >= 67 && limitsBtn(u),
             modBtn(u), modRankBtn(u),
+            ...callBtns(u),
             u.banned
               ? h('button', { class: 'ghost', onclick: async () => { if (await act('unban', { username: u.username })) load(); } }, 'Unban')
               : h('button', { class: 'ghost danger', onclick: async () => { if (confirm(`Ban ${u.username}?`) && await act('ban', { username: u.username })) load(); } }, 'Ban'),
