@@ -10193,7 +10193,7 @@ async function editBroadcast() {
     box, h('div', { class: 'btns' }, h('button', { class: 'ghost', onclick: () => md.close() }, 'Cancel'), save));
   box.focus();
 }
-function openBanHammer(users, onBanned) {
+function openBanHammer(users, onBanned, startMode) {
   let target = null;
   const HOLD_MS = 1200;
   const search = h('input', { placeholder: 'Who\u2019s getting banned?', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false' });
@@ -10225,43 +10225,61 @@ function openBanHammer(users, onBanned) {
         delete u.sb; toast(`@${u.username}\u2019s shadow ban is lifted`); paintShadows(); list(); onBanned && onBanned();
       } }, 'Lift')))] : []));
   };
-  const modes = (canMsg || canShadow) && h('div', { class: 'chips bhmodes' }, modeBtn('ban', '\u{1F528} Ban someone'), canShadow && modeBtn('shadow', '\u{1F47B} Shadow ban'), canMsg && modeBtn('msg', '\u{1F4E3} Message everyone'));
+  // Crash their Idiocy call (it drops for everyone in it, like a glitch), and maybe call-ban them so every call they try drops too.
+  const canCalls = serverApi >= 105;
+  const cbanBox = h('input', { type: 'checkbox' });
+  const cbanNow = h('div', { class: 'bhcbans' });
+  const callOpts = h('div', { class: 'bhcalls hidden' }, h('label', { class: 'toggle' }, h('span', null, 'Call ban them too: every Idiocy call they start, answer or join drops the same way, until you lift it'), cbanBox), cbanNow);
+  const paintCbans = () => {
+    const now = (users || []).filter(u => u.cban);
+    cbanNow.replaceChildren(...(now.length ? [h('div', { class: 'hint' }, '\u{1F4F5} Call banned now:'), ...now.map(u => h('div', { class: 'botkeyline' }, h('span', null, '@' + u.username),
+      h('button', { class: 'ghost', type: 'button', onclick: async () => {
+        if (!await act('adminCallBan', { username: u.username, on: false })) return;
+        delete u.cban; toast(`@${u.username}\u2019s call ban is lifted`); paintCbans(); if (target === u) pick(u); else list(); onBanned && onBanned();
+      } }, 'Lift')))] : []));
+  };
+  const modes = (canMsg || canShadow || canCalls) && h('div', { class: 'chips bhmodes' }, modeBtn('ban', '\u{1F528} Ban someone'), canShadow && modeBtn('shadow', '\u{1F47B} Shadow ban'),
+    canCalls && modeBtn('calls', '\u{1F4F5} Crash call'), canMsg && modeBtn('msg', '\u{1F4E3} Message everyone'));
   function setMode(m) {
     mode = m;
     modes.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
-    title.textContent = m === 'msg' ? '\u{1F4E3} Message everyone' : m === 'shadow' ? '\u{1F47B} Shadow ban' : '\u{1F528} The Ban Hammer';
+    title.textContent = m === 'msg' ? '\u{1F4E3} Message everyone' : m === 'shadow' ? '\u{1F47B} Shadow ban' : m === 'calls' ? '\u{1F4F5} Crash call' : '\u{1F528} The Ban Hammer';
+    search.placeholder = m === 'calls' ? 'Whose call?' : 'Who\u2019s getting banned?';
     [search, results, card].forEach(e => e.classList.toggle('hidden', m === 'msg'));
     msgWrap.classList.toggle('hidden', m !== 'msg');
     shadowOpts.classList.toggle('hidden', m !== 'shadow');
+    callOpts.classList.toggle('hidden', m !== 'calls');
     if (m === 'shadow') paintShadows();
+    if (m === 'calls') paintCbans();
     if (target && m !== 'msg') pick(target); else hold.disabled = m === 'msg' ? !msgText.value.trim() : !target;
-    hold.setAttribute('aria-label', m === 'msg' ? 'Hold to send to everyone' : m === 'shadow' ? 'Hold to shadow ban' : 'Hold to ban');
+    hold.setAttribute('aria-label', m === 'msg' ? 'Hold to send to everyone' : m === 'shadow' ? 'Hold to shadow ban' : m === 'calls' ? 'Hold to crash their call' : 'Hold to ban');
     note.textContent = m === 'msg' ? 'Press and hold for a second to send it to everyone. It can\u2019t be taken back.'
       : m === 'shadow' ? 'Press and hold for a second. They\u2019re not told and everything looks normal to them, but only their followers (and admins and moderators) see what they post, and their @mentions and comments only notify their followers. You can lift it any time.'
+      : m === 'calls' ? 'Press and hold for a second. The Idiocy call they\u2019re in drops for everyone in it, who just see \u201cCouldn\u2019t connect\u201d, like a glitch. Nothing names you.'
       : 'Press and hold for a second. They\u2019re logged out and can\u2019t log back in. You can undo it.';
     list();
     if (m === 'msg') setTimeout(() => msgText.focus(), 50);
   }
-  const md = modal('banhammer', title, modes, search, results, card, shadowOpts, msgWrap, h('div', { class: 'bhstage' }, hold), note, after);
+  const md = modal('banhammer', title, modes, search, results, card, shadowOpts, callOpts, msgWrap, h('div', { class: 'bhstage' }, hold), note, after);
   const who = u => [avatar(u.username, { click: false }), h('span', { class: 'bhwho' }, h('b', null, displayName(u.username)), h('span', null, '@' + u.username))];
   const list = () => {
     const q = key(search.value);
-    const found = (users || []).filter(u => u.username && u.role !== 'admin' && (mode !== 'shadow' || u.role !== 'mod') && !u.banned && (!q || key(u.username).includes(q) || key(displayName(u.username)).includes(q))).slice(0, q ? 8 : 5);
-    results.replaceChildren(...(found.length ? found.map(u => h('button', { type: 'button', class: 'bhpick' + (target === u ? ' on' : ''), onclick: () => pick(u) }, ...who(u), mode === 'shadow' && u.sb ? ' \u{1F47B}' : ''))
-      : [h('div', { class: 'hint' }, q ? (mode === 'shadow' ? 'Nobody by that name (admins and moderators can\u2019t be shadow banned).' : 'Nobody by that name (admins can\u2019t be banned).') : 'Nobody to ban.')]));
+    const found = (users || []).filter(u => u.username && u.role !== 'admin' && (mode !== 'shadow' && mode !== 'calls' || u.role !== 'mod') && (mode !== 'calls' || u.role !== 'org') && !u.banned && (!q || key(u.username).includes(q) || key(displayName(u.username)).includes(q))).slice(0, q ? 8 : 5);
+    results.replaceChildren(...(found.length ? found.map(u => h('button', { type: 'button', class: 'bhpick' + (target === u ? ' on' : ''), onclick: () => pick(u) }, ...who(u), mode === 'shadow' && u.sb ? ' \u{1F47B}' : mode === 'calls' && u.cban ? ' \u{1F4F5}' : ''))
+      : [h('div', { class: 'hint' }, q ? (mode === 'shadow' ? 'Nobody by that name (admins and moderators can\u2019t be shadow banned).' : mode === 'calls' ? 'Nobody by that name (admins\u2019 and moderators\u2019 calls can\u2019t be crashed).' : 'Nobody by that name (admins can\u2019t be banned).') : 'Nobody to ban.')]));
   };
   function pick(u) {
     target = u;
     card.className = 'bhcard';
-    const already = mode === 'shadow' && u.sb;
-    card.replaceChildren(...who(u), already ? h('span', { class: 'hint' }, ' \u{1F47B} Already shadow banned (lift it below)') : '');
-    hold.disabled = !!already || (mode === 'shadow' && u.role === 'mod');
+    const already = (mode === 'shadow' && u.sb) || (mode === 'calls' && u.cban); // (a call-banned person can't be in a call to crash)
+    card.replaceChildren(...who(u), already ? h('span', { class: 'hint' }, mode === 'calls' ? ' \u{1F4F5} Already call banned (lift it below)' : ' \u{1F47B} Already shadow banned (lift it below)') : '');
+    hold.disabled = !!already || ((mode === 'shadow' || mode === 'calls') && u.role === 'mod');
     hold.querySelector('.bbtext').textContent = 'HOLD';
     list();
   }
   search.oninput = list;
   list();
-  if (modes) setMode('ban');
+  if (modes) setMode(startMode || 'ban');
   setTimeout(() => search.focus(), 50);
   // Press and hold: a ring fills up; letting go early stops it.
   let t0 = 0, raf = 0;
@@ -10294,6 +10312,7 @@ function openBanHammer(users, onBanned) {
   async function fire() {
     if (mode === 'msg') return fireMsg();
     if (mode === 'shadow') return fireShadow();
+    if (mode === 'calls') return fireCalls();
     const u = target;
     hold.disabled = true;
     hold.querySelector('.bbtext').textContent = '\u2026';
@@ -10338,6 +10357,33 @@ function openBanHammer(users, onBanned) {
         delete u.sb; toast(`@${u.username}\u2019s shadow ban is lifted`); onBanned && onBanned(); md.close();
       } }, 'Undo'),
       h('button', { class: 'ghost', onclick: () => { md.close(); openBanHammer(users, onBanned); } }, 'Someone else'),
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Done'));
+  }
+  // Their call drops ("Couldn't connect"), and with the box ticked every call they try drops too, until it's lifted.
+  async function fireCalls() {
+    const u = target, ban = cbanBox.checked;
+    hold.disabled = true;
+    hold.querySelector('.bbtext').textContent = '\u2026';
+    const d = await act(ban ? 'adminCallBan' : 'adminCrashCall', ban ? { username: u.username, on: true } : { username: u.username });
+    hold.style.setProperty('--p', 0);
+    if (!d || (!ban && !d.crashed)) {
+      hold.disabled = false; hold.querySelector('.bbtext').textContent = 'HOLD';
+      if (d) note.textContent = `@${u.username} isn\u2019t in a call right now, so there\u2019s nothing to crash. Tick \u201cCall ban them too\u201d to drop every call they try.`;
+      return;
+    }
+    if (ban) u.cban = true;
+    boom(card, ban ? 'NO CALLS' : 'CRASHED', ban ? '\u{1F4F5}' : '\u{1F4A5}');
+    onBanned && onBanned();
+    hold.querySelector('.bbtext').textContent = '\u2713';
+    note.textContent = ban
+      ? `\u{1F4F5} @${u.username} is call banned. Every Idiocy call they start, answer or join drops with \u201cCouldn\u2019t connect\u201d${d.crashed ? ', and the call they were in just did' : ''}. They haven\u2019t been told.`
+      : `\u{1F4A5} @${u.username}\u2019s call dropped. Everyone in it just saw \u201cCouldn\u2019t connect\u201d.`;
+    paintCbans();
+    after.replaceChildren(...(ban ? [h('button', { class: 'ghost', onclick: async () => {
+        if (!(await act('adminCallBan', { username: u.username, on: false }))) return;
+        delete u.cban; toast(`@${u.username}\u2019s call ban is lifted`); onBanned && onBanned(); md.close();
+      } }, 'Lift')] : []),
+      h('button', { class: 'ghost', onclick: () => { md.close(); openBanHammer(users, onBanned, 'calls'); } }, 'Someone else'),
       h('button', { class: 'primary', onclick: () => md.close() }, 'Done'));
   }
   // The hammer comes down.
