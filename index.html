@@ -2816,9 +2816,11 @@ function numberBg(no) {
   let seed = (num * 2654435761) >>> 0 || 1;
   const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
   const copies = [];
-  for (let i = 0; i < 26; i++) {
-    const x = rnd() * W, y = rnd() * H, size = 12 + rnd() * rnd() * 46, turn = (rnd() - .5) * 80, dark = rnd() < .3, op = (.18 + rnd() * .45).toFixed(2);
-    for (const [dx, dy] of [[0, 0], [-W, 0], [0, -H], [-W, -H], [W, 0], [0, H]]) {
+  for (let i = 0; i < 90; i++) {
+    const x = rnd() * W, y = rnd() * H, size = 10 + rnd() * rnd() * 42, turn = (rnd() - .5) * 80, dark = rnd() < .3, op = (.18 + rnd() * .45).toFixed(2);
+    const reach = size * (n.length + 1) * .4; // (only copies near an edge need drawing again on the other side)
+    const xs = [0].concat(x < reach ? [W] : [], x > W - reach ? [-W] : []), ys = [0].concat(y < reach ? [H] : [], y > H - reach ? [-H] : []);
+    for (const [dx, dy] of xs.flatMap(dx => ys.map(dy => [dx, dy]))) {
       copies.push(`<text x='${(x + dx).toFixed(1)}' y='${(y + dy).toFixed(1)}' font-size='${size.toFixed(1)}' fill='${dark ? '#000' : '#fff'}' fill-opacity='${op}' transform='rotate(${turn.toFixed(0)} ${(x + dx).toFixed(1)} ${(y + dy).toFixed(1)})'>${n}</text>`);
     }
   }
