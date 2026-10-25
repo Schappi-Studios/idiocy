@@ -2563,6 +2563,8 @@ function openProfile(name) {
           p.invisible && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: isMe ? 'Everyone else sees a normal member' : 'Invisible: only admins and moderators see this' }, '\u{1F47B} INVISIBLE'),
           p.bot ? rankBadge('bot') : g && h('span', { class: 'badge orgbadge' }, '\u{1F3E2} ORGANISATION'),
           p.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
+          p.shadow && h('span', { class: 'badge', style: 'background:#2b2540;color:#fff', title: `Shadow banned${p.shadow.by ? ' by @' + p.shadow.by : ''}${p.shadow.at ? ' ' + whenText(p.shadow.at) : ''}: only their followers (and admins and moderators) see what they post${p.shadow.pic ? ', and their picture and bio' : ''}. They don\u2019t know.` }, '\u{1F47B} SHADOW BANNED'),
+          p.shadow && me && me.role === 'admin' && h('button', { class: 'linkbtn', style: 'margin-left:4px', onclick: async () => { if (await act('adminShadowBan', { username: p.username || name, on: false })) { toast('Shadow ban lifted'); profiles.delete(key(name)); openProfile(name); } } }, 'Lift'),
           p.muted && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           !p.verified && p.username && me && me.role === 'admin' && serverApi >= 15 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: 'No verified email' }, 'NO EMAIL')),
         h('div', { class: 'pstatus' },
@@ -10202,37 +10204,56 @@ function openBanHammer(users, onBanned) {
     serverApi >= 102 && h('button', { class: 'ghost', type: 'button', style: 'margin-top:8px', onclick: () => editBroadcast() }, '\u270f\ufe0f Edit my last message to everyone'));
   msgText.oninput = () => { if (mode === 'msg') hold.disabled = !msgText.value.trim(); };
   const modeBtn = (m, label) => h('button', { type: 'button', class: 'ghost', 'data-m': m, onclick: () => setMode(m) }, label);
-  const modes = canMsg && h('div', { class: 'chips bhmodes' }, modeBtn('ban', '\u{1F528} Ban someone'), modeBtn('msg', '\u{1F4E3} Message everyone'));
+  // A shadow ban: they aren't told, and only their followers (and admins and moderators) see what they post.
+  const canShadow = serverApi >= 104;
+  const picBox = h('input', { type: 'checkbox' });
+  const shadowNow = h('div', { class: 'bhshadows' });
+  const shadowOpts = h('div', { class: 'bhshadow hidden' }, h('label', { class: 'toggle' }, h('span', null, 'Also hide their profile picture, banner, status and bio from everyone but their followers'), picBox), shadowNow);
+  const paintShadows = () => {
+    const now = (users || []).filter(u => u.sb);
+    shadowNow.replaceChildren(...(now.length ? [h('div', { class: 'hint' }, '\u{1F47B} Shadow banned now:'), ...now.map(u => h('div', { class: 'botkeyline' }, h('span', null, '@' + u.username + (u.sb.pic ? ' (picture hidden too)' : '')),
+      h('button', { class: 'ghost', type: 'button', onclick: async () => {
+        if (!await act('adminShadowBan', { username: u.username, on: false })) return;
+        delete u.sb; toast(`@${u.username}\u2019s shadow ban is lifted`); paintShadows(); list(); onBanned && onBanned();
+      } }, 'Lift')))] : []));
+  };
+  const modes = (canMsg || canShadow) && h('div', { class: 'chips bhmodes' }, modeBtn('ban', '\u{1F528} Ban someone'), canShadow && modeBtn('shadow', '\u{1F47B} Shadow ban'), canMsg && modeBtn('msg', '\u{1F4E3} Message everyone'));
   function setMode(m) {
     mode = m;
     modes.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
-    title.textContent = m === 'msg' ? '\u{1F4E3} Message everyone' : '\u{1F528} The Ban Hammer';
+    title.textContent = m === 'msg' ? '\u{1F4E3} Message everyone' : m === 'shadow' ? '\u{1F47B} Shadow ban' : '\u{1F528} The Ban Hammer';
     [search, results, card].forEach(e => e.classList.toggle('hidden', m === 'msg'));
     msgWrap.classList.toggle('hidden', m !== 'msg');
-    hold.disabled = m === 'msg' ? !msgText.value.trim() : !target;
-    hold.setAttribute('aria-label', m === 'msg' ? 'Hold to send to everyone' : 'Hold to ban');
-    note.textContent = m === 'msg' ? 'Press and hold for a second to send it to everyone. It can\u2019t be taken back.' : 'Press and hold for a second. They\u2019re logged out and can\u2019t log back in. You can undo it.';
+    shadowOpts.classList.toggle('hidden', m !== 'shadow');
+    if (m === 'shadow') paintShadows();
+    if (target && m !== 'msg') pick(target); else hold.disabled = m === 'msg' ? !msgText.value.trim() : !target;
+    hold.setAttribute('aria-label', m === 'msg' ? 'Hold to send to everyone' : m === 'shadow' ? 'Hold to shadow ban' : 'Hold to ban');
+    note.textContent = m === 'msg' ? 'Press and hold for a second to send it to everyone. It can\u2019t be taken back.'
+      : m === 'shadow' ? 'Press and hold for a second. They\u2019re not told and everything looks normal to them, but only their followers (and admins and moderators) see what they post, and their @mentions and comments only notify their followers. You can lift it any time.'
+      : 'Press and hold for a second. They\u2019re logged out and can\u2019t log back in. You can undo it.';
+    list();
     if (m === 'msg') setTimeout(() => msgText.focus(), 50);
   }
-  const md = modal('banhammer', title, modes, search, results, card, msgWrap, h('div', { class: 'bhstage' }, hold), note, after);
-  if (canMsg) setMode('ban');
+  const md = modal('banhammer', title, modes, search, results, card, shadowOpts, msgWrap, h('div', { class: 'bhstage' }, hold), note, after);
   const who = u => [avatar(u.username, { click: false }), h('span', { class: 'bhwho' }, h('b', null, displayName(u.username)), h('span', null, '@' + u.username))];
   const list = () => {
     const q = key(search.value);
-    const found = (users || []).filter(u => u.username && u.role !== 'admin' && !u.banned && (!q || key(u.username).includes(q) || key(displayName(u.username)).includes(q))).slice(0, q ? 8 : 5);
-    results.replaceChildren(...(found.length ? found.map(u => h('button', { type: 'button', class: 'bhpick' + (target === u ? ' on' : ''), onclick: () => pick(u) }, ...who(u)))
-      : [h('div', { class: 'hint' }, q ? 'Nobody by that name (admins can\u2019t be banned).' : 'Nobody to ban.')]));
+    const found = (users || []).filter(u => u.username && u.role !== 'admin' && (mode !== 'shadow' || u.role !== 'mod') && !u.banned && (!q || key(u.username).includes(q) || key(displayName(u.username)).includes(q))).slice(0, q ? 8 : 5);
+    results.replaceChildren(...(found.length ? found.map(u => h('button', { type: 'button', class: 'bhpick' + (target === u ? ' on' : ''), onclick: () => pick(u) }, ...who(u), mode === 'shadow' && u.sb ? ' \u{1F47B}' : ''))
+      : [h('div', { class: 'hint' }, q ? (mode === 'shadow' ? 'Nobody by that name (admins and moderators can\u2019t be shadow banned).' : 'Nobody by that name (admins can\u2019t be banned).') : 'Nobody to ban.')]));
   };
-  const pick = u => {
+  function pick(u) {
     target = u;
     card.className = 'bhcard';
-    card.replaceChildren(...who(u));
-    hold.disabled = false;
+    const already = mode === 'shadow' && u.sb;
+    card.replaceChildren(...who(u), already ? h('span', { class: 'hint' }, ' \u{1F47B} Already shadow banned (lift it below)') : '');
+    hold.disabled = !!already || (mode === 'shadow' && u.role === 'mod');
     hold.querySelector('.bbtext').textContent = 'HOLD';
     list();
-  };
+  }
   search.oninput = list;
   list();
+  if (modes) setMode('ban');
   setTimeout(() => search.focus(), 50);
   // Press and hold: a ring fills up; letting go early stops it.
   let t0 = 0, raf = 0;
@@ -10264,6 +10285,7 @@ function openBanHammer(users, onBanned) {
   hold.addEventListener('click', e => e.preventDefault());
   async function fire() {
     if (mode === 'msg') return fireMsg();
+    if (mode === 'shadow') return fireShadow();
     const u = target;
     hold.disabled = true;
     hold.querySelector('.bbtext').textContent = '\u2026';
@@ -10286,6 +10308,28 @@ function openBanHammer(users, onBanned) {
         md.close();
       } }, 'Undo'),
       h('button', { class: 'ghost', onclick: () => { md.close(); openBanHammer(users, onBanned); } }, 'Ban someone else'),
+      h('button', { class: 'primary', onclick: () => md.close() }, 'Done'));
+  }
+  // Shadow banned: nothing happens that they could see.
+  async function fireShadow() {
+    const u = target;
+    hold.disabled = true;
+    hold.querySelector('.bbtext').textContent = '\u2026';
+    const d = await act('adminShadowBan', { username: u.username, on: true, pic: picBox.checked });
+    hold.style.setProperty('--p', 0);
+    if (!d) { hold.disabled = false; hold.querySelector('.bbtext').textContent = 'HOLD'; return; }
+    u.sb = { pic: !!d.pic };
+    boom(card, 'SHADOWED', '\u{1F47B}');
+    onBanned && onBanned();
+    hold.querySelector('.bbtext').textContent = '\u2713';
+    note.textContent = `\u{1F47B} @${u.username} is shadow banned. Only their followers (and admins and moderators) see what they post now${d.pic ? ', and their picture, banner, status and bio' : ''}. They haven\u2019t been told.`;
+    paintShadows();
+    after.replaceChildren(
+      h('button', { class: 'ghost', onclick: async () => {
+        if (!(await act('adminShadowBan', { username: u.username, on: false }))) return;
+        delete u.sb; toast(`@${u.username}\u2019s shadow ban is lifted`); onBanned && onBanned(); md.close();
+      } }, 'Undo'),
+      h('button', { class: 'ghost', onclick: () => { md.close(); openBanHammer(users, onBanned); } }, 'Someone else'),
       h('button', { class: 'primary', onclick: () => md.close() }, 'Done'));
   }
   // The hammer comes down.
@@ -11524,6 +11568,7 @@ function openAdmin(start, dock) {
           u.banned && h('span', { class: 'badge', style: 'background:var(--danger);color:#fff' }, 'BANNED'),
           u.muted > Date.now() && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'TIMED OUT'),
           u.fo && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: FO_ABOUT }, 'FOLLOWERS ONLY'),
+          u.sb && h('span', { class: 'badge', style: 'background:#2b2540;color:#fff', title: 'Only their followers (and admins and moderators) see what they post' + (u.sb.pic ? ', and their picture and bio' : '') }, '\u{1F47B} SHADOW BANNED'),
           limitCount(u.limits) > 0 && h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)', title: LIMIT_PARTS.filter(([k]) => u.limits[k]).map(([, l]) => l).join(', ') }, 'LIMITED'),
           serverApi >= 15 && (u.verified ? h('span', { class: 'vbadge', title: 'Verified email' }, '\u2713') : h('span', { class: 'badge', style: 'background:var(--panel-2);color:var(--muted)' }, 'NO EMAIL')),
           u.role === 'admin' && serverApi >= 41 && h('span', { class: 'btns', style: 'display:flex;gap:6px;flex-wrap:wrap' }, badgesBtn(u), idiocyBtn(u), modBtn(u)), // admins get badges too
