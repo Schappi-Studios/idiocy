@@ -2807,12 +2807,23 @@ const FOUNDERS_BG = [
   'radial-gradient(circle at 50% 68%, #fffdf0 0 7%, #ffe9a8 9.5%, rgba(255, 214, 140, .7) 15%, rgba(255, 190, 130, .25) 26%, rgba(255, 180, 130, 0) 40%)',
   'linear-gradient(180deg, #1f2f63 0%, #4a64b3 20%, #9f86c9 36%, #f19ab8 52%, #ffb48e 63%, #ffd99a 72%)',
 ].join(', ');
-// The member-number banner: their number ("#12") tiled all over, slanted, on a colour of its own (from the number).
+// The member-number banner: their number ("#12") spammed all over it, messily: every size and angle, overlapping, some
+// light and some dark, on a colour of its own. Scattered the same way every time for the same number (seeded by it), on a
+// tile that repeats without seams (each copy is drawn again where it would wrap off an edge).
 const NUMBER_BANNER = 'number';
 function numberBg(no) {
-  const n = '#' + (Number(no) || '?'), w = 30 + n.length * 17, hue = (Number(no) || 0) * 47 % 360;
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='56'><text x='${w / 2}' y='37' text-anchor='middle' font-family='system-ui,-apple-system,Segoe UI,sans-serif' font-size='27' font-weight='900' fill='#fff' fill-opacity='.42' transform='rotate(-14 ${w / 2} 28)'>${n}</text></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 0 0 / ${w}px 56px repeat, linear-gradient(135deg, hsl(${hue} 68% 42%), hsl(${(hue + 45) % 360} 72% 55%))`;
+  const num = Number(no) || 0, n = '#' + (num || '?'), W = 300, H = 150, hue = num * 47 % 360;
+  let seed = (num * 2654435761) >>> 0 || 1;
+  const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >>> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+  const copies = [];
+  for (let i = 0; i < 26; i++) {
+    const x = rnd() * W, y = rnd() * H, size = 12 + rnd() * rnd() * 46, turn = (rnd() - .5) * 80, dark = rnd() < .3, op = (.18 + rnd() * .45).toFixed(2);
+    for (const [dx, dy] of [[0, 0], [-W, 0], [0, -H], [-W, -H], [W, 0], [0, H]]) {
+      copies.push(`<text x='${(x + dx).toFixed(1)}' y='${(y + dy).toFixed(1)}' font-size='${size.toFixed(1)}' fill='${dark ? '#000' : '#fff'}' fill-opacity='${op}' transform='rotate(${turn.toFixed(0)} ${(x + dx).toFixed(1)} ${(y + dy).toFixed(1)})'>${n}</text>`);
+    }
+  }
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${W}' height='${H}'><g font-family='system-ui,-apple-system,Segoe UI,sans-serif' font-weight='900' text-anchor='middle' dominant-baseline='middle'>${copies.join('')}</g></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") 0 0 / ${W}px ${H}px repeat, linear-gradient(135deg, hsl(${hue} 68% 42%), hsl(${(hue + 45) % 360} 72% 55%))`;
 }
 // no: their member number (for the number banner).
 const bannerBg = (id, no) => id === FOUNDERS_BANNER ? FOUNDERS_BG : id === NUMBER_BANNER ? numberBg(no) : BANNERS[id];
