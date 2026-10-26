@@ -317,6 +317,7 @@
   .msg.official .name { color: var(--accent); cursor: default; }
   .msg.official .name:hover { text-decoration: none; }
   .msg.official .txt { white-space: pre-wrap; }
+  .msg:not(.post) .txt, .cmt .bubble { white-space: pre-line; } /* (only a bot with no length limit sends line breaks in chats and comments) */
   .badge.offbadge { background: var(--accent); color: #fff; }
   body.idiocychat #send, body.idiocychat #attachbar, body.idiocychat #replybar { display: none; }
   body.supportchat #attach, body.supportchat #mic, body.supportchat #chatcam, body.supportchat #emojibtn, body.supportchat #replybar { display: none !important; }
@@ -10821,6 +10822,7 @@ function openBotEditor(bot, onChange, mine = []) {
   const can = Object.fromEntries(BOT_CAN.map(([k]) => [k, h('input', { type: 'checkbox' })]));
   const who = h('select', { 'aria-label': 'Who it talks to' }, h('option', { value: 'all' }, 'Everyone'), h('option', { value: 'staff' }, 'Only admins and moderators'));
   const off = h('input', { type: 'checkbox' });
+  const longBox = h('input', { type: 'checkbox' });
   let sched = [];
   const schedBox = h('div', { class: 'botsched' });
   const status = h('div', { class: 'botstatus' });
@@ -10932,7 +10934,7 @@ function openBotEditor(bot, onChange, mine = []) {
   const fill = () => {
     prov.value = b.prov || 'openai'; base.value = b.base || ''; model.value = b.model || ''; sys.value = b.sys || '';
     BOT_CAN.forEach(([k]) => { can[k].checked = !!(b.can || {})[k]; });
-    who.value = b.who === 'staff' ? 'staff' : 'all'; off.checked = !!b.off;
+    who.value = b.who === 'staff' ? 'staff' : 'all'; off.checked = !!b.off; longBox.checked = !!b.long;
     sched = (b.sched || []).map(s => ({ ...s, d: s.d.slice() }));
     baseRow.classList.toggle('hidden', prov.value !== 'compat');
     paintSched(); paintKey(); paintStatus();
@@ -10941,7 +10943,7 @@ function openBotEditor(bot, onChange, mine = []) {
   // quiet: just saving before something else (a key, or trying it out).
   async function saveSettings(quiet) {
     const d = await act('botSave', { bot: b.username, prov: prov.value, base: prov.value === 'compat' ? base.value.trim() : '', model: model.value.trim(), sys: sys.value,
-      can: Object.fromEntries(BOT_CAN.map(([k]) => [k, can[k].checked])), who: who.value, off: off.checked, sched: sched.map(s => ({ id: s.id, d: s.d, t: s.t, w: s.w, p: s.p.trim() })) });
+      can: Object.fromEntries(BOT_CAN.map(([k]) => [k, can[k].checked])), who: who.value, off: off.checked, ...(serverApi >= 107 && { long: longBox.checked }), sched: sched.map(s => ({ id: s.id, d: s.d, t: s.t, w: s.w, p: s.p.trim() })) });
     if (!d) return false;
     b = d.bot;
     onChange(b);
@@ -10977,6 +10979,7 @@ function openBotEditor(bot, onChange, mine = []) {
     h('h3', null, '⚙️ What it does'),
     ...BOT_CAN.filter(([k]) => serverApi >= 97 || !['read', 'tag', 'react', 'comment'].includes(k)).flatMap(([k, l]) => [k === 'read' && h('h3', null, '\u{1F4F0} In the Global feed'), h('label', { class: 'toggle' }, h('span', null, l), can[k])].filter(Boolean)),
     h('label', { class: 'field' }, 'Who it talks to', who),
+    serverApi >= 107 && h('label', { class: 'toggle' }, h('span', null, '\u{1F4DC} No length limit: it writes as much as it likes (up to 20,000 characters, with line breaks). Long answers use more of its key.'), longBox),
     h('h3', null, '\u{1F5D3}️ Scheduled posts'),
     h('div', { class: 'hint' }, 'It writes one at that time (Sydney time) on those days. To post in a group, it has to be in it: invite it like anyone.'),
     schedBox,
