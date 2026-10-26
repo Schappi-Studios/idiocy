@@ -10463,7 +10463,8 @@ function timeSeries(times, by) {
   return timeBuckets(by, times.length ? Math.min(...times) : null).map(k => ({ name: k.name, tick: k.tick, n: times.filter(t => t >= k.a && t < k.b).length }));
 }
 // The hours, days, weeks (from Monday) or months back to first (a time), oldest first: { a, b (from, to), name, tick }.
-function timeBuckets(by, first) {
+// No more than the last 24 hours, 30 days, 12 weeks or 24 months; all: days, weeks and months go all the way back.
+function timeBuckets(by, first, all) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const daysBack = n => { const d = new Date(today); d.setDate(d.getDate() - n); return +d; };
   const hourNow = new Date(); hourNow.setMinutes(0, 0, 0);
@@ -10476,7 +10477,7 @@ function timeBuckets(by, first) {
   }[by];
   if (first == null) first = +today;
   const out = [];
-  for (let i = 0; i < PER.max; i++) {
+  for (let i = 0, n = all && by !== 'hour' ? 36500 : PER.max; i < n; i++) {
     const a = PER.start(i), b = i ? PER.start(i - 1) : 8.64e15, d = new Date(a);
     out.unshift({ a, b, name: PER.name(d, i), tick: PER.tick(d) });
     if (a <= first) break;
@@ -10547,7 +10548,7 @@ function graphCard() {
     if (!sel.every(k => data[graphOf(k).need])) return;
     if (data.adam) people.replaceChildren(...[...new Set(data.adam.events.filter(e => e.kind === 'stopped').map(e => e.who))].map(n => h('option', { value: n })));
     const lines = sel.map(k => ({ k, g: graphOf(k), times: graphOf(k).times(data) }));
-    const rows = timeBuckets(by, Math.min(Date.now(), ...lines.flatMap(x => x.times)));
+    const rows = timeBuckets(by, Math.min(Date.now(), ...lines.flatMap(x => x.times)), sel.some(k => k === 'joins' || k === 'people')); // (people joining: all of Idiocy's history)
     const many = lines.length > 1, today = new Date(); today.setHours(0, 0, 0, 0);
     chart.replaceChildren(lines.every(x => !x.times.length) ? h('div', { class: 'actnote' }, 'Nothing yet.')
       : linesChart(rows, lines.map(x => ({ ns: rows.map(r => x.g.total ? x.g.total(data, r) : x.times.filter(t => t >= r.a && t < r.b).length), say: (n, i) => x.g.say(n, rows[i], data), label: x.g.label, ...(many && { color: colorOf(x.k) }) }))));
@@ -11398,13 +11399,13 @@ function openAdmin(start, dock) {
     const fmt = (d, o) => d.toLocaleDateString([], o);
     // Each period starts at midnight; oldest first, going back no further than the first person who joined.
     const PERIODS = {
-      day: { start: i => daysBack(i), max: 30, name: (d, i) => i === 0 ? 'Today' : i === 1 ? 'Yesterday' : fmt(d, { weekday: 'short', day: 'numeric', month: 'short' }), tick: d => fmt(d, { day: 'numeric', month: 'short' }) },
-      week: { start: i => daysBack((today.getDay() + 6) % 7 + 7 * i), max: 12, name: (d, i) => i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of ' + fmt(d, { day: 'numeric', month: 'short' }), tick: d => fmt(d, { day: 'numeric', month: 'short' }) }, // weeks start on Monday
-      month: { start: i => new Date(today.getFullYear(), today.getMonth() - i, 1), max: 120, name: (d, i) => i === 0 ? 'This month' : fmt(d, { month: 'long', year: 'numeric' }), tick: d => fmt(d, d.getMonth() ? { month: 'short' } : { month: 'short', year: 'numeric' }) },
+      day: { start: i => daysBack(i), name: (d, i) => i === 0 ? 'Today' : i === 1 ? 'Yesterday' : fmt(d, { weekday: 'short', day: 'numeric', month: 'short' }), tick: d => fmt(d, { day: 'numeric', month: 'short' }) },
+      week: { start: i => daysBack((today.getDay() + 6) % 7 + 7 * i), name: (d, i) => i === 0 ? 'This week' : i === 1 ? 'Last week' : 'Week of ' + fmt(d, { day: 'numeric', month: 'short' }), tick: d => fmt(d, { day: 'numeric', month: 'short' }) }, // weeks start on Monday
+      month: { start: i => new Date(today.getFullYear(), today.getMonth() - i, 1), name: (d, i) => i === 0 ? 'This month' : fmt(d, { month: 'long', year: 'numeric' }), tick: d => fmt(d, d.getMonth() ? { month: 'short' } : { month: 'short', year: 'numeric' }) },
     };
     const per = PERIODS[statsBy], first = Math.min(...dated);
     const rows = [];
-    for (let i = 0; i < per.max; i++) {
+    for (let i = 0; i < 36500; i++) { // all of Idiocy's history: back to the first join
       const from = per.start(i), to = i ? per.start(i - 1) : new Date(8.64e15);
       rows.unshift({ name: per.name(from, i), tick: per.tick(from), n: dated.filter(t => t >= +from && t < +to).length,
         all: s.joined.filter(t => !t || t < Math.min(+to, Date.now())).length }); // everyone by the end of it (no date: from the start)
