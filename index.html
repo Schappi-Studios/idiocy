@@ -10041,7 +10041,7 @@ function lineChart(rows, say) {
 // (so it can't happen by accident) and down it comes: a flash, a shake, a thud and a BANNED stamp.
 function banButton(users, onBanned) {
   const btn = h('button', { type: 'button', class: 'bigred', title: 'The Ban Hammer', 'aria-label': 'The Ban Hammer (tap twice: the cover, then the button)' },
-    h('span', { class: 'bbtext' }, 'BAN'), h('span', { class: 'bbcover', 'aria-hidden': 'true' }));
+    h('span', { class: 'bbcover', 'aria-hidden': 'true' })); // (no words on it: just a big red button)
   let shut = 0;
   btn.onclick = () => {
     clearTimeout(shut);
